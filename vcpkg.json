@@ -4,7 +4,7 @@
   "dependencies": [
     {
       "name": "fmt",
-      "version>=": "11.0.2#1"
+      "version>=": "11.0.2"
     },
     {
       "name": "spdlog",
@@ -44,7 +44,7 @@
     },
     {
       "name": "nlohmann-json",
-      "version>=": "3.11.3#1"
+      "version>=": "3.11.3"
     }
   ],
   "builtin-baseline": "300239058e33420acd153135b3f6e6b187828992"
