@@ -32,7 +32,7 @@ extern zCOLOR RED;
 namespace Game {
 	void OnMapName(CGmpClient* client, Packet packet) {
 		const char* currentMap = oCGame::GetGame()->GetGameWorld()->GetWorldName().ToChar();
-		//TODO: refactor sekretnych algorytm�w GMP
+		//TODO: refactor sekretnych algorytmow GMP
 		if (memcmp(packet.data + 1, currentMap, 
 			(packet.length - 1 > strlen(currentMap) + 1) ? strlen(currentMap) + 1 : packet.length - 1)) {
 			client->map = ((char*)packet.data + 1);
@@ -64,7 +64,7 @@ namespace Game {
 		client->IsInGame = true;
 	}
 
-	//TODO: To nie mo�e by� takie du�e
+	//TODO: To nie moze byc takie duze
 	void OnActualStatistics(CGmpClient* client, Packet packet) {
 		//Defines z CGmpClient.cpp
 		static const zSTRING Door = "DOOR";
@@ -149,7 +149,7 @@ namespace Game {
 						}
 					}
 				}
-				//sprawdzanie lewej r�ki
+				//sprawdzanie lewej reki
 				memcpy(&word, packet.data + pIt, 2); pIt += 2;
 				if (word == 0) {
 					if (player->npc->GetRightHand()) {
@@ -177,7 +177,7 @@ namespace Game {
 						}
 					}
 				}
-				//sprawdzanie prawej r�ki
+				//sprawdzanie prawej reki
 				memcpy(&word, packet.data + pIt, 2); pIt += 2;
 				if (word == 0) {
 					if (player->npc->GetEquippedArmor()) {
@@ -325,7 +325,7 @@ namespace Game {
 				else if (player->npc->IsDead()) {
 					player->npc->GetSpellBook()->Close(1);
 				}
-				// update spella w r�kach
+				// update spella w rekach
 				if ((BYTE)player->npc->GetWeaponMode() != packet.data[pIt]) {
 					player->npc->SetWeaponMode((oCNpc_WeaponMode)packet.data[pIt]);
 					pIt++;
@@ -350,7 +350,7 @@ namespace Game {
 					break;
 				}
 				pIt++;
-				// synchro obrotu g�owy
+				// synchro obrotu glowy
 				memcpy(&word, packet.data + pIt, 2); pIt += 2;
 				if (word == 0) {
 					if (player->npc->GetEquippedRangedWeapon()) {
@@ -404,7 +404,7 @@ namespace Game {
 						}
 					}
 				}
-				//sprawdzanie broni do walki w r�cz
+				//sprawdzanie broni do walki wrecz
 			}
 			else {
 				pIt += sizeof(uint64_t);
@@ -662,7 +662,7 @@ namespace Game {
 			zVEC3 pos;
 			memcpy(&pos, packet.data + pIt, 12);
 			newhero->SetPosition(pos); pIt += 12;
-			pIt += 6;	//pomijam l/p d�o�+zbroje
+			pIt += 6;	//pomijam l/p zbroje
 			if (newhero->Type == CPlayer::NPC_HUMAN) newhero->SetAppearance(packet.data[pIt], packet.data[pIt + 1], packet.data[pIt + 2]); pIt += 3;
 			if (newhero->Type > CPlayer::NPC_DRACONIAN || newhero->Type == CPlayer::NPC_HUMAN) newhero->npc->ApplyOverlay(CPlayer::GetWalkStyleFromByte(packet.data[pIt])); pIt++;
 			const char* heroname = (const char*)packet.data + pIt; pIt += strlen(heroname) + 1;

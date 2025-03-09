@@ -45,7 +45,7 @@ CConfig::~CConfig()
 
 void CConfig::LoadConfigFromFile()
 {
-	// Sprawdzanie czy iloœæ wejœæ w sekcji [MULTIPLAYER] siê zgadza, jeœli nie ustawienie configu na default.
+	// Sprawdzanie czy ilosc wejsc w sekcji [MULTIPLAYER] sie zgadza, jesli nie ustawienie configu na default.
 	if(Opt->ReadString(Multiplayer, "Nickname").IsEmpty() || Opt->GetNumEntries(MultiSection) != 12){
 		if(Opt->SectionExists(Multiplayer)) Opt->RemoveSection(Multiplayer);
 		d=TRUE;

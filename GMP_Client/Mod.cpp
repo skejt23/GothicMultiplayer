@@ -230,7 +230,7 @@ void _declspec(naked) RESETPOS_CRASHFIX()
         test    eax, eax
         je     cont 
 
-//		and BYTE PTR DS:[eax+0x0B8], 252   <- tej wersji co� visual nie mo�e przetrawi�
+//		and BYTE PTR DS:[eax+0x0B8], 252   <- tej wersji cos visual nie moze przetrawic
 		and		[eax+0x0B8], 252
         jmp     RETURN_RESETCRASHFIX1
     cont:
@@ -377,7 +377,7 @@ void _stdcall OnTrigger(sRegs & regs, DWORD & Vob1, DWORD & Vob2)
 	oCSkyControler_Barrier::GetCurrent()->GetBarrier()->RenderLayer(*(zTRenderContext*)RenderContext, 0, lol);
 }*/
 
-// Walnij CreateHook(0x0057B0C0, (DWORD)OnStartAni, 2, true); tam gdzie chcesz �eby zacze�o pobiera� animacje
+// Walnij CreateHook(0x0057B0C0, (DWORD)OnStartAni, 2, true); tam gdzie chcesz żeby zaczeło pobierać animacje
 /*zSTRING TURN = "TURN";
 void _stdcall OnStartAni(sRegs & regs, DWORD & ModelAni, int arg2)
 {	   
@@ -392,7 +392,7 @@ void _stdcall OnStartAni(sRegs & regs, DWORD & ModelAni, int arg2)
 						if(!memcmp("T_WALKL_2_RUNL", Ani->GetAniName().ToChar(), 14) || !memcmp("T_JUMP_2_RUNL", Ani->GetAniName().ToChar(), 13)) CActiveAniID::GetInstance()->AddAni(266);
 				}
 			}
-			// PRZEKAZANIE ID DO FUNKCJI CZY CO�
+			// PRZEKAZANIE ID DO FUNKCJI CZY COS
 		}
 	}
 }*/

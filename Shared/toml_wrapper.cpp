@@ -35,7 +35,7 @@ TomlWrapper TomlWrapper::CreateFromFile(const std::string& filePath) {
 }
 
 void TomlWrapper::Serialize(const std::string& filePath) {
-  if (!data_.is_uninitialized()) {
+  if (!data_.is_empty()) {
     std::ofstream ofs(filePath, std::ios_base::out);
     ofs << data_;
   }

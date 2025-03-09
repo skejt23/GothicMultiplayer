@@ -98,7 +98,7 @@ char x[2]={0, 0};
 		hbX, hbY, ps = 0, MenuPos = 0, OptionPos = 0, WBMenuPos = 0;
 		RECT wymiary;
 		GetWindowRect(Patch::GetHWND(), &wymiary);
-		fWRatio=1280.0f/(float)wymiary.right;	//za�o�enie jest takie �e szeroko�� jest dopasowywana wed�ug szeroko�ci 1280
+		fWRatio=1280.0f/(float)wymiary.right;	//zalozenie jest takie ze szerokosc jest dopasowywana weddug szerokosci 1280
 		fHRatio=1024.0f/(float)wymiary.top;
 		DisableHealthBar();
 		GMPLogo = new zCView(0,0,8192,8192,VIEW_ITEM);
@@ -520,7 +520,7 @@ char x[2]={0, 0};
 			oCNpc::GetHero()->SetName(user_config->Nickname);
 		break;
 		case 1:
-			// WYBIERZ WYGL�D
+			// WYBIERZ WYGLAD
 			if(AppCamCreated){
 				ChoosingApperance = ApperancePart::FACE;
 				LastApperance = ApperancePart::FACE;
@@ -543,7 +543,7 @@ char x[2]={0, 0};
 			ps=SETTINGS_MENU;
 		break;
 		case 4:
-			// WYJD� Z GRY
+			// WYJDZ Z GRY
 			CGameManager::GetGameManager()->Done();
 		break;
 		};
@@ -563,7 +563,7 @@ char x[2]={0, 0};
 			user_config->SaveConfigToFile();
 		break;
 		case 2:
-			// W��CZENIE ZEGARA
+			// WLACZENIE ZEGARA
 			user_config->watch = !user_config->watch;
 			user_config->SaveConfigToFile();
 		break;
@@ -595,7 +595,7 @@ char x[2]={0, 0};
 			user_config->SaveConfigToFile();
 		break;
 		case 9:
-			// POWR�T
+			// POWROT
 			ps=MAIN_MENU;
 			MState=MENU_LOOP;
 		break;
@@ -616,7 +616,7 @@ char x[2]={0, 0};
 				WBMapName.Clear();
 			break;
 			case 2:
-				// POWR�T DO MENU
+				// POWROT DO MENU
 				ps=MAIN_MENU;
 				MState=MENU_LOOP;
 			break;
@@ -976,7 +976,7 @@ char x[2]={0, 0};
 					WritingNickname = false;
 				}
 			}
-			// Wyb�r opcji przez enter
+			// Wybor opcji przez enter
 			if(!WritingNickname){
 			if(Input->KeyToggled(KEY_UP)) {
 				OptionPos == 0 ? OptionPos = 9 : OptionPos--;
@@ -989,7 +989,7 @@ char x[2]={0, 0};
 				RunOptionsItem();
 			}
 			}
-			// Opcja od ilo�ci lini czatu
+			// Opcja od ilosci lini czatu
 			if(OptionPos == 6){
 				if(Input->KeyToggled(KEY_LEFT)){
 					if(user_config->ChatLines > 0){
@@ -1024,7 +1024,7 @@ char x[2]={0, 0};
 		break;
 		case MENU_WORLDBUILDER:
 			if(TitleWeapon) TitleWeapon->RotateWorldX(0.6f);
-			// Wyb�r opcji przez enter
+			// Wybor opcji przez enter
 			if(Input->KeyToggled(KEY_UP)) { 
 				WBMenuPos == 0 ? WBMenuPos = 2 : WBMenuPos--;
 			}

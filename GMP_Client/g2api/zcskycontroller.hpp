@@ -6,7 +6,7 @@ This file is part of the G2Ext SDK headers.
 
 The G2Ext SDK headers
 
-Copyright © 2009, 2010 by Paindevs and Patrick Vogel
+Copyright (c) 2009, 2010 by Paindevs and Patrick Vogel
 
 All Rights reserved.
 
@@ -72,7 +72,6 @@ public:
 	zCOLOR GetBackgroundColor(void){XCALL(0x005E6710)}
 	float GetFarZ(void){XCALL(0x005E9E60)}
 
-	// Nie dzia³a. Zmienia kolor, ale po chwili sam zmienia siê na taki jaki by³ wczeœniej. Zale¿y od pogody?
 	void SetBackgroundColor(const zCOLOR & color)
 	{
 		*(zCOLOR*)((DWORD)this+0x594) = color;
@@ -80,7 +79,6 @@ public:
 	int SetGlobalSkyScale(float){XCALL(0x005E7290)};
 	void SetFarZScalability(float){XCALL(0x005E9E70)};
 
-	// Odleg³oœæ w jakiej pojawia siê niebo.
 	void SetFarZ(float){XCALL(0x005E9E50)};
 	//inline static zCSkyControlerOutdoor* GetCurrent(void) { return *(zCSkyControlerOutdoor**)0x0099AC8C; };
 };
