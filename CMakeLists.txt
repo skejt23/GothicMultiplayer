@@ -58,6 +58,9 @@ find_package(sol2 CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 
 add_compile_definitions(SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
+if (MSVC)
+  add_compile_options(/utf-8)
+endif()
 
 add_subdirectory(common)
 add_subdirectory(Shared)

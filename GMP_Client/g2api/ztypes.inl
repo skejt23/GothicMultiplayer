@@ -6,7 +6,7 @@ This file is part of the G2Ext SDK headers.
 
 The G2Ext SDK headers
 
-Copyright © 2009, 2010 by Paindevs and Patrick Vogel
+Copyright (c) 2009, 2010 by Paindevs and Patrick Vogel
 
 All Rights reserved.
 

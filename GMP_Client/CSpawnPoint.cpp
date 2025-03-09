@@ -29,7 +29,7 @@ CSpawnPoint::CSpawnPoint(const char *source){
 	int a,b,c;
 	const char *ptr=(char*)source;
 	while(sscanf(ptr, "%d%d%d", &a, &b, &c)==3){
-		ptr=strchr(ptr, ' ');//szybciej rêcznie ni¿ bawiæ siê w for()
+		ptr=strchr(ptr, ' ');
 		if(ptr) ptr++;
 		if(ptr) ptr=strchr(ptr, ' ')+1;
 		if(ptr){

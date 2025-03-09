@@ -61,20 +61,20 @@ enum PacketID
   ID_IP_RECENTLY_CONNECTED,
   ID_TIMESTAMP,
   PT_MSG = 135,
-  PT_NEWCONN,  // <- u�ywa kto� tego?
+  PT_NEWCONN,  // <- uzywa ktos tego?
   PT_REQUEST_FILE_LENGTH,
   PT_REQUEST_FILE_PART,
   PT_WHOAMI,
   PT_JOIN_GAME,
   PT_ACTUAL_STATISTICS,  // <- chyba tutaj będe musiał dodac optymalizacje gdyż nie potrzeba nam wszystkich informacji o
                          // graczu który jest od nas dalej niż 5000.0f
-  PT_ALL_OTHERS,  // pakiety wysy�any tylko z serwera do klienta, informacje o wszystkich graj�cych wysy�ane jednorazowo
+  PT_ALL_OTHERS,  // pakiety wysylany tylko z serwera do klienta, informacje o wszystkich grajacych wysylane jednorazowo
   PT_HP_DIFF,
-  PT_MAP_ONLY,  // wysy�a tylko informacje o x,y graczy �eby mapka dzia�a�a
-  PT_CHECKSUM,  // pakiet sprawdzaj�cy czy crc32 serwera i klienta s� zgodne
+  PT_MAP_ONLY,  // wysyla tylko informacje o x,y graczy zeby mapka dzialala
+  PT_CHECKSUM,  // pakiet sprawdzajacy czy crc32 serwera i klienta sie zgodne
   PT_RCON,      // administrowanie
   PT_WHISPER,
-  PT_EXTENDED_4_SCRIPTS,  // jak ju� kiedy� wdro�ymy skrypty
+  PT_EXTENDED_4_SCRIPTS,  // jak juz kiedys wdrozymy skrypty
   PT_SRVMSG,
   PT_YOUR_NAME,
   PT_LEFT_GAME,

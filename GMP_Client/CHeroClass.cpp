@@ -137,7 +137,6 @@ enum
   MAGIC_LEVEL = 7,
   SNEAK_SKILL = 8,
   ACROBATIC_SKILL = 11,
-  // ponie¿ej tylko wp³ywanie na wygl¹d w statach
   PICKPOCKET_SKILL = 12,
   SMITH_SKILL = 13,
   RUNE_SKILL = 14,

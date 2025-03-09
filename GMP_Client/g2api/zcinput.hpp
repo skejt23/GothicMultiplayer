@@ -1,6 +1,6 @@
 /*////////////////////////////////////////////////////////////////////////////
 The G2Ext SDK headers
-Copyright © 2009, 2010 by Paindevs and Patrick Vogel
+Copyright (c) 2009, 2010 by Paindevs and Patrick Vogel
 All Rights reserved.
 
 THE WORK (AS DEFINED BELOW) IS PROVIDED

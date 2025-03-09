@@ -48,7 +48,7 @@ void CLanguage::RemovePolishCharactersFromWideString(std::wstring& txt)
 	size_t found;
 	found = 0;
 	while (found!=std::string::npos){
-		found = txt.find(L"Ø");
+		found = txt.find(L"≈ª");
 		if(found==std::string::npos) break;
 		else txt.replace(found, 1, L"Z");
 	}
@@ -66,55 +66,55 @@ void CLanguage::RemovePolishCharactersFromWideString(std::wstring& txt)
 	}
 	found = 0;
 	while (found!=std::string::npos){
-		found = txt.find(L"ø");
+		found = txt.find(L"≈º");
 		if(found==std::string::npos) break;
 		else txt.replace(found, 1, L"z");
 	}
 	found = 0;
 	while (found!=std::string::npos){
-		found = txt.find(L"≥");
+		found = txt.find(L"≈Ç");
 		if(found==std::string::npos) break;
 		else txt.replace(found, 1, L"l");
 	}
 	found = 0;
 	while (found!=std::string::npos){
-		found = txt.find(L"£");
+		found = txt.find(L"≈Å");
 		if(found==std::string::npos) break;
 		else txt.replace(found, 1, L"L");
 	}
 	found = 0;
 	while (found!=std::string::npos){
-		found = txt.find(L"π");
+		found = txt.find(L"ƒÖ");
 		if(found==std::string::npos) break;
 		else txt.replace(found, 1, L"a");
 	}
 	found = 0;
 	while (found!=std::string::npos){
-		found = txt.find(L"Ò");
+		found = txt.find(L"≈Ñ");
 		if(found==std::string::npos) break;
 		else txt.replace(found, 1, L"n");
 	}
 	found = 0;
 	while (found!=std::string::npos){
-		found = txt.find(L"Í");
+		found = txt.find(L"ƒô");
 		if(found==std::string::npos) break;
 		else txt.replace(found, 1, L"e");
 	}
 	found = 0;
 	while (found!=std::string::npos){
-		found = txt.find(L"ú");
+		found = txt.find(L"≈õ");
 		if(found==std::string::npos) break;
 		else txt.replace(found, 1, L"s");
 	}
 	found = 0;
 	while (found!=std::string::npos){
-		found = txt.find(L"Ê");
+		found = txt.find(L"ƒá");
 		if(found==std::string::npos) break;
 		else txt.replace(found, 1, L"c");
 	}
 	found = 0;
 	while (found!=std::string::npos){
-		found = txt.find(L"ü");
+		found = txt.find(L"≈∫");
 		if(found==std::string::npos) break;
 		else txt.replace(found, 1, L"z");
 	}
