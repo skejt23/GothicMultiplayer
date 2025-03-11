@@ -115,6 +115,9 @@ set (RAKNET_SOURCES
 add_library(RakNet STATIC ${RAKNET_SOURCES})
 if (WIN32)
   target_link_libraries(RakNet PRIVATE Threads::Threads wsock32 ws2_32 Iphlpapi)
+  target_compile_options(RakNet PRIVATE
+    "$<$<CXX_COMPILER_ID:MSVC>:/w>"  # Disable all warnings for MSVC
+  )
 else()
   target_link_libraries(RakNet PRIVATE Threads::Threads)
   target_compile_options(RakNet PRIVATE "-fPIC")

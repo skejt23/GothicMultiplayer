@@ -37,8 +37,7 @@ SOFTWARE.
 #include "Network.h"
 #include "zcoption.hpp"
 
-#include <SDL.h>
-#include <SDL_syswm.h> 
+#include <SDL3/SDL.h>
 
 DWORD IdWatku;
 SDL_Window* g_pSdlWindow;
@@ -67,7 +66,7 @@ HWND HookCreateWindowExA(DWORD dwExStyle, LPCSTR lpClassName, LPCSTR lpWindowNam
   uint32_t flags = 0;
   flags |= SDL_WINDOW_HIDDEN;
   flags |= SDL_WINDOW_RESIZABLE;
-  g_pSdlWindow = SDL_CreateWindow(lpWindowName, X, Y + 30, 800, 600, flags);
+  g_pSdlWindow = SDL_CreateWindow(lpWindowName, 800, 600, flags);
   if (g_pSdlWindow == nullptr)
   {
     SPDLOG_ERROR("Unable to create SDL window. Fallback to CreateWindowExA.");
@@ -75,19 +74,8 @@ HWND HookCreateWindowExA(DWORD dwExStyle, LPCSTR lpClassName, LPCSTR lpWindowNam
                            hInstance, lpParam);
   }
 
-  SDL_SysWMinfo wmInfo;
-  SDL_VERSION(&wmInfo.version);
-  if (!SDL_GetWindowWMInfo(g_pSdlWindow, &wmInfo))
-  {
-    SDL_DestroyWindow(g_pSdlWindow);
-    SPDLOG_ERROR("Unable to get window WM info. Fallback to CreateWindowExA.");
-    return CreateWindowExA(dwExStyle, lpClassName, lpWindowName, dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu,
-                           hInstance, lpParam);
-  }
-
-  SDL_SetRelativeMouseMode(SDL_TRUE);
-  hInstApp = wmInfo.info.win.hinstance;
-  return wmInfo.info.win.window;
+  hInstApp = (HINSTANCE)SDL_GetPointerProperty(SDL_GetWindowProperties(g_pSdlWindow), SDL_PROP_WINDOW_WIN32_INSTANCE_POINTER, NULL);
+  return (HWND)SDL_GetPointerProperty(SDL_GetWindowProperties(g_pSdlWindow), SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
 }
 
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
@@ -102,7 +90,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 
     Network::LoadNetworkLibrary();
 
-   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
+   if (!SDL_Init(SDL_INIT_VIDEO)) {
       SPDLOG_ERROR("Couldn't initialize SDL: {}", SDL_GetError());
    }
 

@@ -1,0 +1,6 @@
+add_library(SDL3 SHARED IMPORTED GLOBAL)
+set_target_properties(SDL3 PROPERTIES
+    IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/thirdparty/SDL3/lib/SDL3.dll"
+    IMPORTED_IMPLIB "${CMAKE_SOURCE_DIR}/thirdparty/SDL3/lib/SDL3.lib"
+    INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/thirdparty/SDL3/include"
+)
