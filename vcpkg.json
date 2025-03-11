@@ -19,16 +19,8 @@
       "version>=": "4.3.0"
     },
     {
-      "name": "sdl2",
-      "version>=": "2.32.2"
-    },
-    {
       "name": "pugixml",
       "version>=": "1.15"
-    },
-    {
-      "name": "openal-soft",
-      "version>=": "1.24.2"
     },
     {
       "name": "lua",

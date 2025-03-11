@@ -1,6 +1,6 @@
 #pragma once
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 #include <deque>
 #include <thread>
 
@@ -23,8 +23,7 @@ private:
   std::deque<VoiceBuffer> voiceBuffers;
   std::thread loopThread;
 
-  SDL_AudioDeviceID out;
-  SDL_AudioSpec audioSpec;
+  SDL_AudioStream* out;
 
   void ClearBuffers();
   void Loop();

@@ -23,5 +23,11 @@
 set(SOURCES voice_test_app.cpp)
 
 add_executable(Client.Voice.TestApp ${SOURCES})
-target_link_libraries(Client.Voice.TestApp PRIVATE Client.Voice
-                                                   SDL2::SDL2-static)
+target_link_libraries(Client.Voice.TestApp PRIVATE Client.Voice SDL3)
+
+add_custom_command(TARGET Client.Voice.TestApp POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/thirdparty/SDL3/lib/SDL3.dll"
+        "$<TARGET_FILE_DIR:Client.Voice.TestApp>/SDL3.dll"
+    COMMENT "Copying SDL3.dll to output directory"
+)

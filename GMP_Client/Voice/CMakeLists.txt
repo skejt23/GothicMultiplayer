@@ -20,15 +20,17 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-find_package(OpenAL CONFIG REQUIRED)
-
 set(SOURCES VoiceCapture.cpp VoicePlayback.cpp)
 
 add_library(Client.Voice STATIC ${SOURCES})
+target_include_directories(
+  Client.Voice
+  PRIVATE ${OPENAL_INCLUDE_DIR})
+
 target_link_libraries(
   Client.Voice
-  PUBLIC SDL2::SDL2-static
-  PRIVATE spdlog::spdlog ZLIB::ZLIB OpenAL::OpenAL)
+  PUBLIC SDL3
+  PRIVATE spdlog::spdlog ZLIB::ZLIB)
 target_include_directories(Client.Voice PUBLIC .)
 
 add_subdirectory(VoiceTestApp)

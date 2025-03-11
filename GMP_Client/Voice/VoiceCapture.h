@@ -1,6 +1,7 @@
 #pragma once
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_audio.h>
 #include <vector>
 #include <string>
 #include <thread>
@@ -18,13 +19,10 @@ public:
   std::vector<std::string> GetInputDevices();
 
 private:
-  SDL_AudioDeviceID in;
+  SDL_AudioStream* in;
   char* voiceBuffer;
   size_t voiceBufferSize;
-  void Init();
   void Loop();
 
-  SDL_AudioSpec wantedAudioSpec;
-  SDL_AudioSpec audioSpec;
   std::thread loopThread;
 };

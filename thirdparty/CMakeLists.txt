@@ -1,4 +1,3 @@
-
 # MIT License
 
 # Copyright (c) 2022 Gothic Multiplayer Team
@@ -24,3 +23,8 @@
 add_subdirectory(cpp-httplib)
 add_subdirectory(RakNet)
 add_subdirectory(chillout)
+
+if(WIN32)
+  add_subdirectory(openal-soft)
+  add_subdirectory(SDL3)
+endif()
