@@ -11,7 +11,7 @@ namespace bindings {
 template <void logFunc(const std::string&)>
 void log(std::string text, sol::variadic_args args) {
   auto store = fmt::dynamic_format_arg_store<fmt::format_context>();
-  for (auto& arg : args) {
+  for (const auto& arg : args) {
     if (arg.get_type() == sol::type::string) {
       store.push_back(arg.as<std::string>());
     } else if (arg.get_type() == sol::type::number) {

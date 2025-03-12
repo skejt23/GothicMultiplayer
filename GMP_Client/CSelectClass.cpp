@@ -138,7 +138,8 @@ void CSelectClass::HandleInput(){
 	}
 	if(input->KeyPressed(KEY_RETURN)){
 		input->ClearKeyBuffer();
-		oCNpc::GetHero()->ResetPos(oCNpc::GetHero()->GetPosition());
+		auto pos = oCNpc::GetHero()->GetPosition();
+		oCNpc::GetHero()->ResetPos(pos);
 		client->JoinGame(this->selected);
 		//dodac przejscie do zarzadzania gameplayem
 		delete this;

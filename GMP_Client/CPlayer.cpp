@@ -62,7 +62,7 @@ extern CConfig* user_config;
 
 // ZSTRINGS
 zSTRING BODYMESHNAKED = "HUM_BODY_NAKED0";
-  // Rodzaje modelu g³owy
+  // Rodzaje modelu gï¿½owy
 zSTRING HUM_HEAD_FIGHTER = "HUM_HEAD_FIGHTER";
 zSTRING HUM_HEAD_BALD = "HUM_HEAD_BALD";
 zSTRING HUM_HEAD_FATBALD = "HUM_HEAD_FATBALD";
@@ -286,7 +286,8 @@ void CPlayer::RespawnPlayer()
 	npc->GetSpellBook()->Close(1);
 	if(!IsLocalPlayer()){
 		hp=static_cast<short>(npc->GetMaxHealth());
-		npc->ResetPos(npc->GetPosition());
+		auto player_pos = npc->GetPosition();
+		npc->ResetPos(player_pos);
 		client->classmgr->EquipNPC(char_class, this, true);
 	} else{
 		npc->RefreshNpc();
@@ -314,7 +315,10 @@ void CPlayer::RespawnPlayer()
 			}
 			team_list.clear();
 		} else{
-			if(!client->spawnpoint->GetSize()) npc->ResetPos(npc->GetPosition());
+			if(!client->spawnpoint->GetSize()) {
+				auto pos = npc->GetPosition();
+				npc->ResetPos(pos);
+			}
 			else npc->ResetPos(*(*client->spawnpoint)[rand()%client->spawnpoint->GetSize()]);
 		}
 	}
@@ -367,7 +371,8 @@ void CPlayer::SetNpcType(NpcType TYPE)
 		{
 			oCNpc* New = oCObjectFactory::GetFactory()->CreateNpc(zCParser::GetParser()->GetIndex(PCHERO));
 			if(!IsLocalPlayer()) New->startAIState = 0;
-			New->Enable(npc->GetPosition());
+			auto position = npc->GetPosition();
+			New->Enable(position);
 			if(IsLocalPlayer()){
 				TypeTemp = "HUM_BODY_NAKED0";
 				New->SetAdditionalVisuals(TypeTemp, user_config->skintexture, 0, CPlayer::GetHeadModelNameFromByte(user_config->headmodel), user_config->facetexture, 0, -1);
@@ -383,7 +388,8 @@ void CPlayer::SetNpcType(NpcType TYPE)
 		{
 			oCNpc* New = oCObjectFactory::GetFactory()->CreateNpc(zCParser::GetParser()->GetIndex(ORCWARRIOR));
 			if(!IsLocalPlayer()) New->startAIState = 0;
-			New->Enable(npc->GetPosition());
+			auto position = npc->GetPosition();
+			New->Enable(position);
 			if(IsLocalPlayer()) New->SetAsPlayer();
 			New->SetName(this->npc->GetName());
 			oCGame::GetGame()->GetSpawnManager()->DeleteNpc(this->npc);
@@ -394,7 +400,8 @@ void CPlayer::SetNpcType(NpcType TYPE)
 		{
 			oCNpc* New = oCObjectFactory::GetFactory()->CreateNpc(zCParser::GetParser()->GetIndex(ORCELITE));
 			if(!IsLocalPlayer()) New->startAIState = 0;
-			New->Enable(npc->GetPosition());
+			auto position = npc->GetPosition();
+			New->Enable(position);
 			if(IsLocalPlayer()) New->SetAsPlayer();
 			New->SetName(this->npc->GetName());
 			oCGame::GetGame()->GetSpawnManager()->DeleteNpc(npc);
@@ -405,7 +412,8 @@ void CPlayer::SetNpcType(NpcType TYPE)
 		{
 			oCNpc* New = oCObjectFactory::GetFactory()->CreateNpc(zCParser::GetParser()->GetIndex(ORCSHAMAN));
 			if(!IsLocalPlayer()) New->startAIState = 0;
-			New->Enable(npc->GetPosition());
+			auto position = npc->GetPosition();
+			New->Enable(position);
 			if(IsLocalPlayer()) New->SetAsPlayer();
 			New->SetName(this->npc->GetName());
 			oCGame::GetGame()->GetSpawnManager()->DeleteNpc(npc);
@@ -416,7 +424,8 @@ void CPlayer::SetNpcType(NpcType TYPE)
 		{
 			oCNpc* New = oCObjectFactory::GetFactory()->CreateNpc(zCParser::GetParser()->GetIndex(UNDEADORC));
 			if(!IsLocalPlayer()) New->startAIState = 0;
-			New->Enable(npc->GetPosition());
+			auto position = npc->GetPosition();
+			New->Enable(position);
 			if(IsLocalPlayer()) New->SetAsPlayer();
 			New->SetName(this->npc->GetName());
 			oCGame::GetGame()->GetSpawnManager()->DeleteNpc(npc);
@@ -427,7 +436,8 @@ void CPlayer::SetNpcType(NpcType TYPE)
 		{
 			oCNpc* New = oCObjectFactory::GetFactory()->CreateNpc(zCParser::GetParser()->GetIndex(SHEEP));
 			if(!IsLocalPlayer()) New->startAIState = 0;
-			New->Enable(npc->GetPosition());
+			auto position = npc->GetPosition();
+			New->Enable(position);
 			if(IsLocalPlayer()) New->SetAsPlayer();
 			New->SetName(this->npc->GetName());
 			oCGame::GetGame()->GetSpawnManager()->DeleteNpc(npc);
@@ -438,7 +448,8 @@ void CPlayer::SetNpcType(NpcType TYPE)
 		{
 			oCNpc* New = oCObjectFactory::GetFactory()->CreateNpc(zCParser::GetParser()->GetIndex(DRACONIAN));
 			if(!IsLocalPlayer()) New->startAIState = 0;
-			New->Enable(npc->GetPosition());
+			auto position = npc->GetPosition();
+			New->Enable(position);
 			if(IsLocalPlayer()) New->SetAsPlayer();
 			New->SetName(this->npc->GetName());
 			oCGame::GetGame()->GetSpawnManager()->DeleteNpc(npc);

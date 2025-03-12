@@ -84,7 +84,7 @@ public:
 	vector<Info> SpawnedVobs;
 public:
 	CBuilder();
-	CBuilder::~CBuilder();
+	~CBuilder();
 	void Render();
 	double CalculateRadians(double degree);
 	void SpawnObject();

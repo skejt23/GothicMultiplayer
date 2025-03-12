@@ -40,11 +40,11 @@ Full license at http://creativecommons.org/licenses/by-nc/3.0/legalcode
 class zCInputCallback
 {
 public:
-	zCInputCallback::zCInputCallback(void){XCALL(0x007A53F0);};
-	int zCInputCallback::GetEnableHandleEvent(void){XCALL(0x007A5560);};
-	virtual int zCInputCallback::HandleEvent(int key){XCALL(0x0043D4E0);};
-	void zCInputCallback::SetEnableHandleEvent(int pA){XCALL(0x007A54E0);};
-	void zCInputCallback::SetHandleEventTop(void){XCALL(0x007A5470);};
-	static void zCInputCallback::GetInput(void){XCALL(0x007A55C0);};
-	static int zCInputCallback::DoEvents(int pA){XCALL(0x007A5590);};
+	zCInputCallback(void){XCALL(0x007A53F0);};
+	int GetEnableHandleEvent(void){XCALL(0x007A5560);};
+	virtual int HandleEvent(int key){XCALL(0x0043D4E0);};
+	void SetEnableHandleEvent(int pA){XCALL(0x007A54E0);};
+	void SetHandleEventTop(void){XCALL(0x007A5470);};
+	static void GetInput(void){XCALL(0x007A55C0);};
+	static int DoEvents(int pA){XCALL(0x007A5590);};
 };

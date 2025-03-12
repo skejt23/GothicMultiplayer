@@ -584,12 +584,12 @@ private:
 		if(this->m_numInArray > 0)
 		{
 			for(int i = 0; i < this->m_numInArray; i++)
-				pArray[i] = array[i];
+				pArray[i] = m_array[i];
 		};
 
 		delete [] this->m_array;
 		this->m_numAlloc += nSize;
-		this->m_array	 = pArray;
+		this->m_array	= pArray;
 	};	
 
 public:
@@ -804,23 +804,20 @@ public:
 	*/
 	inline T* GetData() { return this->data; };
 
-	/** Insert description. 
-	*/
-	inline UINT GetSize()
-	{
+	/** Insert description.
+	 */
+	inline UINT GetSize() {
 		zCList<T>* temp = this;
 		UINT i = 0;
 
-		while((temp = temp->next) != NULL)
-		{
-			if(i == idx) return temp->data;
+		while ((temp = temp->next) != nullptr) {
 			i++;
 		};
 
 		return i;
 	};
 
-	/** Insert description. 
+  /** Insert description. 
 	*/
 	inline void SetData(T* p)
 	{

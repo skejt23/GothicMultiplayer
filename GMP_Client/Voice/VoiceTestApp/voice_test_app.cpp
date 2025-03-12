@@ -33,7 +33,7 @@ SOFTWARE.
 #include "VoiceCapture.h"
 #include "VoicePlayback.h"
 
-void main() {
+int main() {
   if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
     std::cerr << "Couldn't initialize SDL: " << SDL_GetError() << "\n";
   }
@@ -58,4 +58,5 @@ void main() {
 
   std::cout << "Press any key to exit...\n";
   std::getchar();
+  return 0;
 }

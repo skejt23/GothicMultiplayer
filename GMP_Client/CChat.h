@@ -70,7 +70,7 @@ public:
 	void ClearChat();
 	void StartChatAnimation(int anim);
 	void SetWhisperTo(std::string& whisperto);
-	void WriteMessage(MsgType type, bool PrintTimed, zCOLOR& rgb, const char * format, ...);
+	void WriteMessage(MsgType type, bool PrintTimed, const zCOLOR& rgb, const char * format, ...);
 	void WriteMessage(MsgType type, bool PrintTimed, const char * format, ...);
 	void PrintChat();
 };

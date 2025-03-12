@@ -55,6 +55,6 @@ public:
 	~CInterpolatePos();
 	void DoInterpolate();
 	bool IsDistanceSmallerThanRadius(float radius, float bX, float bY, float bZ, float rX, float rY, float rZ);
-	bool IsDistanceSmallerThanRadius(float radius, zVEC3 & Pos, zVEC3 & Pos1);
+	bool IsDistanceSmallerThanRadius(float radius, const zVEC3& Pos, const zVEC3& Pos1);
 	void UpdateInterpolation(float x, float y, float z);
 };

@@ -218,7 +218,8 @@ void CGmpClient::JoinGame(BYTE selected_class){
 	memset(buffer, 0, 512);
 	buffer[0]=PT_JOIN_GAME;
 	buffer[1]=selected_class;
-	memcpy(buffer+2, &oCNpc::GetHero()->GetPosition(), 12);
+	const auto pos = oCNpc::GetHero()->GetPosition();
+	memcpy(buffer+2, &pos, 12);
 	zVEC3 nr(oCNpc::GetHero()->GetAngleNX(), oCNpc::GetHero()->GetAngleNY(), oCNpc::GetHero()->GetAngleNZ());
 	memcpy(buffer+14, &nr, 12);
 	short word;

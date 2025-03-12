@@ -255,7 +255,8 @@ void RenderEvent()
 			CurrentInter->MoveWorld(0,y,0);
 		}
 		if(keyboard->KeyToggled(KEY_G)){
-			Hero->ResetPos(CurrentInter->GetPositionWorld());
+			auto pos = CurrentInter->GetPositionWorld();
+			Hero->ResetPos(pos);
 			Hero->SetMovLock(1);
 			CheckMsgSize();
 			BuildMessages.push_back(PlayerSpawned);

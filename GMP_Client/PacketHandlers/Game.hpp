@@ -289,7 +289,8 @@ namespace Game {
 				}
 				if ((!player->hp) && (word == player->npc->GetMaxHealth())) {
 					player->hp = word;
-					player->npc->ResetPos(player->npc->GetPosition());
+					auto current_pos = player->npc->GetPosition();
+					player->npc->ResetPos(current_pos);
 				}
 				else if ((player->npc->GetHealth() > 0) && (word == 0)) {
 					player->hp = 0;
@@ -614,7 +615,8 @@ namespace Game {
 			}
 		}
 		if (found) {
-			CChat::GetInstance()->WriteMessage(WHISPER, true, zCOLOR(0, 255, 255, 255), "%s-> %s", client->player[i]->npc->GetName().ToChar(), (const char*)packet.data + 1 + sizeof(uint64_t) * 2);
+			static zCOLOR whisper_color(0, 255, 255, 255);
+			CChat::GetInstance()->WriteMessage(WHISPER, true, whisper_color, "%s-> %s", client->player[i]->npc->GetName().ToChar(), (const char*)packet.data + 1 + sizeof(uint64_t) * 2);
 		}
 	}
 
@@ -635,7 +637,8 @@ namespace Game {
 
 	void OnServerMessage(CGmpClient* client, Packet packet)
 	{
-		CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(255, 128, 0, 255), "(SERVER): %s", (const char*)packet.data + 1);
+		static zCOLOR server_message_color(255, 128, 0, 255);
+		CChat::GetInstance()->WriteMessage(NORMAL, false, server_message_color, "(SERVER): %s", (const char*)packet.data + 1);
 	}
 
 	void OnRcon(CGmpClient* client, Packet packet)
@@ -689,7 +692,8 @@ namespace Game {
 		newhero->SetName(heroname);
 		if (newhero->Type == CPlayer::NPC_HUMAN) newhero->SetAppearance(packet.data[sizeof(uint64_t) + 34], packet.data[sizeof(uint64_t) + 35], packet.data[sizeof(uint64_t) + 36]);
 		if (newhero->Type > CPlayer::NPC_DRACONIAN || newhero->Type == CPlayer::NPC_HUMAN) newhero->npc->ApplyOverlay(CPlayer::GetWalkStyleFromByte(packet.data[sizeof(uint64_t) + 37]));
-		CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(0, 255, 0, 255), "%s%s", heroname, (*client->lang)[CLanguage::SOMEONE_JOIN_GAME].ToChar());
+		static zCOLOR color(0, 255, 0, 255);
+		CChat::GetInstance()->WriteMessage(NORMAL, false, color, "%s%s", heroname, (*client->lang)[CLanguage::SOMEONE_JOIN_GAME].ToChar());
 		newhero->enable = FALSE;
 		newhero->update_hp_packet = 0;
 		//kod
@@ -722,7 +726,8 @@ namespace Game {
 	{
 		for (size_t i = 1; i < client->player.size(); i++) {
 			if (!memcmp(packet.data + 1, &client->player[i]->id, sizeof(uint64_t))) {
-				CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(255, 0, 0, 255), "%s%s", client->player[i]->GetName(), (*client->lang)[CLanguage::SOMEONEDISCONNECT_FROM_SERVER].ToChar());
+				static zCOLOR color(255, 0, 0, 255);
+				CChat::GetInstance()->WriteMessage(NORMAL, false, color, "%s%s", client->player[i]->GetName(), (*client->lang)[CLanguage::SOMEONEDISCONNECT_FROM_SERVER].ToChar());
 				client->player[i]->LeaveGame();
 				delete client->player[i];
 				client->player.erase(client->player.begin() + i);

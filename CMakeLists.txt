@@ -38,7 +38,7 @@ set(VCPKG_OVERLAY_TRIPLETS "${CMAKE_SOURCE_DIR}/triplets")
 
 project(GothicMultiplayer VERSION 0.2 DESCRIPTION "Gothic Multiplayer" LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 FetchContent_Declare(
