@@ -115,7 +115,6 @@ public:
 	void EnableHealthBar();
 	void DisableHealthBar();
 	void LoadLangNames(void);
-	BOOL LoadRSS(const char* langfile);
 	void LaunchMenuScene();
 	void LoadConfig();
 	void CleanUpMainMenu();

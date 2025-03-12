@@ -52,7 +52,6 @@ set(CLIENT_SOURCES
     CShrinker.cpp
     CSpawnPoint.cpp
     CSyncFuncs.cpp
-    CUpdate.cpp
     CWatch.cpp
     ExceptionHandler.cpp
     ExtendedServerList.cpp
