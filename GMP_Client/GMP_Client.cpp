@@ -23,6 +23,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+#include <SDL3/SDL.h>
 #include <io.h>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/spdlog.h>
@@ -31,13 +32,11 @@ SOFTWARE.
 
 #include "HooksManager.h"
 #include "Mod.h"
+#include "Network.h"
 #include "common.h"
 #include "ocgame.hpp"
 #include "patch.h"
-#include "Network.h"
 #include "zcoption.hpp"
-
-#include <SDL3/SDL.h>
 
 DWORD IdWatku;
 SDL_Window* g_pSdlWindow;
@@ -46,19 +45,20 @@ SDL_Window* g_pSdlWindow;
 #define VideoH *(int*)(0x008D2BE0)
 #define VideoW *(int*)(0x008D2BE4)
 
-void HookwinResizeMainWindow()
-{
+void HookwinResizeMainWindow() {
   SDL_SetWindowSize(g_pSdlWindow, VideoW, VideoH);
 }
 
 HWND HookCreateWindowExA(DWORD dwExStyle, LPCSTR lpClassName, LPCSTR lpWindowName, DWORD dwStyle, int X, int Y,
-                         int nWidth, int nHeight, HWND hWndParent, HMENU hMenu, HINSTANCE hInstance, LPVOID lpParam)
-{
+                         int nWidth, int nHeight, HWND hWndParent, HMENU hMenu, HINSTANCE hInstance, LPVOID lpParam) {
+  if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
+    SPDLOG_ERROR("Couldn't initialize SDL: {}", SDL_GetError());
+  }
+
   zCOption options;
   auto loaded = options.Load("GMP.INI");
   auto windowed = options.ReadBool(zOPT_SEC_VIDEO, "zStartupWindowed", FALSE);
-  if (!windowed)
-  {
+  if (!windowed) {
     return CreateWindowExA(dwExStyle, lpClassName, lpWindowName, dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu,
                            hInstance, lpParam);
   }
@@ -67,32 +67,26 @@ HWND HookCreateWindowExA(DWORD dwExStyle, LPCSTR lpClassName, LPCSTR lpWindowNam
   flags |= SDL_WINDOW_HIDDEN;
   flags |= SDL_WINDOW_RESIZABLE;
   g_pSdlWindow = SDL_CreateWindow(lpWindowName, 800, 600, flags);
-  if (g_pSdlWindow == nullptr)
-  {
+  if (g_pSdlWindow == nullptr) {
     SPDLOG_ERROR("Unable to create SDL window. Fallback to CreateWindowExA.");
     return CreateWindowExA(dwExStyle, lpClassName, lpWindowName, dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu,
                            hInstance, lpParam);
   }
 
-  hInstApp = (HINSTANCE)SDL_GetPointerProperty(SDL_GetWindowProperties(g_pSdlWindow), SDL_PROP_WINDOW_WIN32_INSTANCE_POINTER, NULL);
+  hInstApp = (HINSTANCE)SDL_GetPointerProperty(SDL_GetWindowProperties(g_pSdlWindow),
+                                               SDL_PROP_WINDOW_WIN32_INSTANCE_POINTER, NULL);
   return (HWND)SDL_GetPointerProperty(SDL_GetWindowProperties(g_pSdlWindow), SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
 }
 
-BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
-{
+BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
   DisableThreadLibraryCalls(hinstDLL);
-  if (fdwReason == DLL_PROCESS_ATTACH)
-  {
+  if (fdwReason == DLL_PROCESS_ATTACH) {
     AllocConsole();
     spdlog::default_logger()->sinks().push_back(
         std::make_shared<spdlog::sinks::basic_file_sink_mt>("GMP_Log.txt", false));
-		spdlog::flush_on(spdlog::level::debug);
+    spdlog::flush_on(spdlog::level::debug);
 
     Network::LoadNetworkLibrary();
-
-   if (!SDL_Init(SDL_INIT_VIDEO)) {
-      SPDLOG_ERROR("Couldn't initialize SDL: {}", SDL_GetError());
-   }
 
     // Window hook
     CallPatch(0x0050323F, (DWORD)&HookCreateWindowExA, 1);
