@@ -1,4 +1,3 @@
-
 /*
 MIT License
 
@@ -34,7 +33,6 @@ SOFTWARE.
 #include <dylib.hpp>
 #include <fstream>
 #include <future>
-#include <gsl/gsl-lite.hpp>
 #include <iterator>
 #include <stack>
 #include <string>
@@ -207,7 +205,15 @@ void GameServer::Run() {
   if (now - last_update_time_ > std::chrono::milliseconds(config_.Get<std::int32_t>("tick_rate_ms"))) {
     last_update_time_ = now;
 
-    // Consists of two player IDs.
+    // Pre-filter active players
+    std::vector<std::pair<uint64_t, const sPlayer*>> active_players;
+    active_players.reserve(players_.size());
+    for (const auto& [player_id, player] : players_) {
+      if (player.is_ingame) {
+        active_players.emplace_back(player_id, &player);
+      }
+    }
+
     using PlayersKey = std::pair<uint64_t, uint64_t>;
     struct PlayersKeyHash {
       std::size_t operator()(const PlayersKey& key) const {
@@ -222,19 +228,15 @@ void GameServer::Run() {
       }
     };
 
+    // Pre-allocate map with estimated size
     std::unordered_map<PlayersKey, float, PlayersKeyHash, PlayersKeyEqual> distances;
-    for (const auto& [player_id_a, player_a] : players_) {
-      if (player_a.is_ingame) {
-        for (const auto& [player_id_b, player_b] : players_) {
-          if (player_b.is_ingame) {
-            // Make sure that ids in the key are always in the same order.
-            PlayersKey key{std::min(player_id_a, player_id_b), std::max(player_id_a, player_id_b)};
-            auto it = distances.find(key);
-            if (it == distances.end()) {
-              distances[key] = glm::distance(player_a.state.position, player_b.state.position);
-            }
-          }
-        }
+    distances.reserve((active_players.size() * (active_players.size() - 1)) / 2);
+    // Iteration over player pairs
+    for (size_t i = 0; i < active_players.size(); ++i) {
+      for (size_t j = i + 1; j < active_players.size(); ++j) {
+        PlayersKey key{std::min(active_players[i].first, active_players[j].first), std::max(active_players[i].first, active_players[j].first)};
+
+        distances[key] = glm::distance(active_players[i].second->state.position, active_players[j].second->state.position);
       }
     }
 
@@ -277,7 +279,6 @@ bool GameServer::HandlePacket(Net::PlayerId playerId, unsigned char* data, std::
   Packet p{data, size, playerId};
 
   unsigned char packetIdentifier = GetPacketIdentifier(p);
-  SPDLOG_INFO("Packet identifier: {}", packetIdentifier);
   switch (packetIdentifier) {
     case ID_DISCONNECTION_NOTIFICATION:
       SendDisconnectionInfo(p.id.guid);

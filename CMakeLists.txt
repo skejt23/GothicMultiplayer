@@ -58,7 +58,6 @@ find_package(sol2 CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(Bitsery CONFIG REQUIRED)
-find_package(gsl-lite CONFIG REQUIRED)
 
 add_compile_definitions(SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
 if (MSVC)
