@@ -66,6 +66,7 @@ set(CLIENT_SOURCES
     HTTPDownloader.cpp
     patch.cpp
     Table.cpp
+    config.cpp
     WorldBuilder/CBuilder.cpp
     WorldBuilder/load.cpp
     WorldBuilder/save.cpp)

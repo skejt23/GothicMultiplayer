@@ -34,6 +34,7 @@ SOFTWARE.
 #include "Mod.h"
 #include "Network.h"
 #include "common.h"
+#include "config.h"
 #include "ocgame.hpp"
 #include "patch.h"
 #include "zcoption.hpp"
@@ -47,6 +48,30 @@ SDL_Window* g_pSdlWindow;
 
 void HookwinResizeMainWindow() {
   SDL_SetWindowSize(g_pSdlWindow, VideoW, VideoH);
+}
+
+void SetupWindowPositionTracking() {
+  if (!g_pSdlWindow)
+    return;
+
+  // Set up event watch function for window position changes
+  SDL_AddEventWatch(
+      [](void* userdata, SDL_Event* event) -> bool {
+        if (event->type == SDL_EVENT_WINDOW_MOVED) {
+          if (event->window.windowID == SDL_GetWindowID(g_pSdlWindow)) {
+            int x, y;
+            SDL_GetWindowPosition(g_pSdlWindow, &x, &y);
+
+            // Save window position to config
+            Config::Instance().SetWindowPosition({x, y});
+            Config::Instance().Save();
+
+            SPDLOG_DEBUG("Window position changed, saved to config: x={}, y={}", x, y);
+          }
+        }
+        return 0;
+      },
+      nullptr);
 }
 
 HWND HookCreateWindowExA(DWORD dwExStyle, LPCSTR lpClassName, LPCSTR lpWindowName, DWORD dwStyle, int X, int Y,
@@ -63,10 +88,16 @@ HWND HookCreateWindowExA(DWORD dwExStyle, LPCSTR lpClassName, LPCSTR lpWindowNam
                            hInstance, lpParam);
   }
 
+  auto window_pos = Config::Instance().GetWindowPosition();
+
   uint32_t flags = 0;
   flags |= SDL_WINDOW_HIDDEN;
   flags |= SDL_WINDOW_RESIZABLE;
-  g_pSdlWindow = SDL_CreateWindow(lpWindowName, 800, 600, flags);
+  g_pSdlWindow = SDL_CreateWindow(lpWindowName, nWidth, nHeight, flags);
+  if (window_pos) {
+    SDL_SetWindowPosition(g_pSdlWindow, window_pos->x, window_pos->y);
+  }
+  SetupWindowPositionTracking();
   if (g_pSdlWindow == nullptr) {
     SPDLOG_ERROR("Unable to create SDL window. Fallback to CreateWindowExA.");
     return CreateWindowExA(dwExStyle, lpClassName, lpWindowName, dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu,
