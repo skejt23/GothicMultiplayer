@@ -63,7 +63,7 @@ CInterpolatePos::~CInterpolatePos()
 void CInterpolatePos::DoInterpolate()
 {
 	if(!IsInterpolating) return;
-	// trzeba bêdzie wymyœliæ jakiœ lepszy pomys³ na szybkoœæ interpolacji
+	// trzeba bedzie wymyslic jakis lepszy pomysl na szybkosc interpolacji
 	if(IsDistanceSmallerThanRadius(70.0f, InterpolatingPlayer->npc->GetPosition(), InterpolatingTo)) Interpolate(InterpolatingTo.x, InterpolatingTo.y, InterpolatingTo.z, 0.5f);
 	else if(IsDistanceSmallerThanRadius(100.0f, InterpolatingPlayer->npc->GetPosition(), InterpolatingTo)) Interpolate(InterpolatingTo.x, InterpolatingTo.y, InterpolatingTo.z, 1);
 	else if(IsDistanceSmallerThanRadius(200.0f, InterpolatingPlayer->npc->GetPosition(), InterpolatingTo)) Interpolate(InterpolatingTo.x, InterpolatingTo.y, InterpolatingTo.z, 2, true);
@@ -122,7 +122,7 @@ bool CInterpolatePos::IsDistanceSmallerThanRadius(float radius, float bX, float 
    else return false;
 };
 
-bool CInterpolatePos::IsDistanceSmallerThanRadius(float radius, zVEC3 & Pos, zVEC3 & Pos1)
+bool CInterpolatePos::IsDistanceSmallerThanRadius(float radius, const zVEC3& Pos, const zVEC3& Pos1)
 {
    float vector[3];
    vector[0] = Pos1.x - Pos.x;

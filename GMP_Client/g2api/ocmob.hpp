@@ -6,7 +6,7 @@ This file is part of the G2Ext SDK headers.
 
 The G2Ext SDK headers
 
-Copyright © 2009, 2010 by Paindevs and Patrick Vogel
+Copyright (c) 2009, 2010 by Paindevs and Patrick Vogel
 
 All Rights reserved.
 
@@ -38,7 +38,7 @@ Full license at http://creativecommons.org/licenses/by-nc/3.0/legalcode
 #ifndef __API_G2_OCMOB_H__
 #define __API_G2_OCMOB_H__
 
-class oCMob : public zCVob // Zwyk³y mob, nie da siê z nim wejœæ w interakcje
+class oCMob : public zCVob
 {
 private:	
 	zSTRING			name;
@@ -87,7 +87,7 @@ public:
 	}
 };
 
-class oCMobInter : public oCMob // zwyk³y mob interakcyjny, bez pojemnika
+class oCMobInter : public oCMob 
 {
 public:
 	void SetVisualInter(zCVisual *){XCALL(0x0071D3C0)};
@@ -126,7 +126,7 @@ public:
 
 };
 
-class oCMobBed : public oCMobInter // £ó¿ko
+class oCMobBed : public oCMobInter
 {
 public:
 	static oCMobBed* _CreateNewInstance(void)
@@ -136,7 +136,7 @@ public:
 
 };
 
-class oCMobSwitch : public oCMobInter // Prze³¹cznik
+class oCMobSwitch : public oCMobInter
 {
 public:
 	static oCMobSwitch* _CreateNewInstance(void)
@@ -146,7 +146,7 @@ public:
 
 };
 
-class oCMobWheel : public oCMobInter // Ko³o?
+class oCMobWheel : public oCMobInter
 {
 public:
 	static oCMobWheel* _CreateNewInstance(void)

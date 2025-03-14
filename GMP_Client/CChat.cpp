@@ -82,7 +82,7 @@ void CChat::SetWhisperTo(std::string& whisperto)
 	WhisperMessages[0].Message = buffer;
 };
 
-void CChat::WriteMessage(MsgType type, bool PrintTimed, zCOLOR& rgb, const char * format, ...)
+void CChat::WriteMessage(MsgType type, bool PrintTimed, const zCOLOR& rgb, const char * format, ...)
 {
 	if(strlen(format) > 512) return;
 	char text[512];

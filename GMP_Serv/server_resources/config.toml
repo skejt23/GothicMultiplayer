@@ -10,4 +10,4 @@ message_of_the_day = "Welcome to my server!"
 log_to_stdout = true
 log_level = "trace"
 scripts = ["main.lua"]
-character_definitions_file = class.json
+character_definitions_file = "class.json"

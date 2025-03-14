@@ -6,7 +6,7 @@ This file is part of the G2Ext SDK headers.
 
 The G2Ext SDK headers
 
-Copyright © 2009, 2010 by Paindevs and Patrick Vogel
+Copyright (c) 2009, 2010 by Paindevs and Patrick Vogel
 
 All Rights reserved.
 
@@ -569,23 +569,23 @@ public:
 	void SetInteractMob(oCMobInter*){XCALL(0x0074AB00)};
 	oCMobInter* GetInteractMob(void){XCALL(0x0074ACA0)};
 	void SetAdditionalVisuals(const zSTRING & bodymesh, int bodytexture, int skincolor, const zSTRING & headmesh, int facetexture, int teethtexture, int armorinstance = -1){XCALL(0x00738350)};
-	/* Example jak u¿yæ SetAdditionalVisuals
+	/* Example jak uzyc SetAdditionalVisuals
 	oCNpc::GetHero()->SetAdditionalVisuals("HUM_BODY_NAKED0", 2, 0, "HUM_HEAD_BALD", 1, 0, -1);
-	HUM_HEAD_BALD - model g³owy
-	int bodytexture mo¿na znaleœæ w skryptach w pliku AI_Constants.d, np const int BodyTex_L = 2; czyli dajemy do argumentu int 1
-	int facetexture równie¿ mo¿na znaleœæ w pliku AI_Constants.d, np. const int Face_B_Gorn = 17	; czyli w argument facetexture dajemy 17
+	HUM_HEAD_BALD - model glowy
+	int bodytexture mozna znalezc w skryptach w pliku AI_Constants.d, np const int BodyTex_L = 2; czyli dajemy do argumentu int 1
+	int facetexture rowniez mozna znalezc w pliku AI_Constants.d, np. const int Face_B_Gorn = 17	; czyli w argument facetexture dajemy 17
 	*/
 	int GetOverlay(const zSTRING & mdsname){XCALL(0x00730010)};
 	void ApplyOverlay(const zSTRING & mdsname){XCALL(0x0072D2C0)};
 	void ApplyTimedOverlayMds(const zSTRING & mdsname, float time){XCALL(0x00756890)};
 	void RemoveOverlay(const zSTRING & mdsname){XCALL(0x0072D5C0)};
 	/*
-	Example jak u¿yæ ApplyOverlay
+	Example jak uzyc ApplyOverlay
 	oCNpc::GetHero()->ApplyOverlay("HUMANS_RELAXED.MDS");
-	sprawia ¿e nasz hero chodzi zrelaksowany
+	sprawia ze nasz hero chodzi zrelaksowany
 	*
 	oCNpc::GetHero()->ApplyOverlay("HUMANS_MILITIA.MDS");
-	sprawia ¿e nasz hero chodzi jak ¿o³nierz
+	sprawia ze nasz hero chodzi jak zolnierz
 	inne HUMANS_BABE.MDS, HUMANS_TIRED.MDS, HUMANS_ARROGANCE.MDS, HUMANS_MAGE.MDS
 	*/
 	// SETS THIS NPC AS PLAYER

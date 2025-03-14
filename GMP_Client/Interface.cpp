@@ -78,7 +78,8 @@ void ExitMainMenu()
 
 void ExitToBigMainMenu()
 {
-	oCNpc::GetHero()->ResetPos(oCNpc::GetHero()->GetPosition());
+	auto pos = oCNpc::GetHero()->GetPosition();
+	oCNpc::GetHero()->ResetPos(pos);
 	oCNpc::GetHero()->RefreshNpc();
 	MainMenu = NULL;
 	client->Disconnect();
@@ -177,7 +178,8 @@ void SaveMap()
 }
 void ExitToBigMainMenuFromWB()
 {
-	oCNpc::GetHero()->ResetPos(oCNpc::GetHero()->GetPosition());
+	auto pos = oCNpc::GetHero()->GetPosition();
+	oCNpc::GetHero()->ResetPos(pos);
 	oCNpc::GetHero()->RefreshNpc();
 	MainMenu = NULL;
 	HooksManager::GetInstance()->RemoveHook(HT_RENDER, (DWORD)RenderEvent);

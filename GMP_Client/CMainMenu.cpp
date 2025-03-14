@@ -43,7 +43,6 @@ SOFTWARE.
 #include "interface.h"
 #include <urlmon.h>
 #include "git.h"
-#include "CUpdate.h"
 #include "CSyncFuncs.h"
 #include "WorldBuilder\CBuilder.h"
 #include "ExtendedServerList.h"
@@ -69,7 +68,6 @@ zCView* Screen;
 zCView* PrintTimedScreen;
 zCInput* Input;
 CBuilder* Builder;
-CUpdate* Update;
 ifstream g2names;
 ifstream g2particles;
 zSTRING News = "News";
@@ -77,7 +75,6 @@ zSTRING HOWTOWB = "F1 - World Builder";
 zSTRING WRITE_MAPNAME = "Write ZEN world name ex. newworld.zen:";
 zSTRING WRITE_SAVEDMAP = "Write saved map name:";
 zSTRING MAPFILE_EMPTY = "Map file doesn't exist!";
-zSTRING UpdateNewer = "Your version is outdated! Please update at <your-site>.pl";
 #define RSS_FILE ""
 #define RSS_URL_ADDON ""
 
@@ -98,7 +95,7 @@ char x[2]={0, 0};
 		hbX, hbY, ps = 0, MenuPos = 0, OptionPos = 0, WBMenuPos = 0;
 		RECT wymiary;
 		GetWindowRect(Patch::GetHWND(), &wymiary);
-		fWRatio=1280.0f/(float)wymiary.right;	//za�o�enie jest takie �e szeroko�� jest dopasowywana wed�ug szeroko�ci 1280
+		fWRatio=1280.0f/(float)wymiary.right;	//zalozenie jest takie ze szerokosc jest dopasowywana weddug szerokosci 1280
 		fHRatio=1024.0f/(float)wymiary.top;
 		DisableHealthBar();
 		GMPLogo = new zCView(0,0,8192,8192,VIEW_ITEM);
@@ -112,7 +109,6 @@ char x[2]={0, 0};
 		AppWeapon = NULL;
 		LangSetting = NULL;
 		Options = NULL;
-		Update = new CUpdate();
 		MState = CHOOSE_LANGUAGE;
 		
 		oCSpawnManager::SetRemoveRange(2097152.0f);
@@ -225,62 +221,6 @@ char x[2]={0, 0};
 		return szString;
 	}
 
-	BOOL CMainMenu::LoadRSS(const char* langfile){
-		char LangPrefix[1];
-		memcpy(LangPrefix, langfile, 2);
-		std::string rss_url=RSS_FILE;
-		rss_url+=(char)LangPrefix[0];
-		rss_url+=(char)LangPrefix[1];
-		//rss_url+=RSS_URL_ADDON;
-		if(strlen(LangPrefix) < 2) return FALSE;
-		if(!memcmp("ru", LangPrefix, 2)) return FALSE;
-		if(URLDownloadToFileA(NULL, rss_url.c_str(), ".\\Multiplayer\\NEWS", 0, NULL)==S_OK){
-			std::string rss_msg="";
-			std::wstring rss_newz=L"";
-			char *fB=new char[128*1024];
-			FILE *file=fopen(".\\Multiplayer\\NEWS", "rb");
-			fseek(file, 0, SEEK_END);
-			long koniec=ftell(file);
-			fseek(file, 0, SEEK_SET);
-			fread(fB, koniec, 1, file);
-			fclose(file);
-			remove(".\\Multiplayer\\NEWS");
-			int it=0, it2=0;
-			bool not_first=false;
-			while(it<koniec){
-				if(memcmp(fB+it, "<title>", 7)==0){
-					it+=7;
-					it2=it;
-					while(memcmp(fB+it2, "</title>", 8)!=0) it2++;
-					if(not_first==true){
-						for(int e=it; e<it2; e++) rss_msg+=fB[e];
-						wchar_t *rss_news=NULL;
-						rss_news=new wchar_t[rss_msg.length()+1];
-						ZeroMemory(rss_news, rss_msg.length()*2+2);
-						MultiByteToWideChar(65001, 0, rss_msg.c_str(), rss_msg.length(), rss_news, rss_msg.length());
-						rss_newz = rss_news;
-						LangSetting->RemovePolishCharactersFromWideString(rss_newz);
-						RssNews.push_back(zSTRING(Convert(rss_newz.c_str())));
-						if(rss_news) delete rss_news;
-						rss_msg.clear();
-						rss_newz.clear();
-					}
-					else{
-						not_first=true;
-					}
-					it=it2;
-				}
-				it++;
-			}
-			delete fB;
-			rss_msg.clear();
-			rss_newz.clear();
-			return TRUE;
-		}
-		rss_url.clear();
-		return FALSE;
-	};
-
 	void CMainMenu::LoadLangNames(void)
 	{
 		std::string indexPath = std::string(LANG_DIR) + "index";
@@ -369,7 +309,6 @@ char x[2]={0, 0};
 				LangSetting = new CLanguage(path.ToChar());
 				Lang = LangSetting;
 				esl = new ExtendedServerList();
-				//LoadRSS(vec_lang_files[user_config->lang].c_str());
 				path.Clear();
 				vec_lang_files.clear();
 			}
@@ -520,7 +459,7 @@ char x[2]={0, 0};
 			oCNpc::GetHero()->SetName(user_config->Nickname);
 		break;
 		case 1:
-			// WYBIERZ WYGL�D
+			// WYBIERZ WYGLAD
 			if(AppCamCreated){
 				ChoosingApperance = ApperancePart::FACE;
 				LastApperance = ApperancePart::FACE;
@@ -543,7 +482,7 @@ char x[2]={0, 0};
 			ps=SETTINGS_MENU;
 		break;
 		case 4:
-			// WYJD� Z GRY
+			// WYJDZ Z GRY
 			CGameManager::GetGameManager()->Done();
 		break;
 		};
@@ -563,7 +502,7 @@ char x[2]={0, 0};
 			user_config->SaveConfigToFile();
 		break;
 		case 2:
-			// W��CZENIE ZEGARA
+			// WLACZENIE ZEGARA
 			user_config->watch = !user_config->watch;
 			user_config->SaveConfigToFile();
 		break;
@@ -595,7 +534,7 @@ char x[2]={0, 0};
 			user_config->SaveConfigToFile();
 		break;
 		case 9:
-			// POWR�T
+			// POWROT
 			ps=MAIN_MENU;
 			MState=MENU_LOOP;
 		break;
@@ -616,7 +555,7 @@ char x[2]={0, 0};
 				WBMapName.Clear();
 			break;
 			case 2:
-				// POWR�T DO MENU
+				// POWROT DO MENU
 				ps=MAIN_MENU;
 				MState=MENU_LOOP;
 			break;
@@ -638,7 +577,6 @@ char x[2]={0, 0};
 		switch(MState)
 		{
 		case CHOOSE_LANGUAGE:
-			if(!Update->RequiresMasterUpdate){
 			if(user_config->IsDefault()){
 			string_tmp = "Choose your language:";
 			Screen->Print(200, 200, string_tmp);
@@ -652,22 +590,14 @@ char x[2]={0, 0};
 				LangSetting = new CLanguage(path.ToChar());
 				Lang = LangSetting;
 				esl = new ExtendedServerList();
-				//LoadRSS(vec_lang_files[user_config->lang].c_str());
 				path.Clear();
 				vec_lang_files.clear();
 				zCInput::GetInput()->ClearKeyBuffer();
 				MState = CHOOSE_NICKNAME;
-				delete Update;
 			}
 			}
 			else{
 				MState = CHOOSE_NICKNAME;
-				delete Update;
-			}
-			}
-			else{
-				Screen->PrintCXY(UpdateNewer);
-				if(zCInput::GetInput()->AnyKeyPressed()) CGameManager::GetGameManager()->Done();
 			}
 		break;
 		case CHOOSE_NICKNAME:
@@ -976,7 +906,7 @@ char x[2]={0, 0};
 					WritingNickname = false;
 				}
 			}
-			// Wyb�r opcji przez enter
+			// Wybor opcji przez enter
 			if(!WritingNickname){
 			if(Input->KeyToggled(KEY_UP)) {
 				OptionPos == 0 ? OptionPos = 9 : OptionPos--;
@@ -989,7 +919,7 @@ char x[2]={0, 0};
 				RunOptionsItem();
 			}
 			}
-			// Opcja od ilo�ci lini czatu
+			// Opcja od ilosci lini czatu
 			if(OptionPos == 6){
 				if(Input->KeyToggled(KEY_LEFT)){
 					if(user_config->ChatLines > 0){
@@ -1024,7 +954,7 @@ char x[2]={0, 0};
 		break;
 		case MENU_WORLDBUILDER:
 			if(TitleWeapon) TitleWeapon->RotateWorldX(0.6f);
-			// Wyb�r opcji przez enter
+			// Wybor opcji przez enter
 			if(Input->KeyToggled(KEY_UP)) { 
 				WBMenuPos == 0 ? WBMenuPos = 2 : WBMenuPos--;
 			}

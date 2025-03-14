@@ -264,7 +264,8 @@ void OnActualStatistics(GameClient* client, Packet p) {
     }
     if ((!player->hp) && (packet.state.health_points == player->npc->GetMaxHealth())) {
       player->hp = packet.state.health_points;
-      player->npc->ResetPos(player->npc->GetPosition());
+			auto pos = player->npc->GetPosition();
+      player->npc->ResetPos(pos);
     } else if ((player->npc->GetHealth() > 0) && (packet.state.health_points == 0)) {
       player->hp = 0;
     } else {
@@ -656,7 +657,8 @@ void OnAllOthers(GameClient* client, Packet packet) {
     client->classmgr->EquipNPC(existing_player.selected_class, newhero, true);
     newhero->npc->SetGuild(9);
     newhero->hp = static_cast<short>(newhero->GetHealth());
-    newhero->SetPosition(zVEC3(existing_player.position.x, existing_player.position.y, existing_player.position.z));
+		auto pos = zVEC3(existing_player.position.x, existing_player.position.y, existing_player.position.z);
+    newhero->SetPosition(pos);
     if (newhero->Type == CPlayer::NPC_HUMAN) {
       newhero->SetAppearance(existing_player.head_model, existing_player.skin_texture, existing_player.face_texture);
     }

@@ -66,8 +66,8 @@ public:
 	int WatchPosX;
 	int WatchPosY;
 	int ChatLines;
-	CConfig::CConfig();
-	CConfig::~CConfig();
+	CConfig();
+	~CConfig();
 	void DefaultSettings();
 	void SaveConfigToFile();
 };

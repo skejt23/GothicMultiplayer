@@ -4,60 +4,48 @@
   "dependencies": [
     {
       "name": "fmt",
-      "version>=": "9.1.0"
+      "version>=": "11.0.2"
     },
     {
       "name": "spdlog",
-      "version>=": "1.11.0"
+      "version>=": "1.15.1"
     },
     {
       "name": "zlib",
-      "version>=": "1.2.12"
+      "version>=": "1.3.1"
     },
     {
       "name": "toml11",
-      "version>=": "3.7.1"
-    },
-    {
-      "name": "sdl2",
-      "version>=": "2.0.22"
+      "version>=": "4.3.0"
     },
     {
       "name": "pugixml",
-      "version>=": "1.12.1"
-    },
-    {
-      "name": "openal-soft",
-      "version>=": "1.22.2"
+      "version>=": "1.15"
     },
     {
       "name": "lua",
-      "version>=": "5.4.4"
+      "version>=": "5.4.7"
     },
     {
       "name": "sol2",
-      "version>=": "3.3.0"
+      "version>=": "3.3.1"
     },
     {
       "name": "gtest",
-      "version>=": "1.12.1"
+      "version>=": "1.16.0"
     },
     {
       "name": "nlohmann-json",
-      "version>=": "3.10.4"
+      "version>=": "3.11.3"
     },
     {
       "name": "glm",
-      "version>=": "0.9.9.8#2"
+      "version>=": "1.0.1#3"
     },
     {
       "name": "bitsery",
-      "version>=": "5.2.2"
-    },
-    {
-      "name": "gsl-lite",
-      "version>=": "0.38.0"
+      "version>=": "5.2.4"
     }
   ],
-  "builtin-baseline": "f3a39f1aaffe48b1190df69aab3a8657f91b632a"
+  "builtin-baseline": "300239058e33420acd153135b3f6e6b187828992"
 }

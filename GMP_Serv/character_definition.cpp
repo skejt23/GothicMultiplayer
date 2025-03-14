@@ -35,9 +35,10 @@ SOFTWARE.
 #include <string>
 
 namespace {
-std::string ToLower(std::string& str) {
-  std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return std::tolower(c); });
-  return str;
+std::string ToLower(const std::string& str) {
+  std::string lower_str = str;
+  std::transform(lower_str.begin(), lower_str.end(), lower_str.begin(), [](unsigned char c) { return std::tolower(c); });
+  return lower_str;
 }
 }  // namespace
 

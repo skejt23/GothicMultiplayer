@@ -65,7 +65,7 @@ class CShrinker
 private:
 	vector<Shrink> ShrinkedNpcs;
 public:
-	CShrinker::~CShrinker();
+	~CShrinker();
 	bool IsShrinked(oCNpc* Npc);
 	void UnShrinkAll(void);
 	int GetShrinkedNpcsNumber(void);

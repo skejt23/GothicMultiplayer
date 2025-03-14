@@ -74,7 +74,7 @@ void CSelectClass::Loop(){
 		scr->Print(120+static_cast<zINT>(static_cast<float>(60*(*selectmgr->lang)[CLanguage::CLASS_NAME].Length())*fWRatio), 150, (*chc)[selectmgr->GetSelected()]->class_name);
 		scr->Print(120+static_cast<zINT>(static_cast<float>(60*(*selectmgr->lang)[CLanguage::CLASS_DESCRIPTION].Length())*fWRatio), 300, (*chc)[selectmgr->GetSelected()]->class_description);
 		scr->Print(120+static_cast<zINT>(static_cast<float>(60*(*selectmgr->lang)[CLanguage::TEAM_NAME].Length())*fWRatio), 450, (*chc)[selectmgr->GetSelected()]->team_name);
-		selectmgr->HandleInput();	//wyrzuci�em na koniec bo za szybko robi� delete this;
+		selectmgr->HandleInput();	//wyrzucilem na koniec bo za szybko robil delete this;
 	}
 }
 
@@ -138,9 +138,10 @@ void CSelectClass::HandleInput(){
 	}
 	if(input->KeyPressed(KEY_RETURN)){
 		input->ClearKeyBuffer();
-		oCNpc::GetHero()->ResetPos(oCNpc::GetHero()->GetPosition());
+		auto pos = oCNpc::GetHero()->GetPosition();
+		oCNpc::GetHero()->ResetPos(pos);
 		client->JoinGame(this->selected);
-		//doda� przej�cie do zarz�dzania gameplayem
+		//dodac przejscie do zarzadzania gameplayem
 		delete this;
 	}
 }

@@ -6,7 +6,7 @@ This file is part of the G2Ext SDK headers.
 
 The G2Ext SDK headers
 
-Copyright © 2009, 2010 by Paindevs and Patrick Vogel
+Copyright (c) 2009, 2010 by Paindevs and Patrick Vogel
 
 All Rights reserved.
 
@@ -205,7 +205,7 @@ public:
 	zSTRING GetItemName(void){return this->name;};
 	void SetValue(int price){this->value = price;};
 	void CreateVisual(void){XCALL(0x00711930);};
-	void SetAmount(int amount){*(int*)((DWORD)this+0x32C) = amount;}; // Iloœæ przedmiotów jaka faktycznie znajduje siê w oCItem
+	void SetAmount(int amount){*(int*)((DWORD)this+0x32C) = amount;}; // Ilosc przedmiotow jaka faktycznie znajduje sie w oCItem
 	int GetAmount(void){return *(int*)((DWORD)this+0x32C);};
 	void SetItemName(const zSTRING& Name)
 	{

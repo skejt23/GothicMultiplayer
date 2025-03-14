@@ -63,9 +63,9 @@ public:
 	{
 		*(float*)((DWORD)this+0x34) = range;
 	}
-	void SetCameraAngle(float Angle) // Rotacja wokó³ obiektu kamery
+	void SetCameraAngle(float Angle)
 	{
-		*(float*)((DWORD)this+0x44) = Angle; // 0x38 to angle z góry jakiœ
+		*(float*)((DWORD)this+0x44) = Angle;
 	}
 	float GetCameraAngle()
 	{

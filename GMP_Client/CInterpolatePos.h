@@ -38,8 +38,8 @@ SOFTWARE.
 #include "CPlayer.h"
 #include <ctime>
 
-// U nas animacja s≥uøy za przewidywanie pozycji gracza, wiÍc mamy tu takie g≥adkie przesuwanie gracza w kierunku prawdziwej pozycji(przesy≥anej przez server). 
-// Ewentualnie inne smieci dodamy w przysz≥oúci.
+// U nas animacja s≈Çu≈ºy za przewidywanie pozycji gracza, wiƒôc mamy tu takie g≈Çadkie przesuwanie gracza w kierunku prawdziwej pozycji(przesy≈Çanej przez server). 
+// Ewentualnie inne smieci dodamy w przysz≈Ço≈õci.
 class CInterpolatePos
 {
 private:
@@ -55,6 +55,6 @@ public:
 	~CInterpolatePos();
 	void DoInterpolate();
 	bool IsDistanceSmallerThanRadius(float radius, float bX, float bY, float bZ, float rX, float rY, float rZ);
-	bool IsDistanceSmallerThanRadius(float radius, zVEC3 & Pos, zVEC3 & Pos1);
+	bool IsDistanceSmallerThanRadius(float radius, const zVEC3& Pos, const zVEC3& Pos1);
 	void UpdateInterpolation(float x, float y, float z);
 };

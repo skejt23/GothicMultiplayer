@@ -25,9 +25,7 @@ SOFTWARE.
 
 #define SDL_MAIN_HANDLED
 
-#include <SDL.h>
-#include <SDL_syswm.h>
-
+#include <SDL3/SDL.h>
 #include <cstdio>
 #include <iostream>
 #include <memory>
@@ -35,8 +33,8 @@ SOFTWARE.
 #include "VoiceCapture.h"
 #include "VoicePlayback.h"
 
-void main() {
-  if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
+int main() {
+  if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
     std::cerr << "Couldn't initialize SDL: " << SDL_GetError() << "\n";
   }
   VoiceCapture capture;
@@ -60,4 +58,5 @@ void main() {
 
   std::cout << "Press any key to exit...\n";
   std::getchar();
+  return 0;
 }

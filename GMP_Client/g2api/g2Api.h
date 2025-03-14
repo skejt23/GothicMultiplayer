@@ -60,14 +60,14 @@ SOFTWARE.
 #include "oczone.hpp"
 
 
-//definicje przydatne do ³adowania œwiata
-//ADDONWORLD: Jarkendar, OLDWORLD: Górnicza dolina, NEWWORLD: Khorinis
+//definicje przydatne do ladowania swiata
+//ADDONWORLD: Jarkendar, OLDWORLD: Gornicza dolina, NEWWORLD: Khorinis
 #define ADDONWORLD "ADDON\\ADDONWORLD.ZEN"
 #define OLDWORLD "OLDWORLD\\OLDWORLD.ZEN"
 #define NEWWORLD "NEWWORLD\\NEWWORLD.ZEN"
 #define IRDORATH "NEWWORLD\\DRAGONISLAND.ZEN"
 /*
-Inne warianty plików dla prefiksu "ADDON\\":
+Inne warianty plikow dla prefiksu "ADDON\\":
 ADDON_PART_ADANOSTEMPLE_01.ZEN
 ADDON_PART_BADITSCAMP_01.ZEN
 ADDON_PART_CANYON_01.ZEN
@@ -75,9 +75,9 @@ ADDON_PART_ENTRANCE_01.ZEN
 ADDON_PART_GOLDMINE_01.ZEN
 ADDON_PART_PIRATESCAMP_01.ZEN
 ADDON_PART_VALLEY_01.ZEN
-Inne warianty plików dla prefiksu "OLDWORLD\\":
+Inne warianty plikow dla prefiksu "OLDWORLD\\":
 OLDCAMP.ZEN
-Inne warianty plików dla prefiksu "NEWWOLRD\\":
+Inne warianty plikow dla prefiksu "NEWWOLRD\\":
 NEWWORLD_PART_CITY_01.ZEN
 NEWWORLD_PART_DRAGON_FINAL_01.ZEN
 NEWWORLD_PART_DRAGON_ISLAND_01.ZEN

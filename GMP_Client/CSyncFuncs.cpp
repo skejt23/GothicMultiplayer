@@ -52,7 +52,7 @@ enum SpellsId
 zSTRING SpellLogicTemporary;
 zSTRING SpellCastTemp;
 zSTRING SPRINT = "HUMANS_SPRINT.MDS";
-  // DŸwiêki wyci¹gania broni
+  // Dzwieki wyciagania broni
 zSTRING DrawSoundMe = "DRAWSOUND_ME.WAV";
 zSTRING DrawSoundMe02 = "DRAWSOUND_ME_02.WAV";
 zSTRING UnDrawSoundMe = "UNDRAWSOUND_ME.WAV";
@@ -101,7 +101,7 @@ void CSyncFuncs::RunSpellScript(const char* SpellName, oCNpc* Caster, oCNpc* Tar
 	if(memcmp(buffer,"SPELL_CAST_TRANSFORM",19) != 0) zCParser::GetParser()->CallFunc(SpellCastTemp);
 };
 
-// Sprawdzanie czy wielkoœæ pozycji nie jest wiêksza ni¿ dopuszcza radius, risen chcia³ to koniecznie
+// Sprawdzanie czy wielkosc pozycji nie jest wieksza niz dopuszcza radius, risen chcial to koniecznie
 bool CSyncFuncs::GetVectorSurfaceSphere(float radius, float bX, float bY, float bZ, float rX, float rY, float rZ)
 {
    float vector[3];
@@ -114,7 +114,7 @@ bool CSyncFuncs::GetVectorSurfaceSphere(float radius, float bX, float bY, float 
    else return false;
 }
 
-// Sprawdzanie czy u¿ywany przedmiot daje jakieœ specjalne efekty
+// Sprawdzanie czy uzywany przedmiot daje jakies specjalne efekty
 void CSyncFuncs::CheckForSpecialEffects(oCItem* Item, oCNpc* Npc)
 {
 	if(Item->GetInstance() == 6126) Npc->ApplyTimedOverlayMds(SPRINT, 120000);
@@ -122,7 +122,7 @@ void CSyncFuncs::CheckForSpecialEffects(oCItem* Item, oCNpc* Npc)
 	if(Item->GetInstance() == 7079) Npc->ApplyTimedOverlayMds(SPRINT, 300000);
 };
 
-// Odgrywanie dzwiêku przy wyci¹ganiu broni
+// Odgrywanie dzwieku przy wyciaganiu broni
 void CSyncFuncs::PlayDrawSound(oCItem* Item, oCNpc* Npc, bool Draw)
 {
 	if(oCItem::GetCategory(Item) != 1 || Item->mainflags != 2) return;
