@@ -1,8 +1,7 @@
-
 /*
 MIT License
 
-Copyright (c) 2022 Gothic Multiplayer Team (pampi, skejt23, mecio)
+Copyright (c) 2025 Gothic Multiplayer Team (pampi, skejt23, mecio)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -23,20 +22,36 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#include "shared/toml_wrapper.h"
+#pragma once
 
-#include <fstream>
-#include <stdexcept>
+#include <cstdint>
+#include <optional>
+#include <filesystem>
 
-TomlWrapper TomlWrapper::CreateFromFile(std::string_view file_path) {
-  TomlWrapper val;
-  val.data_ = toml::parse(std::string(file_path));
-  return val;
-}
+class Config {
+public:
+  struct WindowPosition {
+    std::int32_t x;
+    std::int32_t y;
+  };
 
-void TomlWrapper::Serialize(std::string_view file_path) const {
-  if (!data_.is_empty()) {
-    std::ofstream ofs(std::string(file_path), std::ios_base::out);
-    ofs << data_;
+  static Config& Instance() {
+    static Config instance;
+    return instance;
   }
-}
+
+  Config(const Config&) = delete;
+  Config& operator=(const Config&) = delete;
+
+  void Save() const;
+
+  const std::optional<WindowPosition>& GetWindowPosition() const;
+  void SetWindowPosition(WindowPosition window_position);
+
+private:
+  Config();
+  void Load();
+  
+  std::filesystem::path config_file_path_;
+  std::optional<WindowPosition> window_position_;
+};
