@@ -31,14 +31,15 @@ SOFTWARE.
 #include "net_enums.h"
 
 namespace Net {
-class PacketHandler {
-public:
-  virtual ~PacketHandler() = default;
-  virtual bool HandlePacket(unsigned char* data, std::uint32_t size) = 0;
-};
 
 class NetClient {
 public:
+  class PacketHandler {
+  public:
+    virtual ~PacketHandler() = default;
+    virtual bool HandlePacket(unsigned char* data, std::uint32_t size) = 0;
+  };
+
   virtual ~NetClient() = default;
 
   // Needs to be called periodically in order to retrieve packets.
@@ -48,8 +49,7 @@ public:
   virtual void Disconnect() = 0;
   virtual bool IsConnected() const = 0;
 
-  virtual bool SendPacket(unsigned char* data, std::uint32_t size, PacketReliability packetReliability,
-                          PacketPriority packetPriority) = 0;
+  virtual bool SendPacket(unsigned char* data, std::uint32_t size, PacketReliability packetReliability, PacketPriority packetPriority) = 0;
 
   virtual void AddPacketHandler(PacketHandler& packetHandler) = 0;
   virtual void RemovePacketHandler(PacketHandler& packetHandler) = 0;

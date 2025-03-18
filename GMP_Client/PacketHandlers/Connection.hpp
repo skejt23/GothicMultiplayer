@@ -31,12 +31,6 @@ SOFTWARE.
 
 extern CLocalPlayer* LocalPlayer;
 namespace Connection {
-void OnWhoami(GameClient* client, Packet packet) {
-  uint64_t playerID;
-  memcpy(&playerID, packet.data + 1, sizeof(uint64_t));
-  client->network->UpdateMyId(playerID);
-}
-
 void OnDisconnectOrLostConnection(GameClient* client, Packet packet) {
   client->network->error = packet.data[0];
   SPDLOG_WARN("OnDisconnectOrLostConnection, code: {}", client->network->error);

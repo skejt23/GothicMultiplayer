@@ -30,8 +30,8 @@ SOFTWARE.
 #include <ctime>
 #include <sstream>
 
-#include "game_server.h"
 #include "chillout.h"
+#include "game_server.h"
 
 namespace {
 void SetupCrashHandler() {
@@ -46,13 +46,10 @@ int main(int argc, char **argv) {
   GameServer serv;
   if (!serv.Init()) {
     SPDLOG_ERROR("Server initialization failed!");
-    exit(0);
+    return 1;
   }
-  while (1) {
-    using namespace std::chrono_literals;
-    serv.Run();
-    serv.SendSpamMessage();
-    std::this_thread::sleep_for(1ms);
+  while (true) {
+    std::this_thread::sleep_for(std::chrono::seconds(1));
   }
   return 0;
 }

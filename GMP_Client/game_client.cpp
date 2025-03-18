@@ -134,15 +134,6 @@ bool GameClient::Connect() {
   return false;
 }
 
-void GameClient::PrepareToJoin() {
-  std::uint8_t val[2] = {};
-  val[0] = PT_WHOAMI;
-  network->Send(val, 1, IMMEDIATE_PRIORITY, RELIABLE);
-  val[0] = PT_MAP_NAME;
-  network->Send(val, 1, IMMEDIATE_PRIORITY, RELIABLE);
-  IsReadyToJoin = true;
-}
-
 string GameClient::GetServerAddresForHTTPDownloader() {
   auto address = network->GetServerIp() + ":" + std::to_string(network->GetServerPort() + 1);
   return address;
@@ -378,7 +369,8 @@ void GameClient::UpdatePlayerStats(short anim) {
   packet.state.right_hand_item_instance = Hero->GetRightHand() ? static_cast<short>(Hero->GetRightHand()->GetInstance()) : 0;
   packet.state.equipped_armor_instance = Hero->GetEquippedArmor() ? static_cast<short>(Hero->GetEquippedArmor()->GetInstance()) : 0;
   packet.state.animation = anim;
-  packet.state.mana_points = static_cast<short>(Hero->GetMana());
+  packet.state.health_points = static_cast<std::int16_t>(Hero->GetHealth());
+  packet.state.mana_points = static_cast<std::int16_t>(Hero->GetMana());
   packet.state.weapon_mode = static_cast<uint8_t>(Hero->GetWeaponMode());
   packet.state.active_spell_nr = Hero->GetActiveSpellNr() > 0 ? static_cast<uint8_t>(Hero->GetActiveSpellNr()) : 0;
   packet.state.head_direction = GetHeadDirectionByte(Hero);

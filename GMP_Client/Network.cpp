@@ -54,9 +54,7 @@ Network::~Network()
 
 void Network::AddPacketHandlers() {
   using namespace Net;
-
-  packetHandlers[PT_WHOAMI] = Connection::OnWhoami;
-  packetHandlers[PT_MAP_NAME] = Game::OnMapName;
+  packetHandlers[PT_INITIAL_INFO] = Game::OnInitialInfo;
   packetHandlers[WL_INGAME] = Game::OnInGame;
   packetHandlers[PT_ACTUAL_STATISTICS] = Game::OnActualStatistics;
   packetHandlers[PT_MAP_ONLY] = Game::OnMapOnly;
@@ -70,7 +68,7 @@ void Network::AddPacketHandlers() {
   packetHandlers[PT_MSG] = Game::OnMessage;
   packetHandlers[PT_SRVMSG] = Game::OnServerMessage;
   packetHandlers[PT_COMMAND] = Game::OnRcon;
-  packetHandlers[PT_ALL_OTHERS] = Game::OnAllOthers;
+  packetHandlers[PT_EXISTING_PLAYERS] = Game::OnAllOthers;
   packetHandlers[PT_JOIN_GAME] = Game::OnJoinGame;
   packetHandlers[PT_GAME_INFO] = Game::OnGameInfo;
   packetHandlers[PT_LEFT_GAME] = Game::OnLeftGame;
@@ -89,7 +87,7 @@ bool Network::Connect(std::string hostAddress, int hostPort) {
   client_->DownloadWBFile();
   client_->DownloadClassFile();
   client_->DownloadSpawnpointsFile();
-  client_->PrepareToJoin();
+  client_->IsReadyToJoin = true;
   return true;
 }
 
@@ -107,6 +105,7 @@ void Network::Receive() {
 
 bool Network::HandlePacket(unsigned char* data, std::uint32_t size) {
   try {
+    SPDLOG_INFO("Received packet: {}", (int)data[0]);
     packetHandlers[(int)data[0]](client_, Packet{data, size});
   } catch (std::exception&) {
     error = data[0];

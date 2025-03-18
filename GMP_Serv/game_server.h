@@ -28,12 +28,14 @@ SOFTWARE.
 
 #include <string.h>
 
+#include <atomic>
 #include <ctime>
 #include <functional>
 #include <future>
 #include <memory>
 #include <optional>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -43,7 +45,6 @@ SOFTWARE.
 #include "config.h"
 #include "znet_server.h"
 
-#define DEFAULT_PORT 0xDEAD
 #define DEFAULT_ADMIN_PORT 0x404
 
 class CLog;
@@ -69,8 +70,8 @@ public:
   struct sPlayer {
     Net::PlayerId id;
     std::string name;
-    unsigned char char_class, flags, head, skin, body, walkstyle, figth_pos, spellhand, headstate, has_admin,
-        admin_passwd, moderator_passwd, is_ingame, passed_crc_test, mute;
+    unsigned char char_class, flags, head, skin, body, walkstyle, figth_pos, spellhand, headstate, has_admin, admin_passwd, moderator_passwd,
+        is_ingame, passed_crc_test, mute;
     short health, mana;
     // miejce na obrót głowy
     time_t tod;  // time of death
@@ -79,7 +80,7 @@ public:
 
 public:
   GameServer();
-  ~GameServer();
+  ~GameServer() override;
 
   void AddToPublicListHTTP();
   bool Receive();
@@ -130,6 +131,8 @@ private:
   std::unique_ptr<HTTPServer> http_server_;
   std::future<void> public_list_http_thread_future_;
   std::chrono::time_point<std::chrono::steady_clock> last_update_time_{};
+  std::thread main_thread;
+  std::atomic<bool> running = false;
 };
 
 inline GameServer* g_server = nullptr;

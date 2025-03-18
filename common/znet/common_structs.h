@@ -25,6 +25,8 @@ SOFTWARE.
 
 #pragma once
 
+#include <fmt/ostream.h>
+
 #include <cstdint>
 #include <glm/glm.hpp>
 #include <ostream>
@@ -80,3 +82,6 @@ inline std::ostream& operator<<(std::ostream& os, const PlayerState& player_stat
      << " ranged_weapon_instance: " << player_state.ranged_weapon_instance << " }";
   return os;
 }
+
+template <>
+struct fmt::formatter<PlayerState> : ostream_formatter {};

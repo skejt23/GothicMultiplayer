@@ -39,8 +39,8 @@ SOFTWARE.
 
 extern zCOLOR RED;
 namespace Game {
-void OnMapName(GameClient* client, Packet p) {
-  MapNamePacket packet;
+void OnInitialInfo(GameClient* client, Packet p) {
+  InitialInfoPacket packet;
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
 
@@ -51,6 +51,8 @@ void OnMapName(GameClient* client, Packet p) {
   } else if (!client->map.IsEmpty()) {
     client->map.Clear();
   }
+
+  client->network->UpdateMyId(packet.player_id);
 }
 
 void OnInGame(GameClient* client, Packet packet) {
@@ -73,6 +75,8 @@ void OnActualStatistics(GameClient* client, Packet p) {
   PlayerStateUpdatePacket packet;
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
+
+  SPDLOG_INFO("PlayerStateUpdatePacket: {}", packet);
 
   if (client->game_mode == 1) {
     for (size_t i = 1; i < client->player.size(); i++) {
@@ -264,7 +268,7 @@ void OnActualStatistics(GameClient* client, Packet p) {
     }
     if ((!player->hp) && (packet.state.health_points == player->npc->GetMaxHealth())) {
       player->hp = packet.state.health_points;
-			auto pos = player->npc->GetPosition();
+      auto pos = player->npc->GetPosition();
       player->npc->ResetPos(pos);
     } else if ((player->npc->GetHealth() > 0) && (packet.state.health_points == 0)) {
       player->hp = 0;
@@ -360,67 +364,6 @@ void OnActualStatistics(GameClient* client, Packet p) {
       }
     }
   }
-  // This looks unrelated to packet handling... 
-  // else {
-  //   if (client->player[0]->update_hp_packet >= 5) {
-  //     short last_hp = client->player[0]->hp;
-  //     memcpy(&client->player[0]->hp, packet.data + pIt, 2);
-  //     pIt += 2;
-  //     if ((!last_hp) && (client->player[0]->hp == client->player[0]->npc->GetMaxHealth())) {
-  //       client->player[0]->npc->RefreshNpc();
-  //       client->player[0]->npc->SetMovLock(0);
-  //       if (client->game_mode == 0) {
-  //         client->player[0]->npc->ResetPos(*(*client->spawnpoint)[rand() % client->spawnpoint->GetSize()]);
-  //       }
-  //       if (client->game_mode == 1) {
-  //         std::vector<const char*> team_list;
-  //         team_list.push_back((*client->classmgr)[0]->team_name.ToChar());
-  //         for (size_t x = 1; x < client->classmgr->GetSize(); x++) {
-  //           bool match = false;
-  //           for (size_t y = 0; y < team_list.size(); y++) {
-  //             if (!memcmp((*client->classmgr)[x]->team_name.ToChar(), team_list[y], strlen(team_list[y]) + 1)) {
-  //               match = true;
-  //               break;
-  //             }
-  //           }
-  //           if (!match) {
-  //             team_list.push_back((*client->classmgr)[x]->team_name.ToChar());
-  //           }
-  //         }
-  //         size_t z;
-  //         for (z = 0; z < team_list.size(); z++) {
-  //           if (!memcmp((*client->classmgr)[client->player[0]->char_class]->team_name.ToChar(), team_list[z], strlen(team_list[z]) + 1)) {
-  //             break;
-  //           }
-  //         }
-  //         client->player[0]->npc->ResetPos(
-  //             *(*client->spawnpoint)[(rand() % (client->spawnpoint->GetSize() / team_list.size())) * team_list.size() + z]);
-  //         team_list.clear();
-  //       }
-  //     } else
-  //       client->player[0]->SetHealth(static_cast<int>(client->player[0]->hp));
-  //     client->player[0]->update_hp_packet = 0;
-  //     if (static_cast<int>(client->player[0]->hp) < client->HeroLastHp) {
-  //       if (!client->player[0]->npc->IsDead() && client->player[0]->npc->GetBodyState() != 10 && client->player[0]->npc->GetBodyState() != 12 &&
-  //           client->player[0]->npc->GetBodyState() != 22 && !client->player[0]->npc->GetAnictrl()->IsInWater()) {
-  //         if (client->player[0]->npc->GetAnictrl()->IsRunning()) {
-  //           client->player[0]->npc->GetModel()->StartAnimation(GOTHIT);
-  //         } else {
-  //           client->player[0]->npc->GetModel()->StartAnimation(STUMBLE);
-  //         }
-  //         int RandomSound = rand() % 2 + 1;
-  //         if (RandomSound == 2) {
-  //           zCSoundSystem::GetSoundSystem()->PlaySound3D(HitSound, client->player[0]->GetNpc(), 2);
-  //         }
-  //       }
-  //       client->HeroLastHp = static_cast<int>(client->player[0]->hp);
-  //     } else if (static_cast<int>(client->player[0]->hp) != client->HeroLastHp)
-  //       client->HeroLastHp = static_cast<int>(client->player[0]->hp);
-  //   } else {
-  //     client->player[0]->update_hp_packet++;
-  //     pIt += 2;
-  //   }
-  // }
 }
 
 void OnMapOnly(GameClient* client, Packet p) {
@@ -639,13 +582,11 @@ void OnRcon(GameClient* client, Packet packet) {
 }
 
 void OnAllOthers(GameClient* client, Packet packet) {
-  std::vector<ExistingPlayerPacket> existing_players;
+  ExistingPlayersPacket existing_players_packet;
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
-  InputAdapter adapter(packet.data, packet.length);
-  auto deserializer = bitsery::Deserializer<InputAdapter>(std::move(adapter));
-  deserializer.container(existing_players, 400);
+  auto state = bitsery::quickDeserialization<InputAdapter>({packet.data, packet.length}, existing_players_packet);
 
-  for (const auto& existing_player : existing_players) {
+  for (const auto& existing_player : existing_players_packet.existing_players) {
     SPDLOG_INFO("ExistingPlayerPacket packet: {}", existing_player);
 
     CPlayer* newhero = new CPlayer();
@@ -657,7 +598,7 @@ void OnAllOthers(GameClient* client, Packet packet) {
     client->classmgr->EquipNPC(existing_player.selected_class, newhero, true);
     newhero->npc->SetGuild(9);
     newhero->hp = static_cast<short>(newhero->GetHealth());
-		auto pos = zVEC3(existing_player.position.x, existing_player.position.y, existing_player.position.z);
+    auto pos = zVEC3(existing_player.position.x, existing_player.position.y, existing_player.position.z);
     newhero->SetPosition(pos);
     if (newhero->Type == CPlayer::NPC_HUMAN) {
       newhero->SetAppearance(existing_player.head_model, existing_player.skin_texture, existing_player.face_texture);

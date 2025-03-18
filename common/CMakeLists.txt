@@ -24,3 +24,4 @@
 
 add_library(common INTERFACE)
 target_include_directories(common INTERFACE . znet)
+target_link_libraries(common INTERFACE glm::glm)

@@ -48,7 +48,7 @@ void serialize(S& s, glm::vec3& vec) {
 }
 }  // namespace glm
 
-struct ExistingPlayerPacket {
+struct ExistingPlayerInfo {
   std::uint8_t packet_type{0};
   std::uint64_t player_id{0};
   std::uint8_t selected_class{0};
@@ -64,23 +64,22 @@ struct ExistingPlayerPacket {
 };
 
 template <typename S>
-void serialize(S& s, ExistingPlayerPacket& packet) {
-  s.value1b(packet.packet_type);
-  s.value8b(packet.player_id);
-  s.value1b(packet.selected_class);
-  s.object(packet.position);
-  s.value2b(packet.left_hand_item_instance);
-  s.value2b(packet.right_hand_item_instance);
-  s.value2b(packet.equipped_armor_instance);
-  s.value1b(packet.head_model);
-  s.value1b(packet.skin_texture);
-  s.value1b(packet.face_texture);
-  s.value1b(packet.walk_style);
-  s.text1b(packet.player_name, 255);
+void serialize(S& s, ExistingPlayerInfo& info) {
+  s.value8b(info.player_id);
+  s.value1b(info.selected_class);
+  s.object(info.position);
+  s.value2b(info.left_hand_item_instance);
+  s.value2b(info.right_hand_item_instance);
+  s.value2b(info.equipped_armor_instance);
+  s.value1b(info.head_model);
+  s.value1b(info.skin_texture);
+  s.value1b(info.face_texture);
+  s.value1b(info.walk_style);
+  s.text1b(info.player_name, 255);
 }
 
-inline std::ostream& operator<<(std::ostream& os, const ExistingPlayerPacket& packet) {
-  os << "ExistingPlayerPacket {"
+inline std::ostream& operator<<(std::ostream& os, const ExistingPlayerInfo& packet) {
+  os << "ExistingPlayerInfo {"
      << " packet_type: " << static_cast<int>(packet.packet_type) << ", player_id: " << packet.player_id
      << ", selected_class: " << static_cast<int>(packet.selected_class) << ", position: (" << packet.position.x << ", " << packet.position.y << ", "
      << packet.position.z << ")"
@@ -92,7 +91,18 @@ inline std::ostream& operator<<(std::ostream& os, const ExistingPlayerPacket& pa
 }
 
 template <>
-struct fmt::formatter<ExistingPlayerPacket> : ostream_formatter {};
+struct fmt::formatter<ExistingPlayerInfo> : ostream_formatter {};
+
+struct ExistingPlayersPacket {
+  std::uint8_t packet_type{0};
+  std::vector<ExistingPlayerInfo> existing_players;
+};
+
+template <typename S>
+void serialize(S& s, ExistingPlayersPacket& packet) {
+  s.value1b(packet.packet_type);
+  s.container(packet.existing_players, 400);
+}
 
 struct JoinGamePacket {
   std::uint8_t packet_type{0};
@@ -281,6 +291,9 @@ inline std::ostream& operator<<(std::ostream& os, const PlayerStateUpdatePacket&
   return os;
 }
 
+template <>
+struct fmt::formatter<PlayerStateUpdatePacket> : ostream_formatter {};
+
 struct PlayerPositionUpdatePacket {
   std::uint8_t packet_type;
   glm::vec3 position;
@@ -390,22 +403,28 @@ inline std::ostream& operator<<(std::ostream& os, const PlayerRespawnInfoPacket&
   return os;
 }
 
-struct MapNamePacket {
+// Server informs the client about the map name and the ID assigned to the player
+struct InitialInfoPacket {
   std::uint8_t packet_type;
   std::string map_name;
+  std::uint64_t player_id;
 };
 
 template <typename S>
-void serialize(S& s, MapNamePacket& packet) {
+void serialize(S& s, InitialInfoPacket& packet) {
   s.value1b(packet.packet_type);
   s.text1b(packet.map_name, 64);
+  s.value8b(packet.player_id);
 }
 
-inline std::ostream& operator<<(std::ostream& os, const MapNamePacket& packet) {
-  os << "MapNamePacket {"
-     << " packet_type: " << static_cast<int>(packet.packet_type) << ", map_name: " << packet.map_name << " }";
+inline std::ostream& operator<<(std::ostream& os, const InitialInfoPacket& packet) {
+  os << "InitialInfoPacket {"
+     << " packet_type: " << static_cast<int>(packet.packet_type) << ", map_name: " << packet.map_name << ", player_id: " << packet.player_id << " }";
   return os;
 }
+
+template <>
+struct fmt::formatter<InitialInfoPacket> : ostream_formatter {};
 
 struct GameInfoPacket {
   std::uint8_t packet_type;

@@ -61,7 +61,6 @@ public:
   void HandleNetwork(void);
   bool IsConnected(void);
   bool Connect(void);
-  void PrepareToJoin(void);
   void JoinGame(BYTE selected_class);
   zSTRING& GetLastError(void);
   void SendDropItem(short Instance, short amount);
@@ -98,7 +97,7 @@ public:
   CObservation::ObseravtionMode ObserveMode;
   CLanguage* lang;
   Network* network;
-  BOOL IsReadyToJoin;
+  bool IsReadyToJoin;
 
 private:
   int clientPort;

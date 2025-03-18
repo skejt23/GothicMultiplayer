@@ -188,9 +188,18 @@ bool GameServer::Init() {
 
   SPDLOG_INFO("");
   script = new Script(config_.Get<std::vector<std::string>>("scripts"));
+  last_update_time_ = std::chrono::steady_clock::now();
+
+  main_thread = std::thread([this]() {
+    running = true;
+    while (running) {
+      Run();
+      SendSpamMessage();
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+  });
   SPDLOG_INFO("|-----------------------------------|");
   SPDLOG_INFO("GMP Classic Server initialized successfully!");
-  last_update_time_ = std::chrono::steady_clock::now();
   return true;
 }
 
@@ -296,6 +305,13 @@ bool GameServer::HandlePacket(Net::PlayerId playerId, unsigned char* data, std::
       pl.id = p.id;
       pl.mute = 0;
       players_[p.id.guid] = std::move(pl);
+
+      // Send packet with initial information.
+      InitialInfoPacket packet;
+      packet.packet_type = PT_INITIAL_INFO;
+      packet.map_name = config_.Get<std::string>("map");
+      packet.player_id = p.id.guid;
+      SerializeAndSend(packet, HIGH_PRIORITY, RELIABLE, p.id, 9);
     }
       SPDLOG_INFO("ID_NEW_INCOMING_CONNECTION from {} with GUID {}. Now we have {} connected users.", g_net_server->GetPlayerIp(p.id), p.id.guid,
                   players_.size());
@@ -311,13 +327,6 @@ bool GameServer::HandlePacket(Net::PlayerId playerId, unsigned char* data, std::
     case PT_REQUEST_FILE_LENGTH:
     case PT_REQUEST_FILE_PART:
       break;
-    case PT_WHOAMI:  // zwraca id gracza(czyli jego guid)
-    {
-      unsigned char val[9];
-      val[0] = PT_WHOAMI;
-      memcpy(val + 1, &p.id.guid, sizeof(uint64_t));
-      g_net_server->Send((const char*)val, 9, HIGH_PRIORITY, RELIABLE_ORDERED, 0, p.id);
-    } break;
     case PT_JOIN_GAME:
       SomeoneJoinGame(p);
       break;
@@ -350,9 +359,6 @@ bool GameServer::HandlePacket(Net::PlayerId playerId, unsigned char* data, std::
       break;
     case PT_GAME_INFO:  // na razie tylko czas
       HandleGameInfo(p);
-      break;
-    case PT_MAP_NAME:
-      HandleMapNameReq(p);
       break;
     case PT_VOICE:
       HandleVoice(p);
@@ -452,7 +458,11 @@ void GameServer::SomeoneJoinGame(Packet p) {
 
   player.tod = 0;
   player.char_class = packet.selected_class;
-  player.health = character_definition_manager_->GetCharacterDefinition(packet.selected_class).abilities[HP];
+  if (!character_definition_manager_->IsEmpty()) {
+    player.health = character_definition_manager_->GetCharacterDefinition(packet.selected_class).abilities[HP];
+  } else {
+    player.health = 100;
+  }
 
   player.state.position = packet.position;
   player.state.nrot = packet.normal;
@@ -469,7 +479,7 @@ void GameServer::SomeoneJoinGame(Packet p) {
   // Update the packet we received with his ID, so we can send it to others.
   packet.player_id = p.id.guid;
 
-  std::vector<ExistingPlayerPacket> existing_players;
+  std::vector<ExistingPlayerInfo> existing_players;
   existing_players.reserve(players_.size());
 
   // Informing other players about new player
@@ -479,8 +489,7 @@ void GameServer::SomeoneJoinGame(Packet p) {
         SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE, existing_player.id);
       }
 
-      ExistingPlayerPacket player_packet;
-      player_packet.packet_type = PT_ALL_OTHERS;
+      ExistingPlayerInfo player_packet;
       player_packet.player_id = existing_player.id.guid;
       player_packet.selected_class = existing_player.char_class;
       player_packet.position = existing_player.state.position;
@@ -496,14 +505,13 @@ void GameServer::SomeoneJoinGame(Packet p) {
     }
   }
 
-  // Previously, we were splitting this into mulitple packets. Find out if this is still necessary.
-  std::vector<std::uint8_t> buffer;
-  bitsery::OutputBufferAdapter<std::vector<std::uint8_t>> adapter(buffer);
-  auto serializer = bitsery::Serializer<bitsery::OutputBufferAdapter<std::vector<std::uint8_t>>>(std::move(adapter));
-  serializer.container(existing_players, 400);
-  serializer.adapter().flush();
-  auto written_size = serializer.adapter().writtenBytesCount();
-  g_net_server->Send(buffer.data(), written_size, IMMEDIATE_PRIORITY, RELIABLE, 0, p.id);
+  if (!existing_players.empty()) {
+    // Previously, we were splitting this into mulitple packets. Find out if this is still necessary.
+    ExistingPlayersPacket existing_players_packet;
+    existing_players_packet.packet_type = PT_EXISTING_PLAYERS;
+    existing_players_packet.existing_players = std::move(existing_players);
+    SerializeAndSend(existing_players_packet, IMMEDIATE_PRIORITY, RELIABLE, p.id);
+  }
 
   player.is_ingame = 1;
 
@@ -803,10 +811,6 @@ void GameServer::SendGameInfo(Net::PlayerId who) {
 }
 
 void GameServer::HandleMapNameReq(Packet p) {
-  MapNamePacket packet;
-  packet.packet_type = PT_MAP_NAME;
-  packet.map_name = config_.Get<std::string>("map");
-  SerializeAndSend(packet, MEDIUM_PRIORITY, RELIABLE, p.id, 9);
 }
 
 void GameServer::SendDisconnectionInfo(uint64_t disconnected_id) {

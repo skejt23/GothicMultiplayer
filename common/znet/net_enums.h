@@ -25,27 +25,17 @@ SOFTWARE.
 
 #pragma once
 
-namespace Net
-{
-enum PacketReliability
-{
-	UNRELIABLE,
-	UNRELIABLE_SEQUENCED,
-	RELIABLE,
-	RELIABLE_ORDERED,
-	RELIABLE_SEQUENCED
-};
+namespace Net {
+enum PacketReliability { UNRELIABLE, UNRELIABLE_SEQUENCED, RELIABLE, RELIABLE_ORDERED, RELIABLE_SEQUENCED };
 
-enum PacketPriority
-{
+enum PacketPriority {
   IMMEDIATE_PRIORITY,
   HIGH_PRIORITY,
   MEDIUM_PRIORITY,
   LOW_PRIORITY,
 };
 
-enum PacketID
-{
+enum PacketID {
   WL_PREPARE_TO_JOIN,
   WL_JOIN_TO_GAME,
   WL_INGAME,
@@ -54,30 +44,28 @@ enum PacketID
   ID_NEW_INCOMING_CONNECTION,
   ID_NO_FREE_INCOMING_CONNECTIONS,
   ID_DISCONNECTION_NOTIFICATION,
-	ID_CONNECTION_LOST,
+  ID_CONNECTION_LOST,
   ID_CONNECTION_BANNED,
   ID_INVALID_PASSWORD,
   ID_INCOMPATIBLE_PROTOCOL_VERSION,
   ID_IP_RECENTLY_CONNECTED,
   ID_TIMESTAMP,
   PT_MSG = 135,
-  PT_NEWCONN,  // <- uzywa ktos tego?
   PT_REQUEST_FILE_LENGTH,
   PT_REQUEST_FILE_PART,
-  PT_WHOAMI,
+  PT_INITIAL_INFO,
   PT_JOIN_GAME,
   PT_ACTUAL_STATISTICS,  // <- chyba tutaj będe musiał dodac optymalizacje gdyż nie potrzeba nam wszystkich informacji o
                          // graczu który jest od nas dalej niż 5000.0f
-  PT_ALL_OTHERS,  // pakiety wysylany tylko z serwera do klienta, informacje o wszystkich grajacych wysylane jednorazowo
+  PT_EXISTING_PLAYERS,         // Packet contains information about all other players. Send to the new joining player.
   PT_HP_DIFF,
   PT_MAP_ONLY,
-  PT_COMMAND,      // administrowanie
+  PT_COMMAND,  // administrowanie
   PT_WHISPER,
   PT_EXTENDED_4_SCRIPTS,  // jak juz kiedys wdrozymy skrypty
   PT_SRVMSG,
   PT_LEFT_GAME,
   PT_GAME_INFO,
-  PT_MAP_NAME,
   PT_DODIE,
   PT_RESPAWN,
   PT_DROPITEM,
@@ -86,4 +74,83 @@ enum PacketID
   PT_CASTSPELLONTARGET,
   PT_VOICE,
 };
+
+inline const char* PacketIDToString(PacketID id) {
+  switch (id) {
+    case WL_PREPARE_TO_JOIN:
+      return "WL_PREPARE_TO_JOIN";
+    case WL_JOIN_TO_GAME:
+      return "WL_JOIN_TO_GAME";
+    case WL_INGAME:
+      return "WL_INGAME";
+    case ID_CONNECTION_ATTEMPT_FAILED:
+      return "ID_CONNECTION_ATTEMPT_FAILED";
+    case ID_ALREADY_CONNECTED:
+      return "ID_ALREADY_CONNECTED";
+    case ID_NEW_INCOMING_CONNECTION:
+      return "ID_NEW_INCOMING_CONNECTION";
+    case ID_NO_FREE_INCOMING_CONNECTIONS:
+      return "ID_NO_FREE_INCOMING_CONNECTIONS";
+    case ID_DISCONNECTION_NOTIFICATION:
+      return "ID_DISCONNECTION_NOTIFICATION";
+    case ID_CONNECTION_LOST:
+      return "ID_CONNECTION_LOST";
+    case ID_CONNECTION_BANNED:
+      return "ID_CONNECTION_BANNED";
+    case ID_INVALID_PASSWORD:
+      return "ID_INVALID_PASSWORD";
+    case ID_INCOMPATIBLE_PROTOCOL_VERSION:
+      return "ID_INCOMPATIBLE_PROTOCOL_VERSION";
+    case ID_IP_RECENTLY_CONNECTED:
+      return "ID_IP_RECENTLY_CONNECTED";
+    case ID_TIMESTAMP:
+      return "ID_TIMESTAMP";
+    case PT_MSG:
+      return "PT_MSG";
+    case PT_REQUEST_FILE_LENGTH:
+      return "PT_REQUEST_FILE_LENGTH";
+    case PT_REQUEST_FILE_PART:
+      return "PT_REQUEST_FILE_PART";
+    case PT_INITIAL_INFO:
+      return "PT_INITIAL_INFO";
+    case PT_JOIN_GAME:
+      return "PT_JOIN_GAME";
+    case PT_ACTUAL_STATISTICS:
+      return "PT_ACTUAL_STATISTICS";
+    case PT_EXISTING_PLAYERS:
+      return "PT_EXISTING_PLAYERS";
+    case PT_HP_DIFF:
+      return "PT_HP_DIFF";
+    case PT_MAP_ONLY:
+      return "PT_MAP_ONLY";
+    case PT_COMMAND:
+      return "PT_COMMAND";
+    case PT_WHISPER:
+      return "PT_WHISPER";
+    case PT_EXTENDED_4_SCRIPTS:
+      return "PT_EXTENDED_4_SCRIPTS";
+    case PT_SRVMSG:
+      return "PT_SRVMSG";
+    case PT_LEFT_GAME:
+      return "PT_LEFT_GAME";
+    case PT_GAME_INFO:
+      return "PT_GAME_INFO";
+    case PT_DODIE:
+      return "PT_DODIE";
+    case PT_RESPAWN:
+      return "PT_RESPAWN";
+    case PT_DROPITEM:
+      return "PT_DROPITEM";
+    case PT_TAKEITEM:
+      return "PT_TAKEITEM";
+    case PT_CASTSPELL:
+      return "PT_CASTSPELL";
+    case PT_CASTSPELLONTARGET:
+      return "PT_CASTSPELLONTARGET";
+    case PT_VOICE:
+      return "PT_VOICE";
+  }
+  return "UNKNOWN";
 }
+
+}  // namespace Net

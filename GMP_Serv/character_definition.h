@@ -56,6 +56,7 @@ public:
   const CharacterDefinition& GetCharacterDefinition(std::uint32_t id) const {
     return character_definitions_.at(id);
   }
+  bool IsEmpty() const { return character_definitions_.empty(); }
 
 private:
   std::uint32_t id_counter_ = 0;
