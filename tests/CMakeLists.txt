@@ -27,10 +27,16 @@ include(GoogleTest)
 #     ON
 #     CACHE BOOL "" FORCE)
 
-set(SOURCES connection_test.cpp)
+set(SOURCES 
+  fake_client.cpp
+  connection_test.cpp)
 
 add_executable(ConnectionTest ${SOURCES})
 target_link_libraries(ConnectionTest PRIVATE ServerLib GTest::gtest
-                                             GTest::gtest_main)
+                                             GTest::gtest_main
+                                             zNetInterface
+                                             dylib
+                                             spdlog::spdlog
+                                             GTest::gmock)
 
 add_test(NAME ConnectionTest COMMAND ConnectionTest TIMEOUT 1)

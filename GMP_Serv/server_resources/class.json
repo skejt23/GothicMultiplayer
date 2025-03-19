@@ -4,21 +4,21 @@
       {
         "team": "Innos",
         "name": "Guard",
-        "strength": "30",
-        "dexterity": "0",
-        "mana": "0",
-        "health": "200",
-        "onehweapon": "60",
-        "twohweapon": "0",
-        "bow": "0",
-        "crossbow": "0",
-        "magic_lvl": "0",
+        "strength": 30,
+        "dexterity": 0,
+        "mana": 0,
+        "health": 200,
+        "onehweapon": 60,
+        "twohweapon": 0,
+        "bow": 0,
+        "crossbow": 0,
+        "magic_lvl": 0,
         "prim_wep": "ITMW_SHORTSWORD5",
         "items": {
           "item": [
             {
               "code": "ITPO_HEALTH_01",
-              "count": "2"
+              "count": 2
             }
           ]
         }
@@ -26,15 +26,15 @@
       {
         "name": "Pirate",
         "team": "Innos",
-        "strength": "0",
-        "dexterity": "50",
-        "mana": "0",
-        "health": "200",
-        "onehweapon": "30",
-        "twohweapon": "0",
-        "bow": "30",
-        "crossbow": "0",
-        "magic_lvl": "0",
+        "strength": 0,
+        "dexterity": 50,
+        "mana": 0,
+        "health": 200,
+        "onehweapon": 30,
+        "twohweapon": 0,
+        "bow": 30,
+        "crossbow": 0,
+        "magic_lvl": 0,
         "armor": "ITAR_PIR_L_ADDON",
         "prim_wep": "ITMW_RAPIER",
         "sec_wep": "ITRW_BOW_L_04",
@@ -42,11 +42,11 @@
           "item": [
             {
               "code": "ITRW_ARROW",
-              "count": "100"
+              "count": 100
             },
             {
               "code": "ITPO_HEALTH_01",
-              "count": "2"
+              "count": 2
             }
           ]
         }
@@ -54,38 +54,38 @@
       {
         "name": "Novice",
         "team": "Innos",
-        "strength": "20",
-        "dexterity": "0",
-        "mana": "50",
-        "health": "200",
-        "onehweapon": "0",
-        "twohweapon": "30",
-        "bow": "0",
-        "crossbow": "0",
-        "magic_lvl": "1",
+        "strength": 20,
+        "dexterity": 0,
+        "mana": 50,
+        "health": 200,
+        "onehweapon": 0,
+        "twohweapon": 30,
+        "bow": 0,
+        "crossbow": 0,
+        "magic_lvl": 1,
         "armor": "ITAR_NOV_L",
         "prim_wep": "ITMW_1H_NOV_MACE",
         "items": {
           "item": [
             {
               "code": "ITRU_FIREBOLT",
-              "count": "1"
+              "count": 1
             },
             {
               "code": "ITRU_LIGHTHEAL",
-              "count": "1"
+              "count": 1
             },
             {
               "code": "ITRU_LIGHT",
-              "count": "1"
+              "count": 1
             },
             {
               "code": "ITPO_HEALTH_01",
-              "count": "2"
+              "count": 2
             },
             {
               "code": "ITPO_MANA_01",
-              "count": "2"
+              "count": 2
             }
           ]
         }
@@ -93,22 +93,22 @@
       {
         "name": "Barbarian",
         "team": "Adanos",
-        "strength": "60",
-        "dexterity": "0",
-        "mana": "0",
-        "health": "200",
-        "onehweapon": "0",
-        "twohweapon": "30",
-        "bow": "0",
-        "crossbow": "0",
-        "magic_lvl": "0",
+        "strength": 60,
+        "dexterity": 0,
+        "mana": 0,
+        "health": 200,
+        "onehweapon": 0,
+        "twohweapon": 30,
+        "bow": 0,
+        "crossbow": 0,
+        "magic_lvl": 0,
         "armor": "ITAR_SLD_L",
         "prim_wep": "ITMW_HELLEBARDE",
         "items": {
           "item": [
             {
               "code": "ITPO_HEALTH_01",
-              "count": "2"
+              "count": 2
             }
           ]
         }
@@ -116,15 +116,15 @@
       {
         "name": "Hunter",
         "team": "Adanos",
-        "strength": "0",
-        "dexterity": "30",
-        "mana": "0",
-        "health": "200",
-        "onehweapon": "30",
-        "twohweapon": "0",
-        "bow": "50",
-        "crossbow": "0",
-        "magic_lvl": "0",
+        "strength": 0,
+        "dexterity": 30,
+        "mana": 0,
+        "health": 200,
+        "onehweapon": 30,
+        "twohweapon": 0,
+        "bow": 50,
+        "crossbow": 0,
+        "magic_lvl": 0,
         "armor": "ITAR_LEATHER_L",
         "prim_wep": "ITMW_ADDON_BANDITTRADER",
         "sec_wep": "ITRW_BOW_L_03",
@@ -132,11 +132,11 @@
           "item": [
             {
               "code": "ITRW_ARROW",
-              "count": "100"
+              "count": 100
             },
             {
               "code": "ITPO_HEALTH_01",
-              "count": "2"
+              "count": 2
             }
           ]
         }
@@ -144,15 +144,15 @@
       {
         "name": "Guard of Holy Water",
         "team": "Adanos",
-        "strength": "30",
-        "dexterity": "0",
-        "mana": "40",
-        "health": "200",
-        "onehweapon": "0",
-        "twohweapon": "30",
-        "bow": "0",
-        "crossbow": "0",
-        "magic_lvl": "1",
+        "strength": 30,
+        "dexterity": 0,
+        "mana": 40,
+        "health": 200,
+        "onehweapon": 0,
+        "twohweapon": 30,
+        "bow": 0,
+        "crossbow": 0,
+        "magic_lvl": 1,
         "armor": "ITAR_RANGER_ADDON",
         "prim_wep": "ITMW_1H_NOV_MACE",
         "items": {
@@ -162,19 +162,19 @@
             },
             {
               "code": "ITRU_LIGHTHEAL",
-              "count": "1"
+              "count": 1
             },
             {
               "code": "ITPO_HEALTH_01",
-              "count": "2"
+              "count": 2
             },
             {
               "code": "ITPO_MANA_01",
-              "count": "2"
+              "count": 2
             }
           ]
         }
       }
     ]
   }
-}    
+}

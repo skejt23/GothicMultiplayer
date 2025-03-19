@@ -42,6 +42,17 @@ public:
     void from_toml(const toml::value& v);
   };
 
+  union TimeUnion {
+    TimeUnion(Time t) : day(t.day_), hour(t.hour_), min(t.min_) {
+    }
+    struct {
+      std::uint16_t day;
+      std::uint8_t hour;
+      std::uint8_t min;
+    };
+    std::uint32_t raw;
+  };
+
   GothicClock(Time initial_time);
 
   void UpdateTime(Time new_time);

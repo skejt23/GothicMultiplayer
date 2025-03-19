@@ -24,7 +24,7 @@ SOFTWARE.
 */
 
 #include "CIngame.h"
-#include "CGmpClient.h"
+#include "game_client.h"
 #include "CWatch.h"
 #include "CConfig.h"
 #include "HooksManager.h"
@@ -37,7 +37,7 @@ SOFTWARE.
 #include "CLocalPlayer.h"
 
 CIngame *global_ingame=NULL;
-extern CGmpClient *client;
+extern GameClient*client;
 extern CLocalPlayer* LocalPlayer;
 void InterfaceLoop(void);
 zSTRING arrow = "->";
@@ -408,7 +408,7 @@ void CIngame::HandleInput(){
 						}
 					break;
 					case ADMIN:
-						client->SendRemoteMessage(chatbuffer.c_str());
+						client->SendCommand(chatbuffer.c_str());
 						CChat::GetInstance()->WriteMessage(ADMIN, false, RED, "%s", chatbuffer.c_str());
 						break;
 				}

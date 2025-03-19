@@ -33,7 +33,7 @@ set(CLIENT_SOURCES
     CAnimMenu.cpp
     CChat.cpp
     CConfig.cpp
-    CGmpClient.cpp
+    game_client.cpp
     CHeroClass.cpp
     CIngame.cpp
     CInterpolatePos.cpp
@@ -89,7 +89,8 @@ target_link_libraries(
           dylib
           zNetInterface
           pugixml
-          Client.Voice)
+          Client.Voice
+          glm::glm)
 target_include_directories(
   GMP PRIVATE ${InjectMage_INCLUDE_DIR} ${BugTrap_INCLUDE_DIR}
               ${CPP_HTTPLIB_INCLUDE_DIRS})

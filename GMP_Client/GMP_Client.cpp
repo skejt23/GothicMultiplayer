@@ -125,6 +125,11 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
     CallPatch(0x004FE096, (DWORD)&HookwinResizeMainWindow, 0);
 
     Patch::SetWndName("Gothic Multiplayer");
+
+    // This needs to be unique, so it's possible to run multiple instances of the game.
+    static std::string reg_program_name = "GMP " + std::to_string(GetCurrentProcessId());
+    Patch::SetRegProgram(reg_program_name.c_str());
+    
     Patch::InitNewSplash();
     Patch::DisablePlayBink();
     Patch::DisableStartupScript();

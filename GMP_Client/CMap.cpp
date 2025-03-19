@@ -24,10 +24,10 @@ SOFTWARE.
 */
 
 #include "CMap.h"
-#include "CGmpClient.h"
+#include "game_client.h"
 #include "CConfig.h"
 
-extern CGmpClient* client;
+extern GameClient* client;
 
 CMap::CMap()
 {

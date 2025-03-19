@@ -33,7 +33,7 @@ SOFTWARE.
 **																			**
 *****************************************************************************/
 
-#include "CGmpClient.h"
+#include "game_client.h"
 #include "CLanguage.h"
 #include "keyboard.h"
 #include "CMainMenu.h"
@@ -48,7 +48,7 @@ SOFTWARE.
 #include "ExtendedServerList.h"
 #include <spdlog/spdlog.h>
 
-extern CGmpClient *client;
+extern GameClient*client;
 extern zSTRING GlobalFont;
 extern CConfig* user_config;
 extern std::vector<zSTRING> vec_choose_lang;
@@ -672,7 +672,7 @@ char x[2]={0, 0};
 				}
 				Input->ClearKeyBuffer();
 				if(client){delete client; client=NULL;}
-				client=new CGmpClient(ServerIP.ToChar(), LangSetting);
+				client=new GameClient(ServerIP.ToChar(), LangSetting);
 				if(!client->Connect()) Screen->GetPrintScreen()->PrintTimedCXY(client->GetLastError() , 5000.0f, &Red);
 				if(client->IsConnected()){
 					client->HandleNetwork();

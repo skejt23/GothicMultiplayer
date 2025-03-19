@@ -56,6 +56,8 @@ find_package(PugiXML CONFIG REQUIRED)
 find_package(Lua CONFIG REQUIRED)
 find_package(sol2 CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
+find_package(glm CONFIG REQUIRED)
+find_package(Bitsery CONFIG REQUIRED)
 
 add_compile_definitions(SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
 if (MSVC)

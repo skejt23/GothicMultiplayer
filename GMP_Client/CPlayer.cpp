@@ -36,7 +36,7 @@ SOFTWARE.
 #include "CPlayer.h"
 #include "CHeroClass.h"
 #include <list>
-#include "CGmpClient.h"
+#include "game_client.h"
 #include "CIngame.h"
 #include "CInterpolatePos.h"
 #include "CLocalPlayer.h"
@@ -54,7 +54,7 @@ SOFTWARE.
 static int HeroInstance;
 
 // Externs
-extern CGmpClient* client;
+extern GameClient* client;
 extern CIngame* global_ingame;
 extern CLocalPlayer* LocalPlayer;
 extern zSTRING SELF;

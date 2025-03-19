@@ -34,13 +34,13 @@ SOFTWARE.
 *****************************************************************************/
 #include "CLocalPlayer.h"
 #include "CObservation.h"
-#include "CGmpClient.h"
+#include "game_client.h"
 #include "CIngame.h"
 
 CLocalPlayer* LocalPlayer = NULL;
 
 // Externs
-extern CGmpClient* client;
+extern GameClient* client;
 extern CIngame* global_ingame;
 
 CLocalPlayer::CLocalPlayer()

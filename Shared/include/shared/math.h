@@ -25,6 +25,8 @@ SOFTWARE.
 
 #pragma once
 
+#include <glm/glm.hpp>
+
 /**
  * @brief Checks if two positions are within a given radius.
  * @param pos1 The first position.
@@ -32,4 +34,4 @@ SOFTWARE.
  * @param radiusSquared The squared radius.
  * @return True if the two positions are within the given radius, false otherwise.
  */
-bool IsWithinRadius(const float pos1[3], const float pos2[3], double radiusSquared);
+bool IsWithinRadius(const glm::vec3& pos1, const glm::vec3& pos2, double radiusSquared);

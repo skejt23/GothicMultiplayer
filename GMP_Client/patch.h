@@ -30,6 +30,7 @@ namespace Patch
 {	
 	void NoStartupLogo();
 	void SetWndName(const char * name);
+	void SetRegProgram(const char *name);
 	void InitNewSplash();
 	void DisableStartupScript();
 	void PlayerInterfaceEnabled(bool isit);

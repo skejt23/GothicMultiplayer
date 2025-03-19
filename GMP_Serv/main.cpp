@@ -31,40 +31,17 @@ SOFTWARE.
 #include <sstream>
 
 #include "game_server.h"
-#include "chillout.h"
-
-namespace {
-void SetupCrashHandler() {
-  static std::stringstream ss;
-
-  auto &chillout = Debug::Chillout::getInstance();
-  chillout.init(L"gmp_server", L".");
-
-  chillout.setCrashCallback([&chillout]() {
-    SPDLOG_CRITICAL("Crash detected! Backtrace:");
-    chillout.backtrace();
-    SPDLOG_CRITICAL("{}", ss.str());
-    SPDLOG_CRITICAL("--- End of backtrace ---");
-  });
-  chillout.setBacktraceCallback([](const char *const stackEntry) { ss << stackEntry; });
-}
-}  // namespace
 
 int main(int argc, char **argv) {
-  SetupCrashHandler();
   srand(static_cast<unsigned int>(time(NULL)));
 
   GameServer serv;
   if (!serv.Init()) {
     SPDLOG_ERROR("Server initialization failed!");
-    exit(0);
+    return 1;
   }
-  while (1) {
-    using namespace std::chrono_literals;
-    serv.Run();
-    serv.DoRespawns();
-    serv.SendSpamMessage();
-    std::this_thread::sleep_for(1ms);
+  while (true) {
+    std::this_thread::sleep_for(std::chrono::seconds(1));
   }
   return 0;
 }

@@ -2,7 +2,7 @@
 BasedOnStyle: Google
 ---
 Language: Cpp
-ColumnLimit: 120
+ColumnLimit: 150
 AccessModifierOffset: -2
 AllowShortFunctionsOnASingleLine: None
 AllowShortIfStatementsOnASingleLine: Never

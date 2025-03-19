@@ -36,11 +36,11 @@ SOFTWARE.
 
 #include "CObservation.h"
 #include "CLocalPlayer.h"
-#include "CGmpClient.h"
+#include "game_client.h"
 #include "CIngame.h"
 
 // Externs
-extern CGmpClient* client;
+extern GameClient* client;
 extern CIngame* global_ingame;
 extern CLocalPlayer* LocalPlayer;
 extern CLanguage* Lang;

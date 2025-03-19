@@ -26,18 +26,12 @@ SOFTWARE.
 #pragma once
 
 #include "../CChat.h"
-#include "../CGmpClient.h"
+#include "../game_client.h"
 #include "CLocalPlayer.h"
 
 extern CLocalPlayer* LocalPlayer;
 namespace Connection {
-void OnWhoami(CGmpClient* client, Packet packet) {
-  uint64_t playerID;
-  memcpy(&playerID, packet.data + 1, sizeof(uint64_t));
-  client->network->UpdateMyId(playerID);
-}
-
-void OnDisconnectOrLostConnection(CGmpClient* client, Packet packet) {
+void OnDisconnectOrLostConnection(GameClient* client, Packet packet) {
   client->network->error = packet.data[0];
   SPDLOG_WARN("OnDisconnectOrLostConnection, code: {}", client->network->error);
   client->Disconnect();

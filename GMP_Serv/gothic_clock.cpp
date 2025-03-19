@@ -51,9 +51,7 @@ void GothicClock::RunClock() {
       }
     }
     last_update_time_ = now;
-    SPDLOG_TRACE("Gothic clock interval update: {}", time_);
-    EventManager::Instance().TriggerEvent(kEventOnClockUpdateName,
-                                          OnClockUpdateEvent{time_.day_, time_.hour_, time_.min_});
+    EventManager::Instance().TriggerEvent(kEventOnClockUpdateName, OnClockUpdateEvent{time_.day_, time_.hour_, time_.min_});
   }
 }
 

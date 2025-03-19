@@ -37,6 +37,14 @@
     {
       "name": "nlohmann-json",
       "version>=": "3.11.3"
+    },
+    {
+      "name": "glm",
+      "version>=": "1.0.1#3"
+    },
+    {
+      "name": "bitsery",
+      "version>=": "5.2.4"
     }
   ],
   "builtin-baseline": "300239058e33420acd153135b3f6e6b187828992"

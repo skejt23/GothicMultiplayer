@@ -25,13 +25,13 @@ SOFTWARE.
 
 #pragma once
 #include "CLanguage.h"
-#include "CGmpClient.h"
+#include "game_client.h"
 
 class CSelectClass{
 public:
 	CLanguage *lang;
-	CGmpClient *client;
-	CSelectClass(CLanguage *ptr, CGmpClient *cl);
+	GameClient*client;
+	CSelectClass(CLanguage *ptr, GameClient*cl);
 	~CSelectClass(void);
 	static void Loop(void);
 	void HandleInput(void);

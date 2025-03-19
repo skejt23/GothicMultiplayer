@@ -34,7 +34,7 @@ SOFTWARE.
 *****************************************************************************/
 #include "CMenu.h"
 #include "CLanguage.h"
-#include "CGmpClient.h"
+#include "game_client.h"
 #include "CMainMenu.h"
 #include "mod.h"
 #include "Interface.h"
@@ -56,7 +56,7 @@ char TextFFS[2]={0, 0};
 bool WritingMapSave = false;
 bool OrgOptionsOpened = false;
 extern CLanguage* Lang;
-extern CGmpClient *client;
+extern GameClient*client;
 extern zCOLOR Red;
 extern zCOLOR Normal;
 extern zCView* PrintTimedScreen;

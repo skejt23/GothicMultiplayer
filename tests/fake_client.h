@@ -1,8 +1,7 @@
-﻿
 /*
 MIT License
 
-Copyright (c) 2022 Gothic Multiplayer Team.
+Copyright (c) 2025 Gothic Multiplayer Team.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -25,56 +24,48 @@ SOFTWARE.
 
 #pragma once
 
-#include <cstdint>
-#include <functional>
-#include <map>
-#include <string>
+#include <gmock/gmock.h>
 
-#include "net_enums.h"
+#include <atomic>
+#include <cstdint>
+#include <glm/glm.hpp>
+#include <string>
+#include <thread>
+
+#include "packets.h"
 #include "znet_client.h"
 
-class GameClient;
+class FakeClientObserver {
+public:
+  virtual ~FakeClientObserver() = default;
 
-struct Packet {
-  unsigned char* data = nullptr;
-  std::uint32_t length = 0;
+  virtual void OnExistingPlayersPacket(const ExistingPlayersPacket& packet) = 0;
+  virtual void OnJoinGamePacket(const JoinGamePacket& packet) = 0;
 };
 
-class Network : public Net::NetClient::PacketHandler {
+class FakeObserverMock : public FakeClientObserver {
 public:
-  bool connection_lost_ = false;
-  std::uint8_t error;
+  MOCK_METHOD(void, OnExistingPlayersPacket, (const ExistingPlayersPacket& packet), (override));
+  MOCK_METHOD(void, OnJoinGamePacket, (const JoinGamePacket& packet), (override));
+};
 
-  Network(GameClient*);
-  ~Network() override;
+class FakeClient : public Net::NetClient::PacketHandler {
+public:
+  FakeClient(const std::string& username = "TestUser", FakeClientObserver* observer = nullptr);
+  ~FakeClient();
 
-  bool Connect(std::string hostAddress, int hostPort);
-  void Disconnect();
-  bool IsConnected() const;
-  int GetPing();
-
-  void Send(const char* data, int size, Net::PacketPriority priority, Net::PacketReliability reliability) {
-    Send(reinterpret_cast<unsigned char*>(const_cast<char*>(data)), size, priority, reliability);
-  }
-  void Send(unsigned char*, int, Net::PacketPriority, Net::PacketReliability);
-  void Receive();
-
-  inline uint64_t GetMyId() {
-    return playerID;
-  }
-  void UpdateMyId(uint64_t);
-  std::string GetServerIp() const;
-  std::uint32_t GetServerPort() const;
-
-  static void LoadNetworkLibrary();
+  // Connection methods
+  bool Connect(const std::string& host, uint16_t port = 57005);
 
 private:
-  void AddPacketHandlers();
   bool HandlePacket(unsigned char* data, std::uint32_t size) override;
+  void SentJoinGamePacket();
 
-  GameClient* client_;  // swaghetti
-  uint64_t playerID;
-  std::map<int, std::function<void(GameClient*, Packet packet)> > packetHandlers;
-  std::string serverIp_;
-  std::uint32_t serverPort_{0};
+  FakeClientObserver* observer_;
+  std::string username_;
+  Net::NetClient* client_;
+  std::thread client_thread_;
+  std::atomic<bool> running_{false};
+  glm::vec3 position_{0.0f};
+  glm::vec3 rotation_{0.0f};
 };

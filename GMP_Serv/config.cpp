@@ -41,8 +41,7 @@ SOFTWARE.
 namespace {
 constexpr std::uint32_t kMaxNameLength = 100;
 
-const std::unordered_map<std::string,
-                         std::variant<std::string, std::vector<std::string>, std::int32_t, bool, GothicClock::Time>>
+const std::unordered_map<std::string, std::variant<std::string, std::vector<std::string>, std::int32_t, bool, GothicClock::Time>>
     kDefault_Config_Values = {{"name", std::string("Gothic Multiplayer Server")},
                               {"port", 57005},
                               {"admin_passwd", std::string("")},
@@ -66,6 +65,7 @@ const std::unordered_map<std::string,
                               {"game_time", GothicClock::Time{1u, 8u, 0u}},  // 8:00
                               {"scripts", std::vector<std::string>{std::string("main.lua")}},
                               {"character_definitions_file", std::string("")},
+                              {"tick_rate_ms", 100},
 #ifndef WIN32
                               {"daemon", true}
 #else

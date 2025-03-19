@@ -34,7 +34,7 @@ extern float fWRatio;
 CSelectClass *selectmgr=NULL;
 extern CLocalPlayer* LocalPlayer;
 
-CSelectClass::CSelectClass(CLanguage *ptr, CGmpClient *cl){
+CSelectClass::CSelectClass(CLanguage *ptr, GameClient*cl){
 	// INITIALIZING LOCAL PLAYER HERE INSTEAD IN JOINGAME
 	if(!LocalPlayer){
 		new CLocalPlayer();

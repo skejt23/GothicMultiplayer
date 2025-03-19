@@ -25,7 +25,7 @@ SOFTWARE.
 
 #include "shared/math.h"
 
-bool IsWithinRadius(const float pos1[3], const float pos2[3], double radiusSquared) {
+bool IsWithinRadius(const glm::vec3& pos1, const glm::vec3& pos2, double radiusSquared) {
   double x1 = static_cast<double>(pos1[0] - pos2[0]);
   double y1 = static_cast<double>(pos1[1] - pos2[1]);
   double rp = x1 * x1 + y1 * y1;

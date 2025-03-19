@@ -25,7 +25,7 @@ SOFTWARE.
 
 #include "Mod.h"
 #include "g2Api.h"
-#include "CGmpClient.h"
+#include "game_client.h"
 #include "patch.h"
 #include "ExceptionHandler.h"
 #include "HooksManager.h"
@@ -39,7 +39,7 @@ SOFTWARE.
 #include <ctime>
 
 #pragma warning(disable:4996)
-CGmpClient* client=NULL;
+GameClient* client=NULL;
 CMainMenu* MainMenu=NULL;
 extern zCOLOR Red;
 extern CLanguage* Lang;

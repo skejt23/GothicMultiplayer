@@ -25,5 +25,5 @@ find_package(toml11 CONFIG REQUIRED)
 set(SHARED_SOURCES toml_wrapper.cpp event.cpp math.cpp)
 
 add_library(SharedLib STATIC ${SHARED_SOURCES})
-target_link_libraries(SharedLib PUBLIC common toml11::toml11)
+target_link_libraries(SharedLib PUBLIC common toml11::toml11 glm::glm)
 target_include_directories(SharedLib PUBLIC include)

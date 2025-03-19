@@ -1,8 +1,7 @@
-
 /*
 MIT License
 
-Copyright (c) 2022 Gothic Multiplayer Team.
+Copyright (c) 2023 Gothic Multiplayer Team.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -24,8 +23,6 @@ SOFTWARE.
 */
 
 #pragma once
-
-#include <string.h>
 
 #include <string>
 
@@ -55,16 +52,15 @@ union STime {
   };
 };
 
-class CGmpClient : public CSyncFuncs {
+class GameClient : public CSyncFuncs {
 public:
-  CGmpClient(const char* ip, CLanguage* ptr);
-  ~CGmpClient(void);
+  GameClient(const char* ip, CLanguage* ptr);
+  ~GameClient(void);
 
 
   void HandleNetwork(void);
   bool IsConnected(void);
   bool Connect(void);
-  void PrepareToJoin(void);
   void JoinGame(BYTE selected_class);
   zSTRING& GetLastError(void);
   void SendDropItem(short Instance, short amount);
@@ -72,7 +68,7 @@ public:
   void SendCastSpell(oCNpc* Target, short SpellId);
   void SendMessage(const char* msg);
   void SendWhisper(const char* player_name, const char* msg);
-  void SendRemoteMessage(const char* msg);
+  void SendCommand(const char* msg);
   void SendVoice();
   void UpdatePlayerStats(short anim);
   void SendHPDiff(size_t who, short diff);
@@ -81,8 +77,6 @@ public:
   void DownloadWBFile(void);
   void DownloadClassFile(void);
   void DownloadSpawnpointsFile(void);
-  MD5Sum* GetMD5(LPBYTE data, DWORD size);
-  BYTE AreDefaultItems(void);  // 0 - yes| 1 - no
   void RestoreHealth(void);
 
   CHeroClass* classmgr;
@@ -103,7 +97,7 @@ public:
   CObservation::ObseravtionMode ObserveMode;
   CLanguage* lang;
   Network* network;
-  BOOL IsReadyToJoin;
+  bool IsReadyToJoin;
 
 private:
   int clientPort;
@@ -112,16 +106,3 @@ private:
 
   std::string GetServerAddresForHTTPDownloader();
 };
-
-/*
-Streszczenie działania:
-Całą robotę z połączeniem i innymi bajerami sieciowymi będzie zajmowała się metoda HandleNetwork;
-HandleNetwork będzie wywoływał odpowiednie metody zależnie od warstwy na której będzie pracował.
-Warstwy:
-0 - ładujemy podstawe dane z serwera i wybieramy klasę postaci
-0a - wysyłamy crc mapy(może za to dostaniemy bana :D)
-0b - pobieramy liste klas
-0c - pobieramy liste spawnpointow
-1 - po wstępnych ustawieniach dołączamy do gry
-2 - zarzynamy się nawzajem/robimy sesje rpg/whatever
-*/
