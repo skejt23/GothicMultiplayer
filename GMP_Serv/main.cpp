@@ -30,17 +30,9 @@ SOFTWARE.
 #include <ctime>
 #include <sstream>
 
-#include "chillout.h"
 #include "game_server.h"
 
-namespace {
-void SetupCrashHandler() {
-  static std::stringstream ss;
-}
-}  // namespace
-
 int main(int argc, char **argv) {
-  SetupCrashHandler();
   srand(static_cast<unsigned int>(time(NULL)));
 
   GameServer serv;

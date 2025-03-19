@@ -115,7 +115,7 @@ private:
 
   std::vector<std::string> ban_list;
   std::unique_ptr<CharacterDefinitionManager> character_definition_manager_;
-  Script* script;
+  std::unique_ptr<Script> script;
   time_t last_stand_timer;
   time_t regen_time;
 
@@ -132,7 +132,7 @@ private:
   std::future<void> public_list_http_thread_future_;
   std::chrono::time_point<std::chrono::steady_clock> last_update_time_{};
   std::thread main_thread;
-  std::atomic<bool> running = false;
+  std::atomic<bool> main_thread_running = false;
 };
 
 inline GameServer* g_server = nullptr;

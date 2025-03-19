@@ -141,11 +141,19 @@ GameServer::GameServer() {
 
 GameServer::~GameServer() {
   g_is_server_running = false;
-  delete script;
-  g_net_server->RemovePacketHandler(*this);
-  // server->Shutdown(300);
+  if (main_thread.joinable()) {
+    main_thread_running.store(false, std::memory_order_release);
+    main_thread.join();
+  }
+
+  script.reset();
+
+  if (g_net_server != nullptr) {
+    g_net_server->RemovePacketHandler(*this);
+    g_destroy_net_server_func(g_net_server);
+  }
+
   g_server = nullptr;
-  g_destroy_net_server_func(g_net_server);
 }
 
 bool GameServer::Init() {
@@ -187,12 +195,12 @@ bool GameServer::Init() {
   this->last_stand_timer = 0;
 
   SPDLOG_INFO("");
-  script = new Script(config_.Get<std::vector<std::string>>("scripts"));
+  script = std::make_unique<Script>(config_.Get<std::vector<std::string>>("scripts"));
   last_update_time_ = std::chrono::steady_clock::now();
-
+  
+  main_thread_running.store(true, std::memory_order_release);
   main_thread = std::thread([this]() {
-    running = true;
-    while (running) {
+    while (main_thread_running.load(std::memory_order_acquire)) {
       Run();
       SendSpamMessage();
       std::this_thread::sleep_for(std::chrono::milliseconds(10));

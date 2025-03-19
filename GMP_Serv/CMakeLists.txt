@@ -52,7 +52,7 @@ target_include_directories(
   PUBLIC .)
 
 add_executable(gmp_server main.cpp)
-target_link_libraries(gmp_server PRIVATE ServerLib chillout spdlog::spdlog)
+target_link_libraries(gmp_server PRIVATE ServerLib spdlog::spdlog)
 
 add_subdirectory(znet)
 add_subdirectory(znet_rak)
