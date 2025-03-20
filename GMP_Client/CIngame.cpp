@@ -256,9 +256,6 @@ zCMaterial* CIngame::GetBarriereMaterial()
 	}
 	return Material;
 }
-/*oCNpc* pc;
-zSTRING NODE = "ZS_TORSO";
-extern oCItem* BindArrow;*/
 oCNpc* Test;
 void CIngame::HandleInput(){
 	zCInput* input = zCInput::GetInput();
@@ -268,55 +265,6 @@ void CIngame::HandleInput(){
 			CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(255,0,0,255), "%s", "Disconnected!");
 		}
 	}
-	/*if(input->KeyToggled(KEY_F4)){
-		pc = oCGame::GetGame()->GetSpawnManager()->SummonNpc(zCParser::GetParser()->GetIndex("PC_Hero"), oCNpc::GetHero()->GetPosition(), 0);
-		pc->SetHealth(10000);
-		pc->SetMaxHealth(10000);
-	}
-	if(pc){
-		zCModelNodeInst* Node = pc->GetModel()->SearchNode(NODE);
-		zMAT4 Mat = pc->GetTrafoModelNodeToWorld(Node);
-		if(BindArrow){
-			zVEC3 Pos;
-			Pos.x = Mat.m[0][3];
-			Pos.y = Mat.m[1][3];
-			Pos.z = Mat.m[2][3];
-			BindArrow->SetHeadingWorld(Pos);
-			//BindArrow->SetPositionWorld(Pos);
-		}
-		//printf("\nX : %f, Y : %f, Z : %f", Mat.m[0][3], Mat.m[1][3], Mat.m[2][3]);
-	}*/
-	/*if(input->KeyToggled(KEY_F4)){
-		printf("\noCWorld: %X, zCWorld : %X", oCGame::GetGame()->GetGameWorld(), oCGame::GetGame()->GetWorld());
-		GetBarriereMaterial()->SetTexture("BARRIERE.TGA");
-		Patch::LaunchBarriere();
-	}*/
-	/*if(input->KeyToggled(KEY_F4)){
-		printf("\nItemName : %s", oCNpc::GetHero()->GetSpellItem(19)->GetInstanceName().ToChar());
-		//oCSpell* Spell = oCSpell::_CreateNewInstance();
-		//Spell->InitValues(13);
-		//Spell->Setup(oCNpc::GetHero(), Test, 0);
-		//Spell->Cast();
-	}
-	if(input->KeyToggled(KEY_F5)){
-		if(!Test){
-		Test = oCGame::GetGame()->GetSpawnManager()->SummonNpc(zCParser::GetParser()->GetIndex("PC_Hero"), oCNpc::GetHero()->GetPosition(), 0);
-		Test->SetMaxHealth(70000);
-		Test->SetHealth(70000);
-		Test->SetTalentSkill(7, 6);
-		Test->SetTalentValue(7, 6);
-		Test->Equip(Test->GetInventory()->Insert(oCObjectFactory::GetFactory()->CreateItem(zCParser::GetParser()->GetIndex("ITRU_PYROKINESIS"))));
-		Test->Equip(Test->GetInventory()->Insert(oCObjectFactory::GetFactory()->CreateItem(zCParser::GetParser()->GetIndex("ITRU_FIREBOLT"))));
-		Test->Equip(Test->GetInventory()->Insert(oCObjectFactory::GetFactory()->CreateItem(zCParser::GetParser()->GetIndex("ITRU_SLEEP"))));
-		Test->Equip(Test->GetInventory()->Insert(oCObjectFactory::GetFactory()->CreateItem(zCParser::GetParser()->GetIndex("ITRU_GEYSER"))));
-		Test->Equip(Test->GetInventory()->Insert(oCObjectFactory::GetFactory()->CreateItem(zCParser::GetParser()->GetIndex("ITRU_WHIRLWIND"))));
-		Test->Equip(Test->GetInventory()->Insert(oCObjectFactory::GetFactory()->CreateItem(zCParser::GetParser()->GetIndex("ITRU_ARMYOFDARKNESS"))));
-		}
-		else{
-			printf("\nActiveSpellName : %s", Test->GetSpellBook()->GetSelectedSpell()->GetName().ToChar());
-			Test->Equip(Test->GetSpellBook()->GetSpellItem(Test->GetSpellBook()->GetSelectedSpell()));
-		}
-	}*/
 	// PLAYER LIST
 	if(input->KeyToggled(KEY_F1)){
 		if(!PList->IsPlayerListOpen()) PList->OpenPlayerList();

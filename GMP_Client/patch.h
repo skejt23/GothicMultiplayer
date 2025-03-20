@@ -39,7 +39,6 @@ namespace Patch
 	void SetLogScreenEnabled(bool isit);
 	void SetFirstPersonCameraEnabled(bool isit);
 	void DisablePause(void);
-	void LaunchBarriere(void);
 	void DisableAbnormalExit(void);
 	void ErrorInCheckClassSizeEnabled(bool isit);
 	void ChangeLevelEnabled(bool isit);

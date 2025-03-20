@@ -49,7 +49,7 @@ extern CIngame* global_ingame;
 zCOLOR Green = zCOLOR(0,255,0);
 bool MultiplayerLaunched = false;
 
-// MIEJSCE SKEJTA NA RӯNE ASSEMBLEROWE RZECZY
+// MIEJSCE SKEJTA NA ROZNE ASSEMBLEROWE RZECZY
 // CRASHFIXY
 DWORD RETURN_CRASHFIX1 = 0x004A4382;
 DWORD RETURN_CRASHFIX2 = 0x004A454C;
@@ -161,18 +161,6 @@ void _stdcall CheckDamageForArrows(oCNpc* Npc, int howmuch, oSDamageDescriptor& 
 	if(Des.nSpellID > 0 && Des.nSpellID != -1 && oCNpc::GetHero() != Des.pNpcAttacker) return;
     if(Des.pItemWeapon){
 		if(!memcmp("ITRW_ARROW", Des.pItemWeapon->GetInstanceName().ToChar(), 10) || !memcmp("ITRW_BOLT", Des.pItemWeapon->GetInstanceName().ToChar(), 9)){
-			/*BindArrow = oCObjectFactory::GetFactory()->CreateItem(Des.pItemWeapon->GetInstance());
-			oCGame::GetGame()->GetWorld()->AddVob(BindArrow);
-			BindArrow->SetCollDet(0);
-			BindArrow->SetTrafoObjToWorld(Des.pItemWeapon->trafoObjToWorld);
-			//BindArrow->SetPositionWorld(Des.pItemWeapon->GetPositionWorld());
-			zSTRING NODE = "ZS_TORSO";
-			zCModelNodeInst* Node = Npc->GetModel()->SearchNode(NODE);
-			zMAT4 Mat = Npc->GetTrafoModelNodeToWorld(Node);
-			printf("\nX : %f, Y : %f, Z : %f", Mat.m[0][3], Mat.m[1][3], Mat.m[2][3]);
-			//Npc->GetModel()->AttachChildVobToNode(BindArrow, Node);
-			//Npc->GetModel()->UpdateAttachedVobs();
-			oCNpc::GetHero()->SetPosition(BindArrow->GetPositionWorld().x, BindArrow->GetPositionWorld().y, BindArrow->GetPositionWorld().z);*/
 			if(Des.pNpcAttacker) if(oCNpc::GetHero() != Des.pNpcAttacker || oCNpc::GetHero() == Npc) return;
 		}
 	}
@@ -230,7 +218,6 @@ void _declspec(naked) RESETPOS_CRASHFIX()
         test    eax, eax
         je     cont 
 
-//		and BYTE PTR DS:[eax+0x0B8], 252   <- tej wersji cos visual nie moze przetrawic
 		and		[eax+0x0B8], 252
         jmp     RETURN_RESETCRASHFIX1
     cont:
@@ -357,111 +344,15 @@ nextlbl:
     }
 }
 
-
-zCMover* Vob;
-void _stdcall OnTrigger(sRegs & regs, DWORD & Vob1, DWORD & Vob2)
-{	   
-	oCMobInter* TriggerMob = (oCMobInter*)regs.ECX;
-	printf("\nPOINTER : %p, TriggerName : %s", TriggerMob, TriggerMob->GetTriggerName().ToChar());
-	Vob = static_cast<zCMover*>(oCGame::GetGame()->GetGameWorld()->SearchVobByName(TriggerMob->GetTriggerName()));
-	printf("\nVobPos : %f,%f,%f", Vob->GetPositionWorld().x, Vob->GetPositionWorld().y, Vob->GetPositionWorld().z);
-
-}
-/*void _stdcall OnRenderBarrier(sRegs & regs, DWORD & RenderContext, int & Val1, int & Val2)
-{	  
-	//printf("\nRNDPTR : %X, Value : %d, %d", RenderContext, Val1, Val2);
-	//RenderContext.World = oCGame::GetGame()->GetGameWorld();
-	int lol = 1;
-	zTRenderContext Con = *(zTRenderContext*)RenderContext;
-	printf("\nWorld : %X", Con.World);
-	oCSkyControler_Barrier::GetCurrent()->GetBarrier()->RenderLayer(*(zTRenderContext*)RenderContext, 0, lol);
-}*/
-
-// Walnij CreateHook(0x0057B0C0, (DWORD)OnStartAni, 2, true); tam gdzie chcesz żeby zaczeło pobierać animacje
-/*zSTRING TURN = "TURN";
-void _stdcall OnStartAni(sRegs & regs, DWORD & ModelAni, int arg2)
-{	   
-	if(oCNpc::GetHero()){
-		if((DWORD)regs.ECX == (DWORD)oCNpc::GetHero()->GetModel()){
-			zCModelAni* Ani = (zCModelAni*)ModelAni;
-			printf("\nAniName : %s, PTR : %X, ANIACTIVE : %X, MODEL : %X", Ani->GetAniName().ToChar(), Ani, oCNpc::GetHero()->GetModel()->GetModelAniActive(), oCNpc::GetHero()->GetModel());
-			//printf("\nAniId : %d", Ani->GetAniID());
-			if(Ani){
-				if(Ani->GetAniName().Search(TURN) < 2) {
-						CActiveAniID::GetInstance()->AddAni(Ani->GetAniID());
-						if(!memcmp("T_WALKL_2_RUNL", Ani->GetAniName().ToChar(), 14) || !memcmp("T_JUMP_2_RUNL", Ani->GetAniName().ToChar(), 13)) CActiveAniID::GetInstance()->AddAni(266);
-				}
-			}
-			// PRZEKAZANIE ID DO FUNKCJI CZY COS
-		}
-	}
-}*/
-
-// BLOKOWANIE CHEAT ENGINE, OLLYDBG
-BOOL CALLBACK CheckIfCheatEngineIsRunning(HWND hWnd, LPARAM lParam)
-{
-	char title[128];
-    ZeroMemory(title, sizeof(title));
-    GetWindowTextA(hWnd, title, sizeof(title));
-    BYTE buffer[4] = {0xB0, 0x93, 0x93, 0x86};
-	for(int i=0; i<4; i++){
-		buffer[i]^=0xFF;
-	}
-	char Text[32];
-	ZeroMemory(Text, 32);
-	for(int i=0; i<4; i++){
-		Text[i]=buffer[i];
-	}
-	// CHEATENGINE
-	BYTE buffer1[5]={0xBC, 0x97, 0x9A, 0x9E, 0x8B};
-	for(int i=0; i<5; i++){
-		buffer1[i]^=0xFF;
-	}
-	char TextCE[32];
-	ZeroMemory(TextCE, 32);
-	for(int i=0; i<5; i++){
-		TextCE[i]=buffer1[i];
-	}
-    if (strstr(title, TextCE) || strstr(title, Text))
-	{
-		DWORD* processID = new DWORD;
-		GetWindowThreadProcessId(hWnd, processID);
-		HANDLE hProcess = OpenProcess(PROCESS_TERMINATE,0, *processID);
-		TerminateProcess(hProcess,0);
-		CloseHandle(hProcess);
-		exit(1);
-	}
-	ZeroMemory(Text, 32);
-	ZeroMemory(TextCE, 32);
-    return TRUE;
-}
-
-time_t CECheck = 0;
-DWORD WINAPI CheckForBadApps(PVOID pvParam)
-{
-	while(true)
-	{
-		if(CECheck < clock()){
-			EnumWindows(CheckIfCheatEngineIsRunning, 0);
-			CECheck = clock() + 5000;
-		}
-		Sleep(1);
-	}
-	return 0;
-};
-
 void Initialize(void)
 {
 	if(!MultiplayerLaunched){
 		MultiplayerLaunched = true;
 		HooksManager * hm = HooksManager::GetInstance();
 		CActiveAniID *ani_ptr=new CActiveAniID();
-		//CreateHook(0x0071E7D0, (DWORD)OnTrigger, 2, true);
 		CreateHook(0x00485360, (DWORD)OnCastSpell, 0, true);
 		CreateHook(0x00744DD6, (DWORD)OnDropItem, 1, true);
 		CreateHook(0x007449C0, (DWORD)OnTakeItem, 1, true);
-		//CreateHook(0x0057B0C0, (DWORD)OnStartAni, 2, true);
-		//CreateHook(0x006B9F30, (DWORD)OnRenderBarrier, 3, true);
 		// zCAICamera::AI_Normal(void) CrashFix
 		JmpPatch(0x004A437C, (DWORD)ZCAICAMERA_CRASHFIX);
 		EraseMemory(0x004A4381, 0x90, 1);

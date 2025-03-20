@@ -116,11 +116,6 @@ void Patch::EraseCastSecurity() {
   EraseMemory(0x485486, 0x90, 2);
 }
 
-void Patch::LaunchBarriere() {
-  EraseMemory(0x6BB948, 0x90, 2);
-  EraseMemory(0x6BB956, 0x90, 2);
-}
-
 void Patch::DisableWriteSavegame() {
   EraseMemory(0x6C7520, 0x90, 15);
 }

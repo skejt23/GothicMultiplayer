@@ -28,4 +28,3 @@ SOFTWARE.
 #include "common.h"
 
 void Initialize(void);
-DWORD WINAPI CheckForBadApps(PVOID pvParam);

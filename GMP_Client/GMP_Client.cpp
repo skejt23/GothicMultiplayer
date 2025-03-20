@@ -39,7 +39,6 @@ SOFTWARE.
 #include "patch.h"
 #include "zcoption.hpp"
 
-DWORD IdWatku;
 SDL_Window* g_pSdlWindow;
 
 #define hInstApp *(HINSTANCE*)(0x008D4220)
@@ -138,7 +137,6 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
     oCGame::InstallPatches();
     HooksManager* hm = HooksManager::GetInstance();
     hm->AddHook(HT_AIMOVING, (DWORD)Initialize, false);
-    CreateThread(NULL, 0, CheckForBadApps, 0, 0, &IdWatku);
     Patch::ChangeDefaultIni();
   }
   return TRUE;
