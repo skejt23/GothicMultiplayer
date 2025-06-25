@@ -29,8 +29,6 @@ SOFTWARE.
 
 using namespace std;
 
-zSTRING Empty = "EMPTY";
-
 CLanguage::CLanguage(const char* file){
 	char buffer[256];
 	ifstream ifs(file);
@@ -125,5 +123,6 @@ CLanguage::~CLanguage(void){
 }
 
 zSTRING& CLanguage::operator[] (unsigned long i){
+	static zSTRING Empty = "EMPTY";
 	return (i<data.size())?data[i]:Empty;
 }

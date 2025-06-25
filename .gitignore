@@ -24,6 +24,8 @@
 *.app
 Release
 Debug
+build
+.xmake
 
 .vscode
 .vs/*
@@ -32,3 +34,4 @@ Debug
 *.suo
 
 *.log
+vs*

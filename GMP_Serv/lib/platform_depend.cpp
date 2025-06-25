@@ -23,22 +23,33 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#pragma once
-#include "WorldBuilder\load.h"
+#include "platform_depend.h"
 
-class CObjectMenu
-{
-private:
-	int PrintFrom;
-	int PrintTo;
-	zSTRING MenuTitle;
-	zSTRING TEMPSTRING;
-	char buffer[128];
-public:
-	int MenuPos;
-	zMAT4 LastAngle;
-public:
-	CObjectMenu();
-	~CObjectMenu();
-	void Draw();
-};
+#ifndef _WIN32
+
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+void System::MakeMeDaemon(bool stdout) {
+  pid_t pid, sid;
+  pid = fork();
+  if (pid < 0)
+    puts("Can not run as a daemon!\n");
+  if (pid > 0)
+    exit(EXIT_SUCCESS);
+  umask(0);
+  sid = setsid();
+  if (sid < 0) {
+    puts("Can not get session ID!\n");
+  }
+  close(STDIN_FILENO);
+  close(STDERR_FILENO);
+  if (!stdout)
+    close(STDOUT_FILENO);
+}
+
+#endif

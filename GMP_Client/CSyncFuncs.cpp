@@ -48,30 +48,23 @@ enum SpellsId
 	SPL_TRFLURKER = 56 // Przemiana w topielca
 };
 
-// -- zSTRINGs --
-zSTRING SpellLogicTemporary;
-zSTRING SpellCastTemp;
-zSTRING SPRINT = "HUMANS_SPRINT.MDS";
+constexpr const char* SPRINT = "HUMANS_SPRINT.MDS";
   // Dzwieki wyciagania broni
-zSTRING DrawSoundMe = "DRAWSOUND_ME.WAV";
-zSTRING DrawSoundMe02 = "DRAWSOUND_ME_02.WAV";
-zSTRING UnDrawSoundMe = "UNDRAWSOUND_ME.WAV";
-zSTRING DrawSoundWo = "DRAWSOUND_WO.WAV";
-zSTRING UnDrawSoundWo = "UNDRAWSOUND_WO.WAV";
- // Instancje NPC w skryptach
-zSTRING SELF = "SELF";
-zSTRING OTHER = "OTHER";
-
-// Functions
+constexpr const char* DrawSoundMe = "DRAWSOUND_ME.WAV";
+constexpr const char* DrawSoundMe02 = "DRAWSOUND_ME_02.WAV";
+constexpr const char* UnDrawSoundMe = "UNDRAWSOUND_ME.WAV";
+constexpr const char* DrawSoundWo = "DRAWSOUND_WO.WAV";
+constexpr const char* UnDrawSoundWo = "UNDRAWSOUND_WO.WAV";
 
 void CSyncFuncs::RunSpellLogic(short SpellId, oCNpc* Caster, oCNpc* Target)
 {
+	static zSTRING SpellLogicTemporary;
 	switch (SpellId)
 	{
 		case SPL_SLEEP:
 			if(!Target) return;
-			zCParser::GetParser()->SetInstance(SELF, Caster);
-			zCParser::GetParser()->SetInstance(OTHER, Target);
+			zCParser::GetParser()->SetInstance("SELF", Caster);
+			zCParser::GetParser()->SetInstance("OTHER", Target);
 			SpellLogicTemporary = "SPELL_LOGIC_SLEEP";
 			zCParser::GetParser()->CallFunc(SpellLogicTemporary);
 		break;
@@ -90,11 +83,12 @@ void CSyncFuncs::RunSpellLogic(short SpellId, oCNpc* Caster, oCNpc* Target)
 // Urchamianie skryptu danego spella, np SPELL_CAST_FIREBALL
 void CSyncFuncs::RunSpellScript(const char* SpellName, oCNpc* Caster, oCNpc* Target)
 {
+	static zSTRING SpellCastTemp;
 	if(!Caster || !SpellName) return;
 	char buffer[128];
-	zCParser::GetParser()->SetInstance(SELF, Caster);
-	if(!Target) zCParser::GetParser()->SetInstance(OTHER, 0);
-	else zCParser::GetParser()->SetInstance(OTHER, Target);
+	zCParser::GetParser()->SetInstance("SELF", Caster);
+	if(!Target) zCParser::GetParser()->SetInstance("OTHER", 0);
+	else zCParser::GetParser()->SetInstance("OTHER", Target);
 	sprintf(buffer, "SPELL_CAST_%s", SpellName);
 	SpellCastTemp = buffer;
 	SpellCastTemp.Upper();

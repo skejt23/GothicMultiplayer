@@ -42,27 +42,25 @@ SOFTWARE.
 #include "CWatch.h"
 #include "interface.h"
 #include <urlmon.h>
-#include "git.h"
+#include "version.h"
 #include "CSyncFuncs.h"
 #include "WorldBuilder\CBuilder.h"
 #include "ExtendedServerList.h"
 #include <spdlog/spdlog.h>
 
 extern GameClient*client;
-extern zSTRING GlobalFont;
 extern CConfig* user_config;
 extern std::vector<zSTRING> vec_choose_lang;
 extern std::vector<std::string> vec_lang_files;
 extern const char* LANG_DIR;
-zSTRING string_tmp = "ItMw_1h_Mil_Sword";
 extern float fWRatio, fHRatio;
 zCOLOR Normal = zCOLOR(255,255,255);
 zCOLOR Highlighted = zCOLOR(128,180,128);
 zCOLOR Red = zCOLOR(0xFF, 0, 0);
 extern zCOLOR Green;
 zCOLOR FColor;
-zSTRING FDefault = "FONT_DEFAULT.TGA";
-zSTRING WalkAnim = "S_WALKL";
+constexpr const char* FDefault = "FONT_DEFAULT.TGA";
+constexpr const char* WalkAnim = "S_WALKL";
 CLanguage* Lang;
 zCView* Screen;
 zCView* PrintTimedScreen;
@@ -70,11 +68,10 @@ zCInput* Input;
 CBuilder* Builder;
 ifstream g2names;
 ifstream g2particles;
-zSTRING News = "News";
-zSTRING HOWTOWB = "F1 - World Builder";
-zSTRING WRITE_MAPNAME = "Write ZEN world name ex. newworld.zen:";
-zSTRING WRITE_SAVEDMAP = "Write saved map name:";
-zSTRING MAPFILE_EMPTY = "Map file doesn't exist!";
+constexpr const char* HOWTOWB = "F1 - World Builder";
+constexpr const char* WRITE_MAPNAME = "Write ZEN world name ex. newworld.zen:";
+constexpr const char* WRITE_SAVEDMAP = "Write saved map name:";
+constexpr const char* MAPFILE_EMPTY = "Map file doesn't exist!";
 #define RSS_FILE ""
 #define RSS_URL_ADDON ""
 
@@ -83,6 +80,7 @@ char x[2]={0, 0};
 
 	CMainMenu::CMainMenu()
 	{
+		string_tmp = "ItMw_1h_Mil_Sword";
 		PrintTimedScreen = zCView::GetScreen()->GetPrintScreen();
 		oCNpc::GetHero()->SetMovLock(1);
 		Patch::PlayerInterfaceEnabled(false);
@@ -197,22 +195,6 @@ char x[2]={0, 0};
 		oCGame::GetGame()->GetHealthBar()->SetSize(0,0);
 	};
 
-	void CMainMenu::PrintNews()
-	{
-		if(RssNews.size() > 0){
-			zCView* Screen = zCView::GetScreen();
-			Screen->SetFont(FDefault);
-			Screen->SetFontColor(Green);
-			Screen->Print(200,0, News);
-			Screen->SetFontColor(Normal);
-			int Pos = 200;
-			for (int i = 0; i < (int)RssNews.size(); i++){
-				Screen->Print(200, Pos, RssNews[i]);
-				Pos+=200;
-			}
-		}
-	};
-
 	char* Convert(const wchar_t* wString){
 		size_t len=wcslen(wString);
 		char *szString=new char[len+1];
@@ -315,7 +297,7 @@ char x[2]={0, 0};
 			switch(ps){
 				default:
 				case MAIN_MENU:
-					Screen->SetFont(GlobalFont);
+					Screen->SetFont("FONT_OLD_20_WHITE.TGA");
 					FColor = (MenuPos == 0) ? Highlighted : Normal;
 					Screen->SetFontColor(FColor);
 					Screen->Print(200, 3200, (*LangSetting)[CLanguage::MMENU_CHSERVER]);
@@ -341,7 +323,7 @@ char x[2]={0, 0};
 								  }
 				case SETTINGS_MENU:
 				{
-					Screen->SetFont(GlobalFont);
+					Screen->SetFont("FONT_OLD_20_WHITE.TGA");
 					FColor = (OptionPos == 0) ? Highlighted : Normal;
 					if(WritingNickname) FColor = Red;
 					Screen->SetFontColor(FColor);
@@ -394,7 +376,7 @@ char x[2]={0, 0};
 				}
 				break;
 				case WORLDBUILDER_MENU:
-					Screen->SetFont(GlobalFont);
+					Screen->SetFont("FONT_OLD_20_WHITE.TGA");
 					FColor = (WBMenuPos == 0) ? Highlighted : Normal;
 					Screen->SetFontColor(FColor);
 					Screen->Print(200, 3200,(*LangSetting)[CLanguage::WB_NEWMAP]);
@@ -624,11 +606,11 @@ char x[2]={0, 0};
 				TitleWeaponEnabled = true;
 				oCGame::GetGame()->GetWorld()->AddVob(TitleWeapon);
 			}
-			PrintNews();
 			if(!Christmas) SpeedUpTime();
 			Screen->SetFont(FDefault);
 			Screen->SetFontColor(Normal);
-			VersionString = (git_IsPopulated()) ? git_Describe() : "Unknown build";
+			std::string version = GIT_TAG_LONG;
+			VersionString = (!version.empty()) ? version.c_str() : "Unknown build";
 			Screen->Print(8192 - Screen->FontSize(VersionString), 8192 - Screen->FontY(), VersionString);
 			Screen->Print(100, 8192 - Screen->FontY(), HOWTOWB);
 			if(TitleWeapon) TitleWeapon->RotateWorldX(0.6f);

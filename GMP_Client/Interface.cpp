@@ -47,10 +47,9 @@ bool HelpOpen = false;
 CMenu* MainMenu;
 std::vector<CMenu*> MenuList;
 zCMenu* Options;
-zSTRING WriteMapName = "Write map name:";
-zSTRING MAPSAVED = "Map successfully saved!";
-zSTRING CANTSAVE = "Saving map failed!";
-zSTRING MapNameTxt;
+constexpr const char* WriteMapName = "Write map name:";
+constexpr const char* MAPSAVED = "Map successfully saved!";
+constexpr const char* CANTSAVE = "Saving map failed!";
 extern CBuilder* Builder;
 char TextFFS[2]={0, 0};
 bool WritingMapSave = false;
@@ -61,8 +60,8 @@ extern zCOLOR Red;
 extern zCOLOR Normal;
 extern zCView* PrintTimedScreen;
 extern CLocalPlayer* LocalPlayer;
-zSTRING WorldBuilder = "World Builder";
-zSTRING GothicMP = "Gothic Multiplayer";
+constexpr const char* WorldBuilder = "World Builder";
+constexpr const char* GothicMP = "Gothic Multiplayer";
 bool InWorldBuilder = false;
 
 // MENU FUNCTIONS
@@ -193,24 +192,25 @@ void ExitGameFromMainMenuWB()
 	CGameManager::GetGameManager()->Done();
 }
 // WORLD BUILDER HELP
-zSTRING H_CHOBJECT = "Q/E Change object";
-zSTRING H_UPDOWN = "Z/X Down and up";
-zSTRING H_ROTY = "NUMPAD 4/8/6/2 Rotations";
-zSTRING H_ROTYRESET = "NUMPAD 0 Reset rotation";
-zSTRING H_CAMDIS = "+/- Change camera distance";
-zSTRING H_UNDO = "F1 - Undo";
-zSTRING H_SPAWN = "NUMPAD ENTER/ KEY S - SPAWN OBJECT";
-zSTRING H_SPAWNPLAYER = "G - Spawn player near object";
-zSTRING H_TEST = "T - Launch test mode";
-zSTRING H_SPEED = "NUMPAD 1/3 - Decrease/Increase moving speed";
-zSTRING H_LEFTRIGHT = "DELETE/PAGEDOWN - Move left/right";
-zSTRING H_COLLIDE = "END - Mob collision ON/OFF";
-zSTRING H_OBJMENU = "F2 - Objects Menu ON/OFF";
-zSTRING H_CHANGETYPE = "HOME - Change mob type";
-zSTRING H_INOBJMENU = "In object menu : DELETE - erase vob, SPACE - Stop rotation";
+constexpr const char* H_CHOBJECT = "Q/E Change object";
+constexpr const char* H_UPDOWN = "Z/X Down and up";
+constexpr const char* H_ROTY = "NUMPAD 4/8/6/2 Rotations";
+constexpr const char* H_ROTYRESET = "NUMPAD 0 Reset rotation";
+constexpr const char* H_CAMDIS = "+/- Change camera distance";
+constexpr const char* H_UNDO = "F1 - Undo";
+constexpr const char* H_SPAWN = "NUMPAD ENTER/ KEY S - SPAWN OBJECT";
+constexpr const char* H_SPAWNPLAYER = "G - Spawn player near object";
+constexpr const char* H_TEST = "T - Launch test mode";
+constexpr const char* H_SPEED = "NUMPAD 1/3 - Decrease/Increase moving speed";
+constexpr const char* H_LEFTRIGHT = "DELETE/PAGEDOWN - Move left/right";
+constexpr const char* H_COLLIDE = "END - Mob collision ON/OFF";
+constexpr const char* H_OBJMENU = "F2 - Objects Menu ON/OFF";
+constexpr const char* H_CHANGETYPE = "HOME - Change mob type";
+constexpr const char* H_INOBJMENU = "In object menu : DELETE - erase vob, SPACE - Stop rotation";
 // WB MENU INTERFACE
 void WorldBuilderInterface(void)
 {
+	static zSTRING MapNameTxt;
 	if(!InWorldBuilder) InWorldBuilder = true;
 	if(WritingMapSave){
 		TextFFS[0]=GInput::GetCharacterFormKeyboard();

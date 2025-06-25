@@ -57,7 +57,6 @@ SOFTWARE.
 #include "patch.h"
 
 CConfig *user_config = NULL;
-zSTRING CYL = "Choose your language:";
 const char *LANG_DIR = ".\\Multiplayer\\Localization\\";
 std::vector<zSTRING> vec_choose_lang;
 std::vector<std::string> vec_lang_files;

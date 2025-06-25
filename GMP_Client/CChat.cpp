@@ -39,7 +39,6 @@ SOFTWARE.
 #include "CLanguage.h"
 #include <spdlog/spdlog.h>
 
-extern zSTRING FDefault;
 extern zCOLOR Normal;
 extern zCView* PrintTimedScreen;
 extern CLanguage* Lang;
@@ -96,7 +95,7 @@ void CChat::WriteMessage(MsgType type, bool PrintTimed, const zCOLOR& rgb, const
 	switch (type){
 		case NORMAL:
 			if(PrintTimed){
-				PrintTimedScreen->SetFont(FDefault);
+				PrintTimedScreen->SetFont("FONT_DEFAULT.TGA");
 				tmp = text;
 				PrintTimedScreen->PrintTimed(3700, 2800, tmp, 3000.0f, 0);
 			}
@@ -109,7 +108,7 @@ void CChat::WriteMessage(MsgType type, bool PrintTimed, const zCOLOR& rgb, const
 					tmp = text;
 					tmpnickname = CConfig::GetInstance()->Nickname;
 					if(tmp.Search(tmpnickname) < 2){
-						PrintTimedScreen->SetFont(FDefault);
+						PrintTimedScreen->SetFont("FONT_DEFAULT.TGA");
 						PrintTimedScreen->PrintTimed(3700, 2800, (*Lang)[CLanguage::WHISPERSTOYOU], 3000.0f, 0);
 						PrintTimedScreen->PrintTimed(3700, 3000, tmp, 3000.0f, 0);
 						if(!ShowHow){
@@ -144,7 +143,7 @@ void CChat::WriteMessage(MsgType type, bool PrintTimed, const char * format, ...
 	switch (type){
 		case NORMAL:
 			if(PrintTimed){
-				PrintTimedScreen->SetFont(FDefault);
+				PrintTimedScreen->SetFont("FONT_DEFAULT.TGA");
 				tmp = text;
 				PrintTimedScreen->PrintTimed(3700, 2800, tmp, 3000.0f, 0);
 			}
@@ -157,7 +156,7 @@ void CChat::WriteMessage(MsgType type, bool PrintTimed, const char * format, ...
 					tmp = text;
 					tmpnickname = CConfig::GetInstance()->Nickname;
 					if(tmp.Search(tmpnickname) < 2){
-						PrintTimedScreen->SetFont(FDefault);
+						PrintTimedScreen->SetFont("FONT_DEFAULT.TGA");
 						PrintTimedScreen->PrintTimed(3700, 2800, (*Lang)[CLanguage::WHISPERSTOYOU], 3000.0f, 0);
 						PrintTimedScreen->PrintTimed(3700, 3000, tmp, 3000.0f, 0);
 						if(!ShowHow){
@@ -188,7 +187,7 @@ void CChat::ClearChat()
 };
 
 void CChat::PrintChat(){
-	zCView::GetScreen()->SetFont(FDefault);
+	zCView::GetScreen()->SetFont("FONT_DEFAULT.TGA");
 	if(Input->KeyToggled(KEY_F5) && PrintMsgType != NORMAL) PrintMsgType = NORMAL;
 	if(Input->KeyToggled(KEY_F6) && PrintMsgType != WHISPER) PrintMsgType = WHISPER;
 	if(Input->KeyToggled(KEY_F7) && PrintMsgType != ADMIN) PrintMsgType = ADMIN;

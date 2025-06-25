@@ -44,7 +44,6 @@ SOFTWARE.
 
 #include <spdlog/spdlog.h>
 
-
 // NEEDED FOR SETTING NPC TYPES
 #define B_SETVISUALS "B_SETVISUALS"
 #define LESSER_SKELETON "LESSER_SKELETON"
@@ -57,36 +56,32 @@ static int HeroInstance;
 extern GameClient* client;
 extern CIngame* global_ingame;
 extern CLocalPlayer* LocalPlayer;
-extern zSTRING SELF;
 extern CConfig* user_config;
 
-// ZSTRINGS
-zSTRING BODYMESHNAKED = "HUM_BODY_NAKED0";
-  // Rodzaje modelu g�owy
-zSTRING HUM_HEAD_FIGHTER = "HUM_HEAD_FIGHTER";
-zSTRING HUM_HEAD_BALD = "HUM_HEAD_BALD";
-zSTRING HUM_HEAD_FATBALD = "HUM_HEAD_FATBALD";
-zSTRING HUM_HEAD_PONY = "HUM_HEAD_PONY";
-zSTRING HUM_HEAD_PSIONIC = "HUM_HEAD_PSIONIC";
-zSTRING HUM_HEAD_THIEF = "HUM_HEAD_THIEF";
-  // Style chodzenia
-zSTRING WALK_NONE = "NONE";
-zSTRING HUMANS_TIRED = "HUMANS_TIRED.MDS";
-zSTRING HUMANS_RELAXED = "HUMANS_RELAXED.MDS";
-zSTRING HUMANS_MILITIA = "HUMANS_MILITIA.MDS";
-zSTRING HUMANS_BABE = "HUMANS_BABE.MDS";
-zSTRING HUMANS_ARROGANCE = "HUMANS_ARROGANCE.MDS";
-zSTRING HUMANS_MAGE = "HUMANS_MAGE.MDS";
+constexpr const char* BODYMESHNAKED = "HUM_BODY_NAKED0";
+// Head models
+constexpr const char* HUM_HEAD_FIGHTER = "HUM_HEAD_FIGHTER";
+constexpr const char* HUM_HEAD_BALD = "HUM_HEAD_BALD";
+constexpr const char* HUM_HEAD_FATBALD = "HUM_HEAD_FATBALD";
+constexpr const char* HUM_HEAD_PONY = "HUM_HEAD_PONY";
+constexpr const char* HUM_HEAD_PSIONIC = "HUM_HEAD_PSIONIC";
+constexpr const char* HUM_HEAD_THIEF = "HUM_HEAD_THIEF";
+// Walk styles
+constexpr const char* WALK_NONE = "NONE";
+constexpr const char* HUMANS_TIRED = "HUMANS_TIRED.MDS";
+constexpr const char* HUMANS_RELAXED = "HUMANS_RELAXED.MDS";
+constexpr const char* HUMANS_MILITIA = "HUMANS_MILITIA.MDS";
+constexpr const char* HUMANS_BABE = "HUMANS_BABE.MDS";
+constexpr const char* HUMANS_ARROGANCE = "HUMANS_ARROGANCE.MDS";
+constexpr const char* HUMANS_MAGE = "HUMANS_MAGE.MDS";
 // NPC INSTANCES
-zSTRING PCHERO = "PC_HERO";
-zSTRING ORCWARRIOR = "ORCWARRIOR_ROAM";
-zSTRING ORCELITE = "ORCELITE_ROAM";
-zSTRING ORCSHAMAN = "ORCSHAMAN_SIT";
-zSTRING UNDEADORC = "UNDEADORCWARRIOR";
-zSTRING SHEEP = "SHEEP";
-zSTRING DRACONIAN = "DRACONIAN";
-// TEMP
-zSTRING TypeTemp;
+constexpr const char* PCHERO = "PC_HERO";
+constexpr const char* ORCWARRIOR = "ORCWARRIOR_ROAM";
+constexpr const char* ORCELITE = "ORCELITE_ROAM";
+constexpr const char* ORCSHAMAN = "ORCSHAMAN_SIT";
+constexpr const char* UNDEADORC = "UNDEADORCWARRIOR";
+constexpr const char* SHEEP = "SHEEP";
+constexpr const char* DRACONIAN = "DRACONIAN";
 
 CPlayer::CPlayer()
 {
@@ -166,12 +161,12 @@ zSTRING& CPlayer::GetClassName()
 	return (*client->classmgr)[this->char_class]->class_name;
 };
 
-zSTRING& CPlayer::GetHeadModelName()
+zSTRING CPlayer::GetHeadModelName()
 {
 	return GetHeadModelNameFromByte(Head);
 };
 
-zSTRING& CPlayer::GetHeadModelNameFromByte(BYTE head)
+zSTRING CPlayer::GetHeadModelNameFromByte(BYTE head)
 {
 		switch(head){
 			case 0:
@@ -218,35 +213,34 @@ int CPlayer::GetNameLength()
 	return this->npc->GetName().Length();
 };
 
-zSTRING& CPlayer::GetWalkStyleFromByte(BYTE walkstyle)
-{
-		switch(walkstyle){
-			case 0:
-				return WALK_NONE;
-			break;
-			case 1:
-				return HUMANS_TIRED;
-			break;
-			case 2:
-				return HUMANS_RELAXED;
-			break;
-			case 3:
-				return HUMANS_MILITIA;
-			break;
-			case 4:
-				return HUMANS_BABE;
-			break;
-			case 5:
-				return HUMANS_ARROGANCE;
-			break;
-			case 6:
-				return HUMANS_MAGE;
-			break;
-			default:
-				return WALK_NONE;
-			break;
-		}
-};
+zSTRING CPlayer::GetWalkStyleFromByte(BYTE walkstyle) {
+  switch (walkstyle) {
+    case 0:
+      return WALK_NONE;
+      break;
+    case 1:
+      return HUMANS_TIRED;
+      break;
+    case 2:
+      return HUMANS_RELAXED;
+      break;
+    case 3:
+      return HUMANS_MILITIA;
+      break;
+    case 4:
+      return HUMANS_BABE;
+      break;
+    case 5:
+      return HUMANS_ARROGANCE;
+      break;
+    case 6:
+      return HUMANS_MAGE;
+      break;
+    default:
+      return WALK_NONE;
+      break;
+  }
+}
 
 bool CPlayer::IsFighting()
 {
@@ -363,7 +357,8 @@ void CPlayer::SetNpcType(NpcType TYPE)
 	}
 	Type = TYPE;
 	char buffer[128];
-	zCParser::GetParser()->SetInstance(SELF, npc);
+	zSTRING TypeTemp;
+	zCParser::GetParser()->SetInstance("SELF", npc);
 	if(npc->GetModel()->HasAppliedModelProtoOverlay(CPlayer::GetWalkStyleFromByte(user_config->walkstyle))) npc->GetModel()->RemoveModelProtoOverlay(CPlayer::GetWalkStyleFromByte(user_config->walkstyle));
 	switch(TYPE)
 	{

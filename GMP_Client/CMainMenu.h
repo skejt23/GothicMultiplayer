@@ -78,13 +78,13 @@ private:
 	bool Christmas;
 	int MusicId;
 public:
+	zSTRING string_tmp;
 	char versionbuff[32];
 	zSTRING VersionString;
 	zVEC3 HeroPos;
 	zVEC3 Angle;
 	zVEC3 NAngle;
 	zCView* GMPLogo;
-	std::vector<zSTRING> RssNews;
 	int ps;
 	zCMenu* Options;
 	int SelectedServer;

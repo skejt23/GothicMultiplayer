@@ -26,15 +26,12 @@ SOFTWARE.
 #pragma warning (disable : 4996 4800)
 #include "CConfig.h"
 
-zSTRING Multiplayer = "MULTIPLAYER";
-zSTRING Engine = "ENGINE";
-zSTRING Game = "GAME";
 DWORD KEYBOARDLAYOUT;
 
 CConfig::CConfig()
 {
 	Opt = zCOption::GetOption();
-	MultiSection = zCOption::GetOption()->GetSectionByName(Multiplayer, 1);
+	MultiSection = zCOption::GetOption()->GetSectionByName("MULTIPLAYER", 1);
 	LoadConfigFromFile();
 };
 
@@ -45,6 +42,10 @@ CConfig::~CConfig()
 
 void CConfig::LoadConfigFromFile()
 {
+	zSTRING Multiplayer = "MULTIPLAYER";
+	zSTRING Engine = "ENGINE";
+	zSTRING Game = "GAME";
+
 	// Sprawdzanie czy ilosc wejsc w sekcji [MULTIPLAYER] sie zgadza, jesli nie ustawienie configu na default.
 	if(Opt->ReadString(Multiplayer, "Nickname").IsEmpty() || Opt->GetNumEntries(MultiSection) != 12){
 		if(Opt->SectionExists(Multiplayer)) Opt->RemoveSection(Multiplayer);
@@ -96,6 +97,10 @@ void CConfig::DefaultSettings()
 
 void CConfig::SaveConfigToFile()
 {
+	zSTRING Multiplayer = "MULTIPLAYER";
+	zSTRING Engine = "ENGINE";
+	zSTRING Game = "GAME";
+
 	// [MULTIPLAYER] Ini Section
 	Opt->WriteString(Multiplayer, "Nickname", Nickname);
 	Opt->WriteInt(Multiplayer, "Skintexture", skintexture);

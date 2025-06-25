@@ -41,12 +41,10 @@ SOFTWARE.
 // Global
 using namespace std;
 #define PI 3.14159265
-extern zSTRING FDefault;
 extern bool WritingMapSave;
-zSTRING fhuge = "FONT_OLD_20_WHITE.TGA";
-zSTRING placed = " Placed.";
-zSTRING PlayerSpawned = "Player spawned in vob position.";
-zSTRING PlacedTest;
+constexpr const char* fhuge = "FONT_OLD_20_WHITE.TGA";
+constexpr const char* placed = " Placed.";
+constexpr const char* PlayerSpawned = "Player spawned in vob position.";
 extern CBuilder* Builder;
 //
 void RenderEvent()
@@ -115,7 +113,7 @@ void RenderEvent()
 	{
 		if(!this) return;
 		Patch::PlayerInterfaceEnabled(false);
-		screen->SetFont(FDefault);
+		screen->SetFont("FONT_DEFAULT.TGA");
 		if((int)BuildMessages.size()>0) for(int v=0; v<(int)BuildMessages.size(); v++) screen->Print(0, v*200, BuildMessages[v]);
 		switch(Mode)
 		{
