@@ -21,7 +21,7 @@ target("ClientNet")
     add_packages("spdlog")
     set_basename("znet")
 
-    on_install(install_to_system_dir)
+    on_install("install_to_system_dir")
     
 -- Main GMP shared library (DLL)
 target("ClientMain")
@@ -86,7 +86,20 @@ target("ClientMain")
     -- Set output name
     set_basename("GMP")
 
-    on_install(install_to_system_dir)
+    on_install(function (target)
+        local install_to_system_dir = import("install_to_system_dir")
+        -- Install the main GMP shared library
+        install_to_system_dir(target)
+
+        -- Install resources
+        local installdir = target:installdir()
+        local scriptdir = target:scriptdir()
+        os.mkdir(path.join(installdir, "Data"))
+        os.mkdir(path.join(installdir, "Multiplayer"))
+        os.cp(path.join(scriptdir, "resources/Data/*"), path.join(installdir, "Data"))
+        os.cp(path.join(scriptdir, "resources/Multiplayer/*"), path.join(installdir, "Multiplayer"))
+        print("Installed resources to " .. installdir)
+    end)
 
 -- Include subdirectories
 includes("Voice", "Launcher")

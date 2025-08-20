@@ -10,4 +10,4 @@ target("GMPLauncher")
     -- Set working directory for debugging
     set_rundir("$(projectdir)")
 
-    on_install(install_to_system_dir)
+    on_install("install_to_system_dir")

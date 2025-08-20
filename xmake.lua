@@ -9,6 +9,7 @@ set_runtimes("MT")
 set_rundir("$(builddir)/bin")
 set_configdir("$(builddir)/config")
 add_configfiles("version.h.in")
+add_moduledirs("xmake/modules")
 set_prefixdir("/", { bindir = "." })
 
 add_rules("mode.debug", "mode.release", "mode.releasedbg")
@@ -27,7 +28,7 @@ add_requires("fmt 11.0.2",
              "cpp-httplib 0.21.0",
              "zlib 1.3.1")
 
-includes("xmake", "common", "Shared", "GMP_Serv", "thirdparty")
+includes("common", "Shared", "GMP_Serv", "thirdparty")
 
 if is_plat("windows") then
     includes("GMP_Client", "InjectMage")
