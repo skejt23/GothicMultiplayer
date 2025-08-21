@@ -1,4 +1,4 @@
-name: CMake
+name: XMake
 
 on:
   workflow_dispatch:
@@ -8,39 +8,26 @@ on:
     branches: [ "main" ]
 
 env:
-  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
-  BUILD_TYPE: Release
-  VCPKG_ROOT: ${{github.workspace}}/vcpkg
-  VCPKG_DEFAULT_TRIPLET: x86-windows
+  # Customize the XMake build mode here (release, debug, releasedbg)
+  BUILD_MODE: release
 
 jobs:
   build:
-    # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
+    # XMake is cross-platform and should work on Windows, Linux, and macOS
     # You can convert this to a matrix build if you need cross-platform coverage.
-    # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
     runs-on: windows-latest
 
     steps:
     - uses: actions/checkout@v4
-    - name: run-vcpkg
-      # You may pin to the exact commit or the version.
-      # uses: lukka/run-vcpkg@97a66cd144358612fab189bf2836619f392ef083
-      uses: lukka/run-vcpkg@v11
-      with:
-        runVcpkgInstall: true
-        vcpkgGitCommitId: 300239058e33420acd153135b3f6e6b187828992
     
-    - name: Configure CMake
-      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
-      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -A WIN32
+    - name: Setup XMake
+      uses: xmake-io/github-action-setup-xmake@v1
+      with:
+        xmake-version: latest
 
     - name: Build
-      # Build your program with the given configuration
-      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
+      run: xmake -m ${BUILD_MODE}
+
     - name: Test
-      working-directory: ${{github.workspace}}/build
-      # Execute tests defined by the CMake configuration.
-      # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
-      run: ctest -C ${{env.BUILD_TYPE}}
+      run: xmake test
 

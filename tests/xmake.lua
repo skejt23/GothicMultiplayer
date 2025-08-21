@@ -28,3 +28,5 @@ target("ConnectionTest")
     add_packages("gtest")
     add_tests("default")
     set_rundir(os.projectdir())
+    -- disable the build by default
+    set_default(false)
