@@ -26,7 +26,7 @@ jobs:
         xmake-version: latest
 
     - name: Configure XMake
-      run: xmake config --mode=${{env.BUILD_MODE}}
+      run: xmake config --mode=${{env.BUILD_MODE}} -y
 
     - name: Build
       run: xmake
