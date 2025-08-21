@@ -72,3 +72,8 @@ TEST_F(ConnectionTest, MultipleClientsJoin_VerifyPacketsTellingAboutPlayers) {
   ASSERT_TRUE(client1_joined_future.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
   ASSERT_TRUE(client2_existing_players_future.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
 }
+
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
