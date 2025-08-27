@@ -56,6 +56,7 @@ private:
 	vector<zSTRING> BuildMessages;
 	vector<zSTRING> MobNames;
 	vector<zSTRING> ParticleNames;
+	zSTRING PlacedTest;
 	zSTRING VisualName;
 	int activemobname;
 	int activeparticlename;

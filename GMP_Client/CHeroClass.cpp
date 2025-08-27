@@ -31,9 +31,6 @@ SOFTWARE.
 #include <cstring>
 #include <pugixml.hpp>
 
-// CHECK FOR SUMMON SPELLS
-zSTRING Sum = "TRF";
-
 SHeroClass::~SHeroClass(void)
 {
   if (!this->class_name.IsEmpty())
@@ -228,7 +225,8 @@ void CHeroClass::EquipNPC(size_t offset, CPlayer *Player, bool clear_inventory)
       {
         if (Item->HasFlag(512))
         {
-          if (Item->GetInstanceName().Search(Sum) < 2)
+          // Check for summon spells
+          if (Item->GetInstanceName().Search("TRF") < 2)
           {
             if (npc->CanUse(Item))
               npc->Equip(Item);

@@ -36,9 +36,9 @@ SOFTWARE.
 #include <time.h>
 #include "CWatch.h"
 
-extern zSTRING FDefault;
 extern zCOLOR Normal;
 extern CLanguage* Lang;
+
 CWatch::CWatch()
 {
 	Langs = Lang;
@@ -51,7 +51,7 @@ void CWatch::PrintWatch()
 	time(&currtime);   
 	strftime(TimePrint,sizeof(TimePrint)-1,"%H:%M:%S",localtime(&currtime));
 	tmp = TimePrint;
-	Screen->SetFont(FDefault);
+	Screen->SetFont("FONT_DEFAULT.TGA");
 	Screen->SetFontColor(Normal);
 	Screen->Print( Con->WatchPosX, Con->WatchPosY, (*Langs)[CLanguage::CWATCH_REALTIME]);
 	Screen->Print(Con->WatchPosX, Con->WatchPosY+200, tmp);

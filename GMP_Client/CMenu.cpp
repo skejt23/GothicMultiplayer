@@ -38,9 +38,9 @@ SOFTWARE.
 //**
 
 //** Globals
-zSTRING GlobalFont = "FONT_OLD_20_WHITE.TGA";
-zSTRING GlobalBack = "MENU_INGAME.TGA";
-zSTRING Arrow = "-->";
+constexpr const char* GlobalFont = "FONT_OLD_20_WHITE.TGA";
+constexpr const char* GlobalBack = "MENU_INGAME.TGA";
+constexpr const char* Arrow = "-->";
 extern std::vector<CMenu*> MenuList;
 //**
 

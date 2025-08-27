@@ -1,2 +1,2 @@
-RANGE RGN "res\\cws.rgn"
-1000 BITMAP "res\\logo.bmp"
+RANGE RGN "resources\\cws.rgn"
+1000 BITMAP "resources\\logo.bmp"

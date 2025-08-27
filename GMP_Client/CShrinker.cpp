@@ -45,7 +45,7 @@ zVEC3 Size50 = zVEC3(0.50f, 0.50f, 0.50f);
 zVEC3 Size40 = zVEC3(0.40f, 0.40f, 0.40f);
 zVEC3 Size30 = zVEC3(0.30f, 0.30f, 0.30f);
 // Shrink Spell 
-zSTRING OutEffect = "MFX_SHRINK_TARGET";
+constexpr const char* OutEffect = "MFX_SHRINK_TARGET";
 
 CShrinker::~CShrinker()
 {

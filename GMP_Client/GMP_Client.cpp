@@ -1,4 +1,3 @@
-
 /*
 MIT License
 
@@ -28,7 +27,9 @@ SOFTWARE.
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <iostream>
+#include <string>
 
 #include "HooksManager.h"
 #include "Mod.h"
@@ -73,8 +74,8 @@ void SetupWindowPositionTracking() {
       nullptr);
 }
 
-HWND HookCreateWindowExA(DWORD dwExStyle, LPCSTR lpClassName, LPCSTR lpWindowName, DWORD dwStyle, int X, int Y,
-                         int nWidth, int nHeight, HWND hWndParent, HMENU hMenu, HINSTANCE hInstance, LPVOID lpParam) {
+HWND HookCreateWindowExA(DWORD dwExStyle, LPCSTR lpClassName, LPCSTR lpWindowName, DWORD dwStyle, int X, int Y, int nWidth, int nHeight,
+                         HWND hWndParent, HMENU hMenu, HINSTANCE hInstance, LPVOID lpParam) {
   if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
     SPDLOG_ERROR("Couldn't initialize SDL: {}", SDL_GetError());
   }
@@ -83,8 +84,7 @@ HWND HookCreateWindowExA(DWORD dwExStyle, LPCSTR lpClassName, LPCSTR lpWindowNam
   auto loaded = options.Load("GMP.INI");
   auto windowed = options.ReadBool(zOPT_SEC_VIDEO, "zStartupWindowed", FALSE);
   if (!windowed) {
-    return CreateWindowExA(dwExStyle, lpClassName, lpWindowName, dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu,
-                           hInstance, lpParam);
+    return CreateWindowExA(dwExStyle, lpClassName, lpWindowName, dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu, hInstance, lpParam);
   }
 
   auto window_pos = Config::Instance().GetWindowPosition();
@@ -99,45 +99,50 @@ HWND HookCreateWindowExA(DWORD dwExStyle, LPCSTR lpClassName, LPCSTR lpWindowNam
   SetupWindowPositionTracking();
   if (g_pSdlWindow == nullptr) {
     SPDLOG_ERROR("Unable to create SDL window. Fallback to CreateWindowExA.");
-    return CreateWindowExA(dwExStyle, lpClassName, lpWindowName, dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu,
-                           hInstance, lpParam);
+    return CreateWindowExA(dwExStyle, lpClassName, lpWindowName, dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu, hInstance, lpParam);
   }
 
-  hInstApp = (HINSTANCE)SDL_GetPointerProperty(SDL_GetWindowProperties(g_pSdlWindow),
-                                               SDL_PROP_WINDOW_WIN32_INSTANCE_POINTER, NULL);
+  hInstApp = (HINSTANCE)SDL_GetPointerProperty(SDL_GetWindowProperties(g_pSdlWindow), SDL_PROP_WINDOW_WIN32_INSTANCE_POINTER, NULL);
   return (HWND)SDL_GetPointerProperty(SDL_GetWindowProperties(g_pSdlWindow), SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
 }
 
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
   DisableThreadLibraryCalls(hinstDLL);
   if (fdwReason == DLL_PROCESS_ATTACH) {
-    AllocConsole();
-    spdlog::default_logger()->sinks().push_back(
-        std::make_shared<spdlog::sinks::basic_file_sink_mt>("GMP_Log.txt", false));
-    spdlog::flush_on(spdlog::level::debug);
+    try {
+      AllocConsole();
+      spdlog::default_logger()->sinks().push_back(std::make_shared<spdlog::sinks::basic_file_sink_mt>("GMP_Log.txt", false));
+      spdlog::flush_on(spdlog::level::debug);
 
-    Network::LoadNetworkLibrary();
+      Network::LoadNetworkLibrary();
 
-    // Window hook
-    CallPatch(0x0050323F, (DWORD)&HookCreateWindowExA, 1);
-    CallPatch(0x004FD794, (DWORD)&HookwinResizeMainWindow, 0);
-    CallPatch(0x004FE096, (DWORD)&HookwinResizeMainWindow, 0);
+      // Window hook
+      CallPatch(0x0050323F, (DWORD)&HookCreateWindowExA, 1);
+      CallPatch(0x004FD794, (DWORD)&HookwinResizeMainWindow, 0);
+      CallPatch(0x004FE096, (DWORD)&HookwinResizeMainWindow, 0);
 
-    Patch::SetWndName("Gothic Multiplayer");
+      Patch::SetWndName("Gothic Multiplayer");
 
-    // This needs to be unique, so it's possible to run multiple instances of the game.
-    static std::string reg_program_name = "GMP " + std::to_string(GetCurrentProcessId());
-    Patch::SetRegProgram(reg_program_name.c_str());
-    
-    Patch::InitNewSplash();
-    Patch::DisablePlayBink();
-    Patch::DisableStartupScript();
-    Patch::DisableAbnormalExit();
-    Patch::AlwaysNoMenu();
-    oCGame::InstallPatches();
-    HooksManager* hm = HooksManager::GetInstance();
-    hm->AddHook(HT_AIMOVING, (DWORD)Initialize, false);
-    Patch::ChangeDefaultIni();
+      // This needs to be unique, so it's possible to run multiple instances of the game.
+      static std::string reg_program_name = "GMP " + std::to_string(GetCurrentProcessId());
+      Patch::SetRegProgram(reg_program_name.c_str());
+
+      Patch::InitNewSplash();
+      Patch::DisablePlayBink();
+      Patch::DisableStartupScript();
+      Patch::DisableAbnormalExit();
+      Patch::AlwaysNoMenu();
+      oCGame::InstallPatches();
+      HooksManager* hm = HooksManager::GetInstance();
+      hm->AddHook(HT_AIMOVING, (DWORD)Initialize, false);
+      Patch::ChangeDefaultIni();
+    } catch (const std::exception& e) {
+      SPDLOG_ERROR("GMP.dll initialization failed: {}", e.what());
+      return FALSE;
+    } catch (...) {
+      SPDLOG_ERROR("GMP.dll initialization failed with unknown exception");
+      return FALSE;
+    }
   }
   return TRUE;
 }

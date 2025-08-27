@@ -29,9 +29,7 @@ SOFTWARE.
 extern zCOLOR Highlighted;
 extern zCOLOR Normal;
 extern zCOLOR FColors;
-zSTRING TEMPSTRING;
 extern CBuilder* Builder;
-zSTRING PressDelete = "KEY DELETE - REMOVE";
 bool Rotating = true;
 
 CObjectMenu::CObjectMenu()
@@ -113,7 +111,7 @@ void CObjectMenu::Draw()
 	Screen->SetFontColor(Normal);
 	sprintf(buffer, "Spawned Objects (%d)", Builder->SpawnedVobs.size());
 	MenuTitle = buffer;
-	Screen->Print(5000, 3000, PressDelete);
+	Screen->Print(5000, 3000, "KEY DELETE - REMOVE");
 	Screen->Print(5000, 3200, MenuTitle);
 	if((int)Builder->SpawnedVobs.size() > 9) PrintTo = 10;
 	else PrintTo = (int)Builder->SpawnedVobs.size();

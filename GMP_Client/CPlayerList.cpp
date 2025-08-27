@@ -34,10 +34,7 @@ extern CLanguage* Lang;
 extern zCOLOR Normal;
 extern zCOLOR Highlighted;
 extern CIngame* global_ingame;
-zSTRING NoOfPlayers;
 zCOLOR FColors1;
-zSTRING Kick = "Kick";
-zSTRING Ban = "Ban";
 
 CPlayerList::CPlayerList() {
   PlayerListBackground = new zCView(0, 0, 8192, 8192, VIEW_ITEM);
@@ -162,7 +159,7 @@ void CPlayerList::UpdatePlayerList() {
       Screen->Print(x + 400, y, (*Lang)[CLanguage::TEAM_DEATHMATCH]);
     char buffer[128];
     sprintf(buffer, "%d", client->player.size());
-    NoOfPlayers = buffer;
+    zSTRING NoOfPlayers = buffer;
     Screen->Print(x + 3000, y, NoOfPlayers);
     int Size = 2400;
     if (client->player.size() > 1) {
@@ -225,10 +222,10 @@ void CPlayerList::UpdatePlayerList() {
     if (client->IsAdminOrModerator) {
       FColors1 = (MenuPos == 2) ? Highlighted : Normal;
       Screen->SetFontColor(FColors1);
-      Screen->Print(x + 400, y + 800, Kick);
+      Screen->Print(x + 400, y + 800, "Kick");
       FColors1 = (MenuPos == 3) ? Highlighted : Normal;
       Screen->SetFontColor(FColors1);
-      Screen->Print(x + 400, y + 1000, Ban);
+      Screen->Print(x + 400, y + 1000, "Ban");
       FColors1 = (MenuPos == 4) ? Highlighted : Normal;
       Screen->SetFontColor(FColors1);
       Screen->Print(x + 400, y + 1200, (*Lang)[CLanguage::KILL_PLAYER]);

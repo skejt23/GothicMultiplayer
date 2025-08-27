@@ -86,14 +86,14 @@ public:
 	zVEC3 GetAngleN();
 	void GetAppearance(BYTE & head, BYTE & skin, BYTE & face);
 	zSTRING& GetClassName();
-	zSTRING& GetHeadModelName();
-	static zSTRING& GetHeadModelNameFromByte(BYTE head);
+	zSTRING GetHeadModelName();
+	static zSTRING GetHeadModelNameFromByte(BYTE head);
 	int GetHealth();
 	static CPlayer* GetLocalPlayer();
 	const char* GetName();
 	int GetNameLength();
 	inline oCNpc* GetNpc(){return this->npc;};
-	static zSTRING& GetWalkStyleFromByte(BYTE walkstyle);
+	static zSTRING GetWalkStyleFromByte(BYTE walkstyle);
 	bool IsFighting();
 	bool IsLocalPlayer();
 	static bool IsPlayerValid(CPlayer* Player);

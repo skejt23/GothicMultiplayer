@@ -40,12 +40,11 @@ CIngame *global_ingame=NULL;
 extern GameClient*client;
 extern CLocalPlayer* LocalPlayer;
 void InterfaceLoop(void);
-zSTRING arrow = "->";
-zSTRING DEADB = "S_DEADB";
-zSTRING DEAD2 = "S_DEAD";
-zSTRING TDEADB = "T_DEADB";
-zSTRING TURN = "TURN";
-zSTRING MuteTMP;
+constexpr const char* arrow = "->";
+constexpr const char* DEADB = "S_DEADB";
+constexpr const char* DEAD2 = "S_DEAD";
+constexpr const char* TDEADB = "T_DEADB";
+constexpr const char* TURN = "TURN";
 extern zCOLOR Normal;
 zCOLOR AQUA=zCOLOR(0,255,255,255);
 zCOLOR RED=zCOLOR(255,0,0,255);
@@ -95,14 +94,13 @@ CIngame::~CIngame(){
 	HooksManager::GetInstance()->RemoveHook(HT_RENDER, (DWORD)CIngame::Loop);
 }
 
-zSTRING LIGHTSSCEMENAME = "PC";
 void CIngame::CheckSwampLights()
 {
 	oCWorldTimer* Timer = oCGame::GetGame()->GetWorldTimer();
 	if(!SwampLightsOn){
 		if(Timer->IsTimeBetween(20, 00, 05, 00)){
 			SwampLightsOn = true;
-			oCMobInter::SetAllMobsToState(oCGame::GetGame()->GetGameWorld(), LIGHTSSCEMENAME, 1);
+			oCMobInter::SetAllMobsToState(oCGame::GetGame()->GetGameWorld(), "PC", 1);
 			int h;
 			int m;
 			Timer->GetTime(h, m);
@@ -112,12 +110,12 @@ void CIngame::CheckSwampLights()
 	else{
 		if(Timer->IsTimeBetween(05, 00, 20, 00)){
 			SwampLightsOn = false;
-			oCMobInter::SetAllMobsToState(oCGame::GetGame()->GetGameWorld(), LIGHTSSCEMENAME, 0);
+			oCMobInter::SetAllMobsToState(oCGame::GetGame()->GetGameWorld(), "PC", 0);
 			int h;
 			int m;
 			Timer->GetTime(h, m);
 			oCGame::GetGame()->SetTime(Timer->GetDay(), h, m);
-			oCMobInter::SetAllMobsToState(oCGame::GetGame()->GetGameWorld(), LIGHTSSCEMENAME, 0);
+			oCMobInter::SetAllMobsToState(oCGame::GetGame()->GetGameWorld(), "PC", 0);
 		}
 	}
 };
@@ -182,9 +180,8 @@ void CIngame::Loop(){
 			long secs_to_unmute=(MuteTimer-clock())/1000;
 			char tmp_char[32];
 			sprintf(tmp_char, "%s : %d", (*global_ingame->lang)[CLanguage::UNMUTE_TIME].ToChar(), secs_to_unmute);
-			MuteTMP = tmp_char;
+			zSTRING MuteTMP = tmp_char;
 			zCView::GetScreen()->PrintCXY(MuteTMP);
-			MuteTMP.Clear();
 			if(secs_to_unmute < 0){
 				MuteCountdown = false;
 			}
