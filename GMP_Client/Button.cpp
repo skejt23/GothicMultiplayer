@@ -36,7 +36,7 @@ SOFTWARE.
 //Coded for Gothic Multiplayer
 
 #include "Button.h"
-#include "g2api.h"
+
 using namespace G2W;
 
 Button::Button(int x, int y, int width, int height){
@@ -45,7 +45,7 @@ Button::Button(int x, int y, int width, int height){
 	this->width = width;
 	this->height = height;
 	this->highlight = false;
-	this->surface = new zCView(x,y,x+width,y+height, VIEW_ITEM);
+	this->surface = new Gothic_II_Addon::zCView(x,y,x+width,y+height);
 }
 
 Button::~Button(void){
@@ -65,18 +65,18 @@ void Button::setHighlightTexture(const char * texture){
 }
 
 void Button::render(){
-	surface = new zCView(x,y,x+width,y+height, VIEW_ITEM);
+	surface = new Gothic_II_Addon::zCView(x,y,x+width,y+height);
 	if(highlight){
-		surface->InsertBack(zSTRING(highlightTexture));
-		surface->SetFont(zSTRING(highlightFont->texture));
-		surface->SetFontColor(zCOLOR(highlightFont->r,highlightFont->g,highlightFont->b)); 
+		surface->InsertBack(Gothic_II_Addon::zSTRING(highlightTexture));
+		surface->SetFont(Gothic_II_Addon::zSTRING(highlightFont->texture));
+		surface->SetFontColor(Gothic_II_Addon::zCOLOR(highlightFont->r,highlightFont->g,highlightFont->b)); 
 	}else{
-		surface->InsertBack(zSTRING(texture));
-		surface->SetFont(zSTRING(font->texture));
-		surface->SetFontColor(zCOLOR(font->r,font->g,font->b)); 
+		surface->InsertBack(Gothic_II_Addon::zSTRING(texture));
+		surface->SetFont(Gothic_II_Addon::zSTRING(font->texture));
+		surface->SetFontColor(Gothic_II_Addon::zCOLOR(font->r,font->g,font->b)); 
 	}
 	
-	surface->PrintCXY(zSTRING(text));
+	surface->PrintCXY(Gothic_II_Addon::zSTRING(text));
 	surface->Render();
 	surface->ClrPrintwin();
 }

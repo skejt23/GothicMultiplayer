@@ -37,6 +37,7 @@ SOFTWARE.
 #include "VoiceCapture.h"
 #include "VoicePlayback.h"
 #include "WorldBuilder\load.h"
+#include "ZenGin/zGothicAPI.h"
 
 enum FILE_REQ { CLASS_FILE = 1, SPAWN_FILE = 2, WB_FILE = 3, NULL_SIZE = 255 };
 
@@ -56,7 +57,6 @@ class GameClient : public CSyncFuncs {
 public:
   GameClient(const char* ip, CLanguage* ptr);
   ~GameClient(void);
-
 
   void HandleNetwork(void);
   bool IsConnected(void);
@@ -83,7 +83,7 @@ public:
   CSpawnPoint* spawnpoint;
   VoiceCapture* voiceCapture;
   VoicePlayback* voicePlayback;
-  vector<CPlayer*> player;
+  std::vector<CPlayer*> players;
   std::vector<Info> VobsWorldBuilderMap;
   int HeroLastHp;
   zSTRING map;

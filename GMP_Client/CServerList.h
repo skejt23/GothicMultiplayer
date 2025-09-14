@@ -24,37 +24,37 @@ SOFTWARE.
 */
 
 #pragma once
-#include <vector>
 #include <string>
-#include "g2Api.h"
+#include <vector>
 
-using namespace std;
+#include "ZenGin/zGothicAPI.h"
 
-struct SServerInfo{
-	zSTRING name, ip, map, server_website;
-	unsigned short num_of_players, max_players, hour, minute, port;
-	void Clear();
+struct SServerInfo {
+  Gothic_II_Addon::zSTRING name, ip, map, server_website;
+  unsigned short num_of_players, max_players, hour, minute, port;
+  void Clear();
 };
 
-class CServerList{
+class CServerList {
 private:
-	unsigned char list_type;
-	unsigned char error_code;
-	string data;
+  unsigned char list_type;
+  unsigned char error_code;
+  std::string data;
 
-	vector<SServerInfo> server_vector;
+  std::vector<SServerInfo> server_vector;
 
-	enum{
-		HTTP_LIST	= 0,
-		UDP_LIST	= 1,	//lista z master serwera
-	};
+  enum {
+    HTTP_LIST = 0,
+    UDP_LIST = 1,  // lista z master serwera
+  };
 
-	void Parse();
+  void Parse();
+
 public:
-	~CServerList(void);
-	bool ReceiveListHttp(void);
-	bool ReceiveListUDP(void);
-	size_t GetListSize(void);
-	SServerInfo *At(size_t pos);
-	const char* GetLastError(void);
+  ~CServerList(void);
+  bool ReceiveListHttp(void);
+  bool ReceiveListUDP(void);
+  size_t GetListSize(void);
+  SServerInfo* At(size_t pos);
+  const char* GetLastError(void);
 };

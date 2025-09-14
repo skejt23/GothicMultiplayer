@@ -35,29 +35,25 @@ SOFTWARE.
 
 #pragma once
 
-#include "g2Api.h"
+#include "ZenGin/zGothicAPI.h"
 #include <string>
 
-using namespace std;
-
-class CInventory
-{
+class CInventory {
 private:
-	oCNpcInventory* Inv;
-	oCNpc* Owner;
-	zCInput* Input;
-	zCView* InvWindow;
-	zCView* Screen;
-	bool DropInvoked;
-	string temp;
-	zSTRING AmountNum;
+  oCNpcInventory* Inv;
+  oCNpc* Owner;
+  zCView* InvWindow;
+  bool DropInvoked;
+  std::string temp;
+  zSTRING AmountNum;
+
 public:
-	CInventory(oCNpcInventory* HeroInventory);
-	~CInventory();
-	void DropAmount(oCItem* Item, int amount);
-	oCItem* GetSelectedItem();
-	void InvokeAmountDrop();
-	bool IsEmpty();
-	bool IsOpened();
-	void RenderInventory();
+  CInventory(oCNpcInventory* HeroInventory);
+  ~CInventory();
+  void DropAmount(oCItem* Item, int amount);
+  oCItem* GetSelectedItem();
+  void InvokeAmountDrop();
+  bool IsEmpty();
+  bool IsOpened();
+  void RenderInventory();
 };

@@ -24,56 +24,49 @@ SOFTWARE.
 */
 
 /*****************************************************************************
-**																			**
-**	File name:		Interface/CMenu.h		  								**
-**																			**
-**	Created by:		02/04/11	-	skejt23									**
-**																			**
-**	Description:	Multiplayer menu functionallity	 					**
-**																			**
+** ** *	File name:		Interface/CMenu.h		  								** *
+*** *	Created by:		02/04/11	-	skejt23									** *
+*** *	Description:	Multiplayer menu functionallity	 					** *
+***
 *****************************************************************************/
 
 //** Includes
 #pragma once
-#include "g2Api.h"
-#include "patch.h"
-#include <vector>
 #include <ctime>
+#include <vector>
+
+#include "ZenGin/zGothicAPI.h"
+#include "patch.h"
 //**
 
-//** Global
-using namespace std;
-//**
-
-class CMenu
-{
+class CMenu {
 private:
-	zCView* MainWindow;
-	zCView* TitleText;
-	zCView* Arrows;
-	bool Opened;
-	bool WasClosed;
-	bool Counting;
-	void RenderArrows();
-	void ArrowsInit();
-	int ArrowPos;
-	struct MenuItem
-	{
-		zSTRING Text;
-		DWORD Function;
-		DWORD Function2;
-	};
-	vector<MenuItem> MenuItems;
-	vector<DWORD> ValuePrint;
-	clock_t time;
+  Gothic_II_Addon::zCView* MainWindow;
+  Gothic_II_Addon::zCView* TitleText;
+  Gothic_II_Addon::zCView* Arrows;
+  bool Opened;
+  bool WasClosed;
+  bool Counting;
+  void RenderArrows();
+  void ArrowsInit();
+  int ArrowPos;
+  struct MenuItem {
+    Gothic_II_Addon::zSTRING Text;
+    DWORD Function;
+    DWORD Function2;
+  };
+  std::vector<MenuItem> MenuItems;
+  std::vector<DWORD> ValuePrint;
+  clock_t time;
+
 public:
-	CMenu(zSTRING MenuTitle, zCOLOR TitleTextColor, int sizex, int sizey);
-	~CMenu();
-	void AddMenuItem(zSTRING Text, DWORD Function);
-	void AddMenuItemValueChange(zSTRING Text, DWORD IncreaseFunction, DWORD DecreaseFunction, DWORD GetFunction);
-	void Open();
-	void Close();
-	bool IsOpened();
-	zVEC2 GetPosition();
-	void RenderMenu();
+  CMenu(Gothic_II_Addon::zSTRING MenuTitle, Gothic_II_Addon::zCOLOR TitleTextColor, int sizex, int sizey);
+  ~CMenu();
+  void AddMenuItem(Gothic_II_Addon::zSTRING Text, DWORD Function);
+  void AddMenuItemValueChange(Gothic_II_Addon::zSTRING Text, DWORD IncreaseFunction, DWORD DecreaseFunction, DWORD GetFunction);
+  void Open();
+  void Close();
+  bool IsOpened();
+  Gothic_II_Addon::zVEC2 GetPosition();
+  void RenderMenu();
 };

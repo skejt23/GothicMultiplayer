@@ -25,108 +25,100 @@ SOFTWARE.
 
 #pragma once
 
-#include "g2Api.h"
+#include <vector>
+
 #include "CSelectClass.h"
 #include "CServerList.h"
-#include <vector>
 #include "ExtendedServerList.h"
+#include "ZenGin/zGothicAPI.h"
 
-struct Resolution
-{
-	int x,y;
-};
-enum MenuState
-{
-	CHOOSE_LANGUAGE,
-	CHOOSE_NICKNAME,
-	MENU_LOOP,
-	MENU_CLEAN,
-	MENU_APPEARANCE,
-	CHOOSE_SRV_LOOP,
-	MENU_OPTIONS,
-	MENU_OPTONLINE,
-	MENU_SETWATCHPOS,
-	MENU_WORLDBUILDER,
-	WRITE_WORLDNAME,
-	LOAD_WBMAP
-};
-enum PrintState{
-	MAIN_MENU	= 0,
-	SERVER_LIST,
-	SETTINGS_MENU,
-	WORLDBUILDER_MENU
-};
-namespace ApperancePart{
-	enum{
-		HEAD,
-		FACE,
-		SKIN,
-		WALKSTYLE
-	};
+struct Resolution {
+  int x, y;
 };
 
-class CMainMenu : public TSingleton<CMainMenu>
-{
+enum MenuState {
+  CHOOSE_LANGUAGE,
+  CHOOSE_NICKNAME,
+  MENU_LOOP,
+  MENU_CLEAN,
+  MENU_APPEARANCE,
+  CHOOSE_SRV_LOOP,
+  MENU_OPTIONS,
+  MENU_OPTONLINE,
+  MENU_SETWATCHPOS,
+  MENU_WORLDBUILDER,
+  WRITE_WORLDNAME,
+  LOAD_WBMAP
+};
+
+enum PrintState { MAIN_MENU = 0, SERVER_LIST, SETTINGS_MENU, WORLDBUILDER_MENU };
+namespace ApperancePart {
+enum { HEAD, FACE, SKIN, WALKSTYLE };
+};
+
+class CMainMenu : public TSingleton<CMainMenu> {
 private:
-	Resolution ScreenResolution;
-	oCItem* CamWeapon;
-	CServerList *ServerList;
-	int hbX, hbY;
-	int Hour, Minute;
-	char tmpbuff[32];
-	zSTRING ChatLinesTMP;
-	bool Christmas;
-	int MusicId;
+  Resolution ScreenResolution;
+  Gothic_II_Addon::oCItem* CamWeapon;
+  CServerList* ServerList;
+  int hbX, hbY;
+  int Hour, Minute;
+  char tmpbuff[32];
+  Gothic_II_Addon::zSTRING ChatLinesTMP;
+  bool Christmas;
+  int MusicId;
+
 public:
-	zSTRING string_tmp;
-	char versionbuff[32];
-	zSTRING VersionString;
-	zVEC3 HeroPos;
-	zVEC3 Angle;
-	zVEC3 NAngle;
-	zCView* GMPLogo;
-	int ps;
-	zCMenu* Options;
-	int SelectedServer;
-	zSTRING ServerIP;
-	oCItem* TitleWeapon;
-	oCItem* AppWeapon;
-	zSTRING WBMapName;
-	short MenuItems;
-	short MenuPos;
-	short WBMenuPos;
-	short OptionPos;
-	MenuState MState;
-	bool TitleWeaponEnabled;
-	bool WritingNickname;
-	zSTRING headmodel_tmp;
-	zSTRING Walkstyle_tmp;
-	CLanguage* LangSetting;
-	CSelectClass *ClassSelect;
-	bool AppCamCreated;
-	unsigned char ChoosingApperance;
-	unsigned char LastApperance;
-	ExtendedServerList * esl;
+  Gothic_II_Addon::zSTRING string_tmp;
+  char versionbuff[32];
+  Gothic_II_Addon::zSTRING VersionString;
+  Gothic_II_Addon::zVEC3 HeroPos;
+  Gothic_II_Addon::zVEC3 Angle;
+  Gothic_II_Addon::zVEC3 NAngle;
+  Gothic_II_Addon::zCView* GMPLogo;
+  int ps;
+  Gothic_II_Addon::zCMenu* Options;
+  int SelectedServer;
+  Gothic_II_Addon::zSTRING ServerIP;
+  Gothic_II_Addon::oCItem* TitleWeapon;
+  Gothic_II_Addon::oCItem* AppWeapon;
+  Gothic_II_Addon::zSTRING WBMapName;
+  short MenuItems;
+  short MenuPos;
+  short WBMenuPos;
+  short OptionPos;
+  MenuState MState;
+  bool TitleWeaponEnabled;
+  bool WritingNickname;
+  Gothic_II_Addon::zSTRING headmodel_tmp;
+  Gothic_II_Addon::zSTRING Walkstyle_tmp;
+  CLanguage* LangSetting;
+  CSelectClass* ClassSelect;
+  bool AppCamCreated;
+  unsigned char ChoosingApperance;
+  unsigned char LastApperance;
+  ExtendedServerList* esl;
+
 public:
-	CMainMenu();
-	~CMainMenu();
-	void RenderMenu();
-	void ReLaunchMainMenu();
-	void EnableHealthBar();
-	void DisableHealthBar();
-	void LoadLangNames(void);
-	void LaunchMenuScene();
-	void LoadConfig();
-	void CleanUpMainMenu();
-	void PrintMenu();
-	void PrintNews();
-	void SpeedUpTime();
-	void LeaveOptionsMenu();
-	void RunMenuItem();
-	void RunWbMenuItem();
-	void RunOptionsItem();
-	void ClearNpcTalents(oCNpc* Npc);
-	void EraseSpacesInNickname();
-	void static __stdcall MainMenuLoop();
-	void SetServerIP(int selected);
+  CMainMenu();
+  ~CMainMenu();
+  void RenderMenu();
+  void ReLaunchMainMenu();
+  void EnableHealthBar();
+  void DisableHealthBar();
+  void LoadLangNames(void);
+  void LaunchMenuScene();
+  void LoadConfig();
+  void CleanUpMainMenu();
+  void PrintMenu();
+  void PrintNews();
+  void SpeedUpTime();
+  void LeaveOptionsMenu();
+  void RunMenuItem();
+  void RunWbMenuItem();
+  void RunOptionsItem();
+  void ClearNpcTalents(Gothic_II_Addon::oCNpc* Npc);
+  void EraseSpacesInNickname();
+  void static __stdcall MainMenuLoop();
+  void SetServerIP(int selected);
 };

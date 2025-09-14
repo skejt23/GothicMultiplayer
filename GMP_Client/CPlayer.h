@@ -35,76 +35,70 @@ SOFTWARE.
 
 #pragma once
 
-#include "g2Api.h"
+#include <cstdint>
+#include "ZenGin/zGothicAPI.h"
 
-typedef unsigned long long int uint64_t;
 class CInterpolatePos;
 
-class CPlayer
-{
+class CPlayer {
 private:
-	CInterpolatePos* InterPos;
-	int ScriptInstance;
-	BYTE Head;
-	BYTE Skin;
-	BYTE Face;
+  CInterpolatePos* InterPos;
+  int ScriptInstance;
+  BYTE Head;
+  BYTE Skin;
+  BYTE Face;
+
 public:
-	enum NpcType
-	{
-		NPC_HUMAN,
-		NPC_ORCWARRIOR,
-		NPC_ORCELITE,
-		NPC_ORCSHAMAN,
-		NPC_UNDEADORC,
-		NPC_SHEEP,
-		NPC_DRACONIAN,
-		NPC_LESSERSKELETON,
-		NPC_SKELETON,
-		NPC_SKELETONMAGE,
-		NPC_SKELETONLORD
-	};
-	enum HeadState
-	{
-		HEAD_NONE,
-		HEAD_LEFT,
-		HEAD_RIGHT,
-		HEAD_UP,
-		HEAD_DOWN
-	};
-	oCNpc* npc;
-	uint64_t id;
-	short hp, enable, update_hp_packet;
-	unsigned char char_class;
-	NpcType Type;
-	bool SameTeamAsLocalPlayer;
+  enum NpcType {
+    NPC_HUMAN,
+    NPC_ORCWARRIOR,
+    NPC_ORCELITE,
+    NPC_ORCSHAMAN,
+    NPC_UNDEADORC,
+    NPC_SHEEP,
+    NPC_DRACONIAN,
+    NPC_LESSERSKELETON,
+    NPC_SKELETON,
+    NPC_SKELETONMAGE,
+    NPC_SKELETONLORD
+  };
+  enum HeadState { HEAD_NONE, HEAD_LEFT, HEAD_RIGHT, HEAD_UP, HEAD_DOWN };
+  Gothic_II_Addon::oCNpc* npc;
+  uint64_t id;
+  short hp, enable, update_hp_packet;
+  unsigned char char_class;
+  NpcType Type;
+  bool SameTeamAsLocalPlayer;
+
 public:
-	CPlayer();
-	~CPlayer();
-	void AnalyzePosition(zVEC3 & Pos);
-	static void DeleteAllPlayers();
-	void DisablePlayer();
-	zVEC3 GetAngleN();
-	void GetAppearance(BYTE & head, BYTE & skin, BYTE & face);
-	zSTRING& GetClassName();
-	zSTRING GetHeadModelName();
-	static zSTRING GetHeadModelNameFromByte(BYTE head);
-	int GetHealth();
-	static CPlayer* GetLocalPlayer();
-	const char* GetName();
-	int GetNameLength();
-	inline oCNpc* GetNpc(){return this->npc;};
-	static zSTRING GetWalkStyleFromByte(BYTE walkstyle);
-	bool IsFighting();
-	bool IsLocalPlayer();
-	static bool IsPlayerValid(CPlayer* Player);
-	void LeaveGame();
-	void RespawnPlayer();
-	void SetAppearance(BYTE head, BYTE skin, BYTE face);
-	void SetHealth(int Value);
-	void SetName(zSTRING & Name);
-	void SetName(const char* Name);
-	void SetNpc(oCNpc* npc);
-	void SetNpcType(NpcType Type);
-	void SetPosition(zVEC3 & pos);
-	void SetPosition(float x, float y, float z);
+  CPlayer();
+  ~CPlayer();
+  void AnalyzePosition(Gothic_II_Addon::zVEC3& Pos);
+  static void DeleteAllPlayers();
+  void DisablePlayer();
+  void GetAppearance(BYTE& head, BYTE& skin, BYTE& face);
+  Gothic_II_Addon::zSTRING& GetClassName();
+  Gothic_II_Addon::zSTRING GetHeadModelName();
+  static Gothic_II_Addon::zSTRING GetHeadModelNameFromByte(BYTE head);
+  int GetHealth();
+  static CPlayer* GetLocalPlayer();
+  const char* GetName();
+  int GetNameLength();
+  inline Gothic_II_Addon::oCNpc* GetNpc() {
+    return this->npc;
+  };
+  static Gothic_II_Addon::zSTRING GetWalkStyleFromByte(BYTE walkstyle);
+  bool IsFighting();
+  bool IsLocalPlayer();
+  static bool IsPlayerValid(CPlayer* Player);
+  void LeaveGame();
+  void RespawnPlayer();
+  void SetAppearance(BYTE head, BYTE skin, BYTE face);
+  void SetHealth(int Value);
+  void SetName(Gothic_II_Addon::zSTRING& Name);
+  void SetName(const char* Name);
+  void SetNpc(Gothic_II_Addon::oCNpc* npc);
+  void SetNpcType(NpcType Type);
+  void SetPosition(Gothic_II_Addon::zVEC3& pos);
+  void SetPosition(float x, float y, float z);
 };

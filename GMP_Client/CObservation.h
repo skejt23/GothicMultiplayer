@@ -35,27 +35,22 @@ SOFTWARE.
 
 #pragma once
 
-#include "g2Api.h"
+#include "ZenGin/zGothicAPI.h"
 
 class CPlayer;
 
-class CObservation
-{
+class CObservation {
 private:
-	CPlayer* ObservingPlayer;
-	zSTRING PrintName;
+  CPlayer* ObservingPlayer;
+  Gothic_II_Addon::zSTRING PrintName;
+
 public:
-	enum ObseravtionMode
-	{
-		NO_OBSERVATION,
-		TEAM_AFTER_DEATH,
-		FREE_FOR_ALL,
-		TEAM_ONLY
-	};
+  enum ObseravtionMode { NO_OBSERVATION, TEAM_AFTER_DEATH, FREE_FOR_ALL, TEAM_ONLY };
+
 public:
-	CObservation();
-	~CObservation();
-	void Loop();
-	void ObserveBackward();
-	void ObserveForward();
+  CObservation();
+  ~CObservation();
+  void Loop();
+  void ObserveBackward();
+  void ObserveForward();
 };

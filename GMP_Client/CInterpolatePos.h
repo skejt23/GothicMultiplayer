@@ -29,32 +29,33 @@ SOFTWARE.
 **																			**
 **	Created by:		17/12/11	-	skejt23									**
 **																			**
-**	Description:	Position interpolation	(at least pretends to be :-)) 								**
+**	Description:	Position interpolation	(at least pretends to be :-)) 	**
 **																			**
 *****************************************************************************/
 #pragma once
 
-#include "g2Api.h"
+#include "ZenGin/zGothicAPI.h"
 #include "CPlayer.h"
-#include <ctime>
 
 // U nas animacja służy za przewidywanie pozycji gracza, więc mamy tu takie gładkie przesuwanie gracza w kierunku prawdziwej pozycji(przesyłanej przez server). 
 // Ewentualnie inne smieci dodamy w przyszłości.
-class CInterpolatePos
-{
+class CInterpolatePos {
 private:
-	CPlayer* InterpolatingPlayer;
-	zVEC3 InterpolatingTo;
-	int InterCount;
+  CPlayer* InterpolatingPlayer;
+  zVEC3 InterpolatingTo;
+  int InterCount;
+
 public:
-	bool IsInterpolating;
+  bool IsInterpolating;
+
 private:
-	void Interpolate(float x, float y, float z, float value, bool NoCollideMode = false);
+  void Interpolate(float x, float y, float z, float value, bool NoCollideMode = false);
+
 public:
-	CInterpolatePos(CPlayer* Player);
-	~CInterpolatePos();
-	void DoInterpolate();
-	bool IsDistanceSmallerThanRadius(float radius, float bX, float bY, float bZ, float rX, float rY, float rZ);
-	bool IsDistanceSmallerThanRadius(float radius, const zVEC3& Pos, const zVEC3& Pos1);
-	void UpdateInterpolation(float x, float y, float z);
+  CInterpolatePos(CPlayer* Player);
+  ~CInterpolatePos();
+  void DoInterpolate();
+  bool IsDistanceSmallerThanRadius(float radius, float bX, float bY, float bZ, float rX, float rY, float rZ);
+  bool IsDistanceSmallerThanRadius(float radius, const zVEC3& Pos, const zVEC3& Pos1);
+  void UpdateInterpolation(float x, float y, float z);
 };

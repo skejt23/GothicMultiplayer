@@ -24,31 +24,25 @@ SOFTWARE.
 */
 
 #pragma once
-#include "g2Api.h"
+
+#include "ZenGin/zGothicAPI.h"
 #include "singleton.h"
 
-enum CurrentMap
-{
-	MNEWWORLD,
-	MOLDWORLD,
-	MJARKENDAR,
-	MOLDVALLEY,
-	MCOLONY
-};
+enum CurrentMap { MNEWWORLD, MOLDWORLD, MJARKENDAR, MOLDVALLEY, MCOLONY };
 
-class CMap : public TSingleton<CMap>
-{
+class CMap : public TSingleton<CMap> {
 private:
-	char buffer[128];
-	zCView* PlayerMap;
-	CurrentMap Map;
-	bool watchwastrue;
+  char buffer[128];
+  zCView* PlayerMap;
+  CurrentMap Map;
+  bool watchwastrue;
+
 public:
-	bool Opened;
-	CMap();
-	~CMap();
-	bool CheckMap();
-	void PrintMap();
-	void Close();
-	void Open();
+  bool Opened;
+  CMap();
+  ~CMap();
+  bool CheckMap();
+  void PrintMap();
+  void Close();
+  void Open();
 };

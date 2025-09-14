@@ -24,7 +24,7 @@ SOFTWARE.
 */
 
 #include "Mod.h"
-#include "g2Api.h"
+#include "ZenGin/zGothicAPI.h"
 #include "game_client.h"
 #include "patch.h"
 #include "ExceptionHandler.h"
@@ -39,12 +39,14 @@ SOFTWARE.
 #include <ctime>
 
 #pragma warning(disable:4996)
+
+using namespace Gothic_II_Addon;
+
 GameClient* client=NULL;
 CMainMenu* MainMenu=NULL;
 extern zCOLOR Red;
 extern CLanguage* Lang;
 extern zCOLOR Normal;
-extern zCView* PrintTimedScreen;
 extern CIngame* global_ingame;
 zCOLOR Green = zCOLOR(0,255,0);
 bool MultiplayerLaunched = false;
@@ -76,10 +78,10 @@ void _stdcall PutToInv(DWORD Ptr)
 		oCItem* RHand = NULL;
 		oCItem* LHand = NULL;
 		if(Npc->GetRightHand()){
-			RHand = Npc->GetRightHand();
+			RHand = dynamic_cast<oCItem*>(Npc->GetRightHand());
 		}
 		if(Npc->GetLeftHand()){
-			LHand = Npc->GetLeftHand();
+			LHand = dynamic_cast<oCItem*>(Npc->GetLeftHand());
 		}
 		Npc->DropAllInHand();
 		if(RHand) RHand->RemoveVobFromWorld();
@@ -128,11 +130,11 @@ void _declspec(naked) CheckDamageIfForHero()
 // NO SLEEP FIX
 DWORD RETURN_TOCSTATE = 0x00720877;
 DWORD RETURN_TOENDCSTATE = 0x00720AC1;
-oCMob* Mob;
+oCMobInter* Mob;
 bool _stdcall IsSleepABit()
 {
-	if(Mob->GetStateFuncName().IsEmpty()) return false;
-	else if(!memcmp("SLEEPABIT", Mob->GetStateFuncName().ToChar(), 9)){
+	if(Mob->onStateFuncName.IsEmpty()) return false;
+	else if(!memcmp("SLEEPABIT", Mob->onStateFuncName.ToChar(), 9)){
 		return true;
 	}
 	return false;
@@ -156,12 +158,12 @@ void _declspec(naked) CheckCallStateFunc()
 }
 
 // Patch for arrows damage
-void _stdcall CheckDamageForArrows(oCNpc* Npc, int howmuch, oSDamageDescriptor& Des)
+void _stdcall CheckDamageForArrows(oCNpc* Npc, int howmuch, oCNpc::oSDamageDescriptor& Des)
 {
-	if(Des.nSpellID > 0 && Des.nSpellID != -1 && oCNpc::GetHero() != Des.pNpcAttacker) return;
+	if(Des.nSpellID > 0 && Des.nSpellID != -1 && player != Des.pNpcAttacker) return;
     if(Des.pItemWeapon){
 		if(!memcmp("ITRW_ARROW", Des.pItemWeapon->GetInstanceName().ToChar(), 10) || !memcmp("ITRW_BOLT", Des.pItemWeapon->GetInstanceName().ToChar(), 9)){
-			if(Des.pNpcAttacker) if(oCNpc::GetHero() != Des.pNpcAttacker || oCNpc::GetHero() == Npc) return;
+			if(Des.pNpcAttacker) if(player != Des.pNpcAttacker || player == Npc) return;
 		}
 	}
 	Npc->ChangeAttribute(0, howmuch);
@@ -189,23 +191,30 @@ DWORD RETURNTOPRINT = 0x006E2FC2;
 zSTRING TestPrint = "";
 zSTRING* Wat = &TestPrint;
 char bufferTemp[128];
+void __stdcall PrepareKillMessage()
+{
+    if(player->GetFocusNpc()){
+        sprintf(bufferTemp, "%s %s", (*Lang)[CLanguage::KILLEDSOMEONE_MSG].ToChar(), player->GetFocusNpc()->GetName().ToChar());
+        TestPrint = bufferTemp;
+    }
+    else{
+        TestPrint = "";
+    }
+}
+
+DWORD PrepareKillMessageAddr = (DWORD)PrepareKillMessage;
+
 void _declspec(naked) PrintKilledMessage()
 {
-	__asm pushad
-	if(oCNpc::GetHero()->GetFocusNpc()){
-		sprintf(bufferTemp, "%s %s", (*Lang)[CLanguage::KILLEDSOMEONE_MSG].ToChar(), oCNpc::GetHero()->GetFocusNpc()->GetName().ToChar());
-		TestPrint = bufferTemp;
-	}
-	else{
-		TestPrint = "";
-	}
-	__asm
-	{
-		popad
-		mov edx, Wat
-		fstp DWORD PTR DS:[esp]
-		jmp RETURNTOPRINT
-	}
+    __asm 
+    {
+        pushad
+        call PrepareKillMessageAddr
+        popad
+        mov edx, Wat
+        fstp DWORD PTR DS:[esp]
+        jmp RETURNTOPRINT
+    }
 };
 
 // CRASHFIX RESETPOS
@@ -264,11 +273,14 @@ const int DROP_ITEM_TIMEOUT = 200;
 // DROP & TAKE
 void _stdcall OnDropItem(sRegs & regs, DWORD & item)
 {	   
-	if ((DWORD)regs.ECX != (DWORD)oCNpc::GetHero()) {
+	if ((DWORD)regs.ECX != (DWORD)player) {
 		return;
 	}
 	oCItem* DroppedItem = (oCItem*)item;
-	short amount = DroppedItem->GetAmount();
+	if (!DroppedItem) {
+		return;
+	}
+	short amount = DroppedItem->amount;
 	static int dropItemTimeout = 0;
 	if(client && global_ingame && dropItemTimeout < GetTickCount()){
 		if(!client->DropItemsAllowed) return;
@@ -279,7 +291,7 @@ void _stdcall OnDropItem(sRegs & regs, DWORD & item)
 
 void _stdcall OnTakeItem(sRegs & regs, DWORD & item)
 {	   
-		if((DWORD)regs.ECX == (DWORD)oCNpc::GetHero()){
+		if((DWORD)regs.ECX == (DWORD)player){
 				oCItem* TakenItem = (oCItem*)item;
 				if(client && global_ingame){
 					if(!client->DropItemsAllowed) return;
@@ -291,11 +303,11 @@ void _stdcall OnTakeItem(sRegs & regs, DWORD & item)
 void _stdcall OnCastSpell(sRegs & regs)
 {	  
 	oCSpell* CastedSpell = (oCSpell*)regs.ECX;
-	if((DWORD)CastedSpell->GetCaster() == (DWORD)oCNpc::GetHero()){
+	if((DWORD)CastedSpell->spellCasterNpc == (DWORD)player){
 			if(client && global_ingame){
-				if(CastedSpell->GetTarget()){
-					if(CastedSpell->GetSpellID() == 46) if(!global_ingame->Shrinker->IsShrinked(CastedSpell->GetTarget())) global_ingame->Shrinker->ShrinkNpc(CastedSpell->GetTarget());
-					client->SendCastSpell(CastedSpell->GetTarget(), CastedSpell->GetSpellID());
+				if(CastedSpell->spellTargetNpc){
+					if(CastedSpell->GetSpellID() == 46) if(!global_ingame->Shrinker->IsShrinked(CastedSpell->spellTargetNpc)) global_ingame->Shrinker->ShrinkNpc(CastedSpell->spellTargetNpc);
+					client->SendCastSpell(CastedSpell->spellTargetNpc, CastedSpell->GetSpellID());
 				}
 				else client->SendCastSpell(0, CastedSpell->GetSpellID());
 			}
@@ -306,16 +318,15 @@ void _stdcall OnCastSpell(sRegs & regs)
 zSTRING TakeTooFarMessage;
 bool _stdcall CheckIfDistanceIsCorrect(oCMsgManipulate* Msg, oCNpc* Npc)
 {	   
-	if(Npc == oCNpc::GetHero() && Msg){
-		if(Msg->GetVob()){
-			if(Npc->GetDistanceToVob(Msg->GetVob()) < 240.0f){
+	if(Npc == player && Msg){
+		if(Msg->targetVob){
+			if(Npc->GetDistanceToVob(*Msg->targetVob) < 240.0f){
 				return true;
 			}
-			else if(GetPointerType((DWORD)Msg->GetVob()) == VOB_TYPE_VT_OCITEM){
-				oCItem* Item = static_cast<oCItem*>(Msg->GetVob());
-				sprintf(bufferTemp, "%s %s", Item->GetItemName().ToChar(), (*Lang)[CLanguage::ITEM_TOOFAR].ToChar());
+			else if(oCItem* Item = zDYNAMIC_CAST<oCItem>(Msg->targetVob)){
+				sprintf(bufferTemp, "%s %s", Item->name.ToChar(), (*Lang)[CLanguage::ITEM_TOOFAR].ToChar());
 				TakeTooFarMessage = bufferTemp;
-				PrintTimedScreen->PrintTimedCXY(TakeTooFarMessage, 4000.0f, 0);
+				ogame->array_view[oCGame::GAME_VIEW_SCREEN]->PrintTimedCXY(TakeTooFarMessage, 4000.0f, 0);
 				return false;
 			}
 		}

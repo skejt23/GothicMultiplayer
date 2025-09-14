@@ -35,110 +35,109 @@ SOFTWARE.
 
 // Includes
 #include "CSyncFuncs.h"
+
 #include "CIngame.h"
 
 // Externs
 extern CIngame* global_ingame;
 
-// Enums
-enum SpellsId
-{
-	SPL_SLEEP = 27, // Sen
-	SPL_SHRINK = 46, // Zmniejszanie
-	SPL_TRFLURKER = 56 // Przemiana w topielca
-};
-
 constexpr const char* SPRINT = "HUMANS_SPRINT.MDS";
-  // Dzwieki wyciagania broni
+// Dzwieki wyciagania broni
 constexpr const char* DrawSoundMe = "DRAWSOUND_ME.WAV";
 constexpr const char* DrawSoundMe02 = "DRAWSOUND_ME_02.WAV";
 constexpr const char* UnDrawSoundMe = "UNDRAWSOUND_ME.WAV";
 constexpr const char* DrawSoundWo = "DRAWSOUND_WO.WAV";
 constexpr const char* UnDrawSoundWo = "UNDRAWSOUND_WO.WAV";
 
-void CSyncFuncs::RunSpellLogic(short SpellId, oCNpc* Caster, oCNpc* Target)
-{
-	static zSTRING SpellLogicTemporary;
-	switch (SpellId)
-	{
-		case SPL_SLEEP:
-			if(!Target) return;
-			zCParser::GetParser()->SetInstance("SELF", Caster);
-			zCParser::GetParser()->SetInstance("OTHER", Target);
-			SpellLogicTemporary = "SPELL_LOGIC_SLEEP";
-			zCParser::GetParser()->CallFunc(SpellLogicTemporary);
-		break;
-		case SPL_SHRINK:
-		{
-			if(!Target) return;
-			if(!global_ingame->Shrinker->IsShrinked(Target)) global_ingame->Shrinker->ShrinkNpc(Target);
-		}
-		break;
-		default:
-			// Unsupported SpellId
-		break;
-	};
+void CSyncFuncs::RunSpellLogic(short SpellId, oCNpc* Caster, oCNpc* Target) {
+  static zSTRING SpellLogicTemporary;
+  switch (SpellId) {
+    case SPL_SLEEP:
+      if (!Target)
+        return;
+      zCParser::GetParser()->SetInstance("SELF", Caster);
+      zCParser::GetParser()->SetInstance("OTHER", Target);
+      SpellLogicTemporary = "SPELL_LOGIC_SLEEP";
+      zCParser::GetParser()->CallFunc(SpellLogicTemporary);
+      break;
+    case SPL_SHRINK: {
+      if (!Target)
+        return;
+      if (!global_ingame->Shrinker->IsShrinked(Target))
+        global_ingame->Shrinker->ShrinkNpc(Target);
+    } break;
+    default:
+      // Unsupported SpellId
+      break;
+  };
 };
 
 // Urchamianie skryptu danego spella, np SPELL_CAST_FIREBALL
-void CSyncFuncs::RunSpellScript(const char* SpellName, oCNpc* Caster, oCNpc* Target)
-{
-	static zSTRING SpellCastTemp;
-	if(!Caster || !SpellName) return;
-	char buffer[128];
-	zCParser::GetParser()->SetInstance("SELF", Caster);
-	if(!Target) zCParser::GetParser()->SetInstance("OTHER", 0);
-	else zCParser::GetParser()->SetInstance("OTHER", Target);
-	sprintf(buffer, "SPELL_CAST_%s", SpellName);
-	SpellCastTemp = buffer;
-	SpellCastTemp.Upper();
-	if(memcmp(buffer,"SPELL_CAST_TRANSFORM",19) != 0) zCParser::GetParser()->CallFunc(SpellCastTemp);
+void CSyncFuncs::RunSpellScript(const char* SpellName, oCNpc* Caster, oCNpc* Target) {
+  static zSTRING SpellCastTemp;
+  if (!Caster || !SpellName)
+    return;
+  char buffer[128];
+  zCParser::GetParser()->SetInstance("SELF", Caster);
+  if (!Target)
+    zCParser::GetParser()->SetInstance("OTHER", 0);
+  else
+    zCParser::GetParser()->SetInstance("OTHER", Target);
+  sprintf(buffer, "SPELL_CAST_%s", SpellName);
+  SpellCastTemp = buffer;
+  SpellCastTemp.Upper();
+  if (memcmp(buffer, "SPELL_CAST_TRANSFORM", 19) != 0)
+    zCParser::GetParser()->CallFunc(SpellCastTemp);
 };
 
 // Sprawdzanie czy wielkosc pozycji nie jest wieksza niz dopuszcza radius, risen chcial to koniecznie
-bool CSyncFuncs::GetVectorSurfaceSphere(float radius, float bX, float bY, float bZ, float rX, float rY, float rZ)
-{
-   float vector[3];
-   vector[0] = rX - bX;
-   vector[1] = rY - bY;
-   vector[2] = rZ - bZ;
-   if((vector[0] < radius && vector[0] > -radius) && (vector[1] < radius && vector[1] > -radius) && (vector[2] < radius && vector[2] > -radius)){
-      return true;
-   }
-   else return false;
+bool CSyncFuncs::GetVectorSurfaceSphere(float radius, float bX, float bY, float bZ, float rX, float rY, float rZ) {
+  float vector[3];
+  vector[0] = rX - bX;
+  vector[1] = rY - bY;
+  vector[2] = rZ - bZ;
+  if ((vector[0] < radius && vector[0] > -radius) && (vector[1] < radius && vector[1] > -radius) && (vector[2] < radius && vector[2] > -radius)) {
+    return true;
+  } else
+    return false;
 }
 
 // Sprawdzanie czy uzywany przedmiot daje jakies specjalne efekty
-void CSyncFuncs::CheckForSpecialEffects(oCItem* Item, oCNpc* Npc)
-{
-	if(Item->GetInstance() == 6126) Npc->ApplyTimedOverlayMds(SPRINT, 120000);
-	if(Item->GetInstance() == 7017) Npc->ApplyTimedOverlayMds(SPRINT, 15000);
-	if(Item->GetInstance() == 7079) Npc->ApplyTimedOverlayMds(SPRINT, 300000);
+void CSyncFuncs::CheckForSpecialEffects(oCItem* Item, oCNpc* Npc) {
+  if (Item->GetInstance() == 6126)
+    Npc->ApplyTimedOverlayMds(SPRINT, 120000);
+  if (Item->GetInstance() == 7017)
+    Npc->ApplyTimedOverlayMds(SPRINT, 15000);
+  if (Item->GetInstance() == 7079)
+    Npc->ApplyTimedOverlayMds(SPRINT, 300000);
 };
 
 // Odgrywanie dzwieku przy wyciaganiu broni
-void CSyncFuncs::PlayDrawSound(oCItem* Item, oCNpc* Npc, bool Draw)
-{
-	if(oCItem::GetCategory(Item) != 1 || Item->mainflags != 2) return;
-	zCSoundSystem* Sound = zCSoundSystem::GetSoundSystem();
-	int RandomDraw = 0;
-	switch (Item->GetSoundMaterial())
-	{
-		case MAT_WOOD:
-			if(Draw) Sound->PlaySound3D(DrawSoundWo, Npc, 2);
-			else Sound->PlaySound3D(UnDrawSoundWo, Npc, 2);
-		break;
-		case MAT_METAL:
-			if(Draw){
-				RandomDraw = rand() % 2 + 1;
-				if(RandomDraw == 1) Sound->PlaySound3D(DrawSoundMe, Npc, 2);
-				else Sound->PlaySound3D(DrawSoundMe02, Npc, 2);
-			}
-			else Sound->PlaySound3D(UnDrawSoundMe, Npc, 2);
-		break;
-		default:
-			// Do nothing
-		break;
-	};
+void CSyncFuncs::PlayDrawSound(oCItem* Item, oCNpc* Npc, bool Draw) {
+  if (oCItem::GetCategory(Item) != 1 || Item->mainflag != 2) {
+    return;
+  }
+  
+  int RandomDraw = 0;
+  switch (Item->GetSoundMaterial()) {
+    case SND_MAT_WOOD:
+      if (Draw)
+        zsound->PlaySound3D(DrawSoundWo, Npc, 2, nullptr);
+      else
+        zsound->PlaySound3D(UnDrawSoundWo, Npc, 2, nullptr);
+      break;
+    case SND_MAT_METAL:
+      if (Draw) {
+        RandomDraw = rand() % 2 + 1;
+        if (RandomDraw == 1)
+          zsound->PlaySound3D(DrawSoundMe, Npc, 2, nullptr);
+        else
+          zsound->PlaySound3D(DrawSoundMe02, Npc, 2, nullptr);
+      } else
+        zsound->PlaySound3D(UnDrawSoundMe, Npc, 2, nullptr);
+      break;
+    default:
+      // Do nothing
+      break;
+  };
 };
-

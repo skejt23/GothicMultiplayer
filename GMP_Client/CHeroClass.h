@@ -24,49 +24,33 @@ SOFTWARE.
 */
 
 #pragma once
-#include <g2Api.h>
 
 #include <vector>
 
 #include "CPlayer.h"
-using namespace std;
+#include "ZenGin/zGothicAPI.h"
 
-struct SItem
-{
+struct SItem {
   int index;
   int count;
 };
 
-struct SHeroClass
-{
-  enum
-  {
-    AB_1HWEP = 0,
-    AB_2HWEP,
-    AB_BOW,
-    AB_XBOW,
-    AB_MAGIC_LVL,
-    AB_SNEAK,
-    AB_LOCKPICK,
-    AB_ACROBATICS,
-    AB_PICKPOCKETS,
-    AB_MAX
-  };
+struct SHeroClass {
+  enum { AB_1HWEP = 0, AB_2HWEP, AB_BOW, AB_XBOW, AB_MAGIC_LVL, AB_SNEAK, AB_LOCKPICK, AB_ACROBATICS, AB_PICKPOCKETS, AB_MAX };
   CPlayer::NpcType Type;
-  zSTRING class_name;
-  zSTRING class_description;
-  zSTRING team_name;
+  Gothic_II_Addon::zSTRING class_name;
+  Gothic_II_Addon::zSTRING class_description;
+  Gothic_II_Addon::zSTRING team_name;
   USHORT strength, dexterity, mp, hp;
   USHORT skill[AB_MAX];
   SItem armor;
   SItem prim_wep;
   SItem sec_wep;
-  vector<SItem*> items;
+  std::vector<SItem*> items;
   ~SHeroClass(void);
 };
 
-class CHeroClass
-{
+class CHeroClass {
 public:
   CHeroClass(const char* szData, BYTE size);
   ~CHeroClass(void);
@@ -75,5 +59,5 @@ public:
   SHeroClass* operator[](unsigned long);
 
 private:
-  vector<SHeroClass*> data;
+  std::vector<SHeroClass*> data;
 };

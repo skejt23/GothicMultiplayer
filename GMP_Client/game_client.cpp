@@ -51,7 +51,7 @@ SOFTWARE.
 #include "CSelectClass.h"
 #include "HTTPDownloader.h"
 #include "Interface.h"
-#include "g2Api.h"
+#include "ZenGin/zGothicAPI.h"
 #include "net_enums.h"
 #include "packets.h"
 #include "patch.h"
@@ -170,7 +170,7 @@ void GameClient::DownloadSpawnpointsFile() {
   }
   this->spawnpoint = new CSpawnPoint(content.c_str());
   size_t randomSpawnpoint = rand() % spawnpoint->GetSize();
-  oCNpc::GetHero()->SetPosition((*spawnpoint)[randomSpawnpoint]->x, (*spawnpoint)[randomSpawnpoint]->y, (*spawnpoint)[randomSpawnpoint]->z);
+  oCNpc::player->trafoObjToWorld.SetTranslation(*(*spawnpoint)[randomSpawnpoint]);
 }
 
 void GameClient::RestoreHealth() {
@@ -179,10 +179,10 @@ void GameClient::RestoreHealth() {
   }
   if (last_mp_regen != time(NULL)) {
     last_mp_regen = time(NULL);
-    if (oCNpc::GetHero()->GetMaxMana() != oCNpc::GetHero()->GetMana()) {
-      oCNpc::GetHero()->SetMana(oCNpc::GetHero()->GetMana() + mp_restore);
-      if (oCNpc::GetHero()->GetMana() > oCNpc::GetHero()->GetMaxMana())
-        oCNpc::GetHero()->SetMana(oCNpc::GetHero()->GetMaxMana());
+    if (player->attribute[NPC_ATR_MANAMAX] != player->attribute[NPC_ATR_MANA]) {
+      player->attribute[NPC_ATR_MANA] = player->attribute[NPC_ATR_MANA] + mp_restore;
+      if (player->attribute[NPC_ATR_MANA] > player->attribute[NPC_ATR_MANAMAX])
+        player->attribute[NPC_ATR_MANA] = player->attribute[NPC_ATR_MANAMAX];
     }
   }
 }
@@ -224,24 +224,25 @@ void GameClient::JoinGame(BYTE selected_class) {
     packet.packet_type = PT_JOIN_GAME;
     packet.selected_class = selected_class;
 
-    auto pos = oCNpc::GetHero()->GetPosition();
-    packet.position.x = pos.x;
-    packet.position.y = pos.y;
-    packet.position.z = pos.z;
+    auto pos = player->GetPositionWorld();
+    packet.position.x = pos[VX];
+    packet.position.y = pos[VY];
+    packet.position.z = pos[VZ];
 
-    packet.normal.x = oCNpc::GetHero()->GetAngleNX();
-    packet.normal.y = oCNpc::GetHero()->GetAngleNY();
-    packet.normal.z = oCNpc::GetHero()->GetAngleNZ();
+    auto right_vector = player->trafoObjToWorld.GetRightVector();
+    packet.normal.x = right_vector[VX];
+    packet.normal.y = right_vector[VY];
+    packet.normal.z = right_vector[VZ];
 
-    oCItem *itPtr = oCNpc::GetHero()->GetLeftHand();
+    oCItem *itPtr = static_cast<oCItem *>(player->GetLeftHand());
     if (itPtr) {
       packet.left_hand_item_instance = itPtr->GetInstance();
     }
-    itPtr = oCNpc::GetHero()->GetRightHand();
+    itPtr = static_cast<oCItem *>(player->GetRightHand());
     if (itPtr) {
       packet.right_hand_item_instance = itPtr->GetInstance();
     }
-    itPtr = oCNpc::GetHero()->GetEquippedArmor();
+    itPtr = static_cast<oCItem *>(player->GetEquippedArmor());
     if (itPtr) {
       packet.equipped_armor_instance = itPtr->GetInstance();
     }
@@ -250,7 +251,7 @@ void GameClient::JoinGame(BYTE selected_class) {
     packet.skin_texture = user_config->skintexture;
     packet.face_texture = user_config->facetexture;
     packet.walk_style = user_config->walkstyle;
-    packet.player_name = oCNpc::GetHero()->GetName().ToChar();
+    packet.player_name = player->GetName().ToChar();
 
     SerializeAndSend(network, packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED);
 
@@ -259,13 +260,13 @@ void GameClient::JoinGame(BYTE selected_class) {
       new CLocalPlayer();
     LocalPlayer->id = network->GetMyId();
     LocalPlayer->enable = TRUE;
-    LocalPlayer->SetNpc(oCNpc::GetHero());
+    LocalPlayer->SetNpc(player);
     LocalPlayer->hp = static_cast<short>(LocalPlayer->GetHealth());
     LocalPlayer->update_hp_packet = 0;
     LocalPlayer->npc->SetMovLock(0);
     LocalPlayer->char_class = selected_class;
-    this->player.push_back(LocalPlayer);
-    this->HeroLastHp = oCNpc::GetHero()->GetHealth();
+    this->players.push_back(LocalPlayer);
+    this->HeroLastHp = player->attribute[NPC_ATR_HITPOINTS];
   }
 }
 
@@ -280,9 +281,9 @@ void GameClient::SendWhisper(const char *player_name, const char *msg) {
   bool found = false;
   size_t i;
   size_t length = strlen(player_name);
-  for (i = 0; i < this->player.size(); i++) {
-    if (this->player[i]->GetNameLength() == length) {
-      if (!memcmp(this->player[i]->GetName(), player_name, length)) {
+  for (i = 0; i < this->players.size(); i++) {
+    if (this->players[i]->GetNameLength() == length) {
+      if (!memcmp(this->players[i]->GetName(), player_name, length)) {
         found = true;
         break;
       }
@@ -293,7 +294,7 @@ void GameClient::SendWhisper(const char *player_name, const char *msg) {
     MessagePacket packet;
     packet.packet_type = PT_WHISPER;
     packet.message = msg;
-    packet.recipient = player[i]->id;
+    packet.recipient = players[i]->id;
 
     SerializeAndSend(network, packet, HIGH_PRIORITY, RELIABLE_ORDERED);
   }
@@ -312,9 +313,9 @@ void GameClient::SendCastSpell(oCNpc *Target, short SpellId) {
   packet.packet_type = PT_CASTSPELL;
 
   if (Target) {
-    for (int i = 0; i < (int)player.size(); i++) {
-      if (player[i]->npc == Target) {
-        packet.target_id = player[i]->id;
+    for (int i = 0; i < (int)players.size(); i++) {
+      if (players[i]->npc == Target) {
+        packet.target_id = players[i]->id;
         packet.packet_type = PT_CASTSPELLONTARGET;
         break;
       }
@@ -340,50 +341,48 @@ void GameClient::SendTakeItem(short instance) {
 }
 
 glm::vec3 Vec3ToGlmVec3(const zVEC3 &vec) {
-  return glm::vec3(vec.x, vec.y, vec.z);
+  return glm::vec3(vec[VX], vec[VY], vec[VZ]);
 }
 
 std::uint8_t GetHeadDirectionByte(oCNpc *Hero) {
-  zVEC2 HeadVar = Hero->GetAnictrl()->GetLookAtPos();
-  if (HeadVar.x == 0)
+  zVEC2 HeadVar = zVEC2(Hero->GetAnictrl()->lookTargetx, Hero->GetAnictrl()->lookTargety);
+  if (HeadVar[VX] == 0)
     return static_cast<uint8_t>(CPlayer::HEAD_LEFT);
-  else if (HeadVar.x == 1)
+  else if (HeadVar[VX] == 1)
     return static_cast<uint8_t>(CPlayer::HEAD_RIGHT);
-  else if (HeadVar.y == 0)
+  else if (HeadVar[VY] == 0)
     return static_cast<uint8_t>(CPlayer::HEAD_UP);
-  else if (HeadVar.y == 1)
+  else if (HeadVar[VY] == 1)
     return static_cast<uint8_t>(CPlayer::HEAD_DOWN);
 
   return 0;
 }
 
 void GameClient::UpdatePlayerStats(short anim) {
-  oCNpc *Hero = oCNpc::GetHero();
-
   PlayerStateUpdatePacket packet;
   packet.packet_type = PT_ACTUAL_STATISTICS;
-  packet.state.position = Vec3ToGlmVec3(Hero->GetPosition());
-  packet.state.nrot = glm::vec3(Hero->GetAngleNX(), Hero->GetAngleNY(), Hero->GetAngleNZ());
-  packet.state.left_hand_item_instance = Hero->GetLeftHand() ? static_cast<short>(Hero->GetLeftHand()->GetInstance()) : 0;
-  packet.state.right_hand_item_instance = Hero->GetRightHand() ? static_cast<short>(Hero->GetRightHand()->GetInstance()) : 0;
-  packet.state.equipped_armor_instance = Hero->GetEquippedArmor() ? static_cast<short>(Hero->GetEquippedArmor()->GetInstance()) : 0;
+  packet.state.position = Vec3ToGlmVec3(player->GetPositionWorld());
+  packet.state.nrot = Vec3ToGlmVec3(player->trafoObjToWorld.GetRightVector());
+  packet.state.left_hand_item_instance = player->GetLeftHand() ? static_cast<short>(player->GetLeftHand()->GetInstance()) : 0;
+  packet.state.right_hand_item_instance = player->GetRightHand() ? static_cast<short>(player->GetRightHand()->GetInstance()) : 0;
+  packet.state.equipped_armor_instance = player->GetEquippedArmor() ? static_cast<short>(player->GetEquippedArmor()->GetInstance()) : 0;
   packet.state.animation = anim;
-  packet.state.health_points = static_cast<std::int16_t>(Hero->GetHealth());
-  packet.state.mana_points = static_cast<std::int16_t>(Hero->GetMana());
-  packet.state.weapon_mode = static_cast<uint8_t>(Hero->GetWeaponMode());
-  packet.state.active_spell_nr = Hero->GetActiveSpellNr() > 0 ? static_cast<uint8_t>(Hero->GetActiveSpellNr()) : 0;
-  packet.state.head_direction = GetHeadDirectionByte(Hero);
-  packet.state.melee_weapon_instance = Hero->GetEquippedMeleeWeapon() ? static_cast<short>(Hero->GetEquippedMeleeWeapon()->GetInstance()) : 0;
-  packet.state.ranged_weapon_instance = Hero->GetEquippedRangedWeapon() ? static_cast<short>(Hero->GetEquippedRangedWeapon()->GetInstance()) : 0;
+  packet.state.health_points = static_cast<std::int16_t>(player->attribute[NPC_ATR_HITPOINTS]);
+  packet.state.mana_points = static_cast<std::int16_t>(player->attribute[NPC_ATR_MANA]);
+  packet.state.weapon_mode = static_cast<uint8_t>(player->GetWeaponMode());
+  packet.state.active_spell_nr = player->GetActiveSpellNr() > 0 ? static_cast<uint8_t>(player->GetActiveSpellNr()) : 0;
+  packet.state.head_direction = GetHeadDirectionByte(player);
+  packet.state.melee_weapon_instance = player->GetEquippedMeleeWeapon() ? static_cast<short>(player->GetEquippedMeleeWeapon()->GetInstance()) : 0;
+  packet.state.ranged_weapon_instance = player->GetEquippedRangedWeapon() ? static_cast<short>(player->GetEquippedRangedWeapon()->GetInstance()) : 0;
 
   SerializeAndSend(network, packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED);
 }
 
 void GameClient::SendHPDiff(size_t who, short diff) {
-  if (who < this->player.size()) {
+  if (who < this->players.size()) {
     HPDiffPacket packet;
     packet.packet_type = PT_HP_DIFF;
-    packet.player_id = this->player[who]->id;
+    packet.player_id = this->players[who]->id;
     packet.hp_difference = diff;
 
     SerializeAndSend(network, packet, IMMEDIATE_PRIORITY, RELIABLE);
@@ -395,7 +394,7 @@ void GameClient::SendVoice() {
   char *voiceBuffer = new char[480 * sizeof(float) * audioChannels * 4096];  // TODO: correct size
   ZeroMemory(voiceBuffer, 480 * sizeof(float) * audioChannels * 4096);
   int size;
-  if (voiceCapture->GetAndFlushVoiceBuffer(voiceBuffer, size) && zCInput::GetInput()->KeyPressed(KEY_K)) {
+  if (voiceCapture->GetAndFlushVoiceBuffer(voiceBuffer, size) && zinput->KeyPressed(KEY_K)) {
     VoicePacket packet;
     packet.packet_type = PT_VOICE;
     packet.voice_data_size = static_cast<std::uint32_t>(size);
@@ -428,7 +427,7 @@ void GameClient::Disconnect() {
     }
     CChat::GetInstance()->ClearChat();
     global_ingame->WhisperingTo.clear();
-    oCNpc::GetHero()->SetWeaponMode(NPC_WEAPON_NONE);
+    player->SetWeaponMode(NPC_WEAPON_NONE);
   }
   if (this->classmgr) {
     delete this->classmgr;

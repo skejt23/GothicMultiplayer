@@ -24,17 +24,20 @@ SOFTWARE.
 */
 
 #pragma once
+
 #include <vector>
-#include "g2Api.h"
+
+#include "ZenGin/zGothicAPI.h"
 
 using namespace std;
 
-class CSpawnPoint{
+class CSpawnPoint {
 public:
-	CSpawnPoint(const char* source);
-	~CSpawnPoint(void);
-	DWORD GetSize(void);
-	zVEC3* operator[] (size_t i);
+  CSpawnPoint(const char* source);
+  ~CSpawnPoint(void);
+  DWORD GetSize(void);
+  zVEC3* operator[](size_t i);
+
 private:
-	vector<zVEC3*> data;
+  vector<zVEC3*> data;
 };

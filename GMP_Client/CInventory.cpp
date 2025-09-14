@@ -24,120 +24,118 @@ SOFTWARE.
 */
 
 /*****************************************************************************
-**																			**
-**	File name:		CGmpClient/CInventory.cpp		   						**
-**																			**
-**	Created by:		08/12/11	-	skejt23									**
-**																			**
-**	Description:	Multiplayer inventory functionallity	 				**
-**																			**
+** ** *	File name:		CGmpClient/CInventory.cpp		   						** *
+*** *	Created by:		08/12/11	-	skejt23									** *
+*** *	Description:	Multiplayer inventory functionallity	 				** *
+***
 *****************************************************************************/
 
 #include "CInventory.h"
-#include "keyboard.h"
+
 #include "CLanguage.h"
+#include "keyboard.h"
 
 extern CLanguage* Lang;
 extern zCOLOR Normal;
-char q[2]={0, 0};
+char q[2] = {0, 0};
 
-CInventory::CInventory(oCNpcInventory* HeroInventory)
-{
-	DropInvoked = false;
-	Inv = HeroInventory;
-	Owner = HeroInventory->GetOwner();
-	Input = zCInput::GetInput();
-	InvWindow = HeroInventory->GetInventoryWindow();
-	Screen = zCView::GetScreen();
+CInventory::CInventory(oCNpcInventory* HeroInventory) {
+  DropInvoked = false;
+  Inv = HeroInventory;
+  Owner = HeroInventory->GetOwner();
+  InvWindow = HeroInventory->viewItemInfo;
 };
 
-CInventory::~CInventory()
-{
-	Inv = NULL;
-	Owner = NULL;
-	Input = NULL;
-	InvWindow = NULL;
-	Screen = NULL;
+CInventory::~CInventory() {
+  Inv = NULL;
+  Owner = NULL;
+  InvWindow = NULL;
 };
 
-void CInventory::DropAmount(oCItem* Item, int amount)
-{
-	if(!Item) return;
-	if(amount < 1) return;
-	if(amount > Item->GetAmount()) return;
-	if(amount == Item->GetAmount()){
-		Owner->DoDropVob(Item);
-		return;
-	}
-	int AmountDec = Item->GetAmount() - amount;
-	oCItem* ToDrop = oCObjectFactory::GetFactory()->CreateItem(Item->GetInstance());
-	ToDrop->SetAmount(amount);
-	Owner->DoDropVob(ToDrop);
+void CInventory::DropAmount(oCItem* Item, int amount) {
+  if (!Item)
+    return;
+  if (amount < 1)
+    return;
+  if (amount > Item->amount)
+    return;
+  if (amount == Item->amount) {
+    Owner->DoDropVob(Item);
+    return;
+  }
+  int AmountDec = Item->amount - amount;
+  oCItem* ToDrop = zfactory->CreateItem(Item->GetInstance());
+  ToDrop->amount = amount;
+  Owner->DoDropVob(ToDrop);
 };
 
-oCItem* CInventory::GetSelectedItem()
-{
-	if(IsEmpty()) return NULL;
-	int ItemNumber = Inv->GetSelectedItemNumber();
-	return Inv->GetItem(ItemNumber);
+oCItem* CInventory::GetSelectedItem() {
+  if (IsEmpty())
+    return NULL;
+  int ItemNumber = Inv->selectedItem;
+  return Inv->GetItem(ItemNumber);
 };
 
-void CInventory::InvokeAmountDrop()
-{
-	if(!IsOpened()) return;
-	if(IsEmpty()) return;
-	oCItem* SelectedItem = GetSelectedItem();
-	if(!SelectedItem) return;
-	if(SelectedItem->GetAmount() < 2) return;
-	DropInvoked = true;
+void CInventory::InvokeAmountDrop() {
+  if (!IsOpened())
+    return;
+  if (IsEmpty())
+    return;
+  oCItem* SelectedItem = GetSelectedItem();
+  if (!SelectedItem)
+    return;
+  if (SelectedItem->amount < 2)
+    return;
+  DropInvoked = true;
 };
 
-bool CInventory::IsEmpty()
-{
-	if(Inv->GetNumItemsInCategory() > 0) return false;
-	return true;
+bool CInventory::IsEmpty() {
+  if (Inv->GetNumItemsInCategory() > 0)
+    return false;
+  return true;
 };
 
-bool CInventory::IsOpened()
-{
-	return oCNpcInventory::IsHeroInventoryOpened();
+bool CInventory::IsOpened() {
+  return Inv->IsOpen();
 };
 
-
-void CInventory::RenderInventory()
-{
-	if(!IsOpened()){
-		DropInvoked = false;
-		return;
-	}
-	// INPUT
-	if(!DropInvoked){
-		if(Input->KeyToggled(KEY_RSHIFT) || Input->KeyToggled(KEY_LSHIFT)){
-			InvokeAmountDrop();
-		}
-	}
-	else{
-		if(Input->KeyToggled(KEY_RSHIFT) || Input->KeyToggled(KEY_LSHIFT)){
-			DropInvoked = false;
-		}
-	}
-	if(DropInvoked){
-		if(IsEmpty()) DropInvoked = false;
-		if(Owner->IsDead()) DropInvoked = false;
-		if(!Owner->IsMovLock()) Owner->SetMovLock(1);
-		Screen->SetFontColor(Normal);
-		Screen->Print(2000,2000, (*Lang)[CLanguage::INV_HOWMUCH]);
-		Screen->Print(2000,2200, GetSelectedItem()->GetDescription());
-		q[0] = GInput::GetNumberCharacterFromKeyboard();
-		if((q[0]==0x08) && (AmountNum.Length()>0)) AmountNum.DeleteRight(1);
-		if((q[0]>=0x20) && (AmountNum.Length()<24)) AmountNum+=q;
-		Screen->Print(2000,2400, AmountNum);
-		if(Input->KeyPressed(KEY_RETURN)){
-			Input->ClearKeyBuffer();
-			DropInvoked = false;
-			Owner->SetMovLock(0);
-			DropAmount(GetSelectedItem(), AmountNum.ToInt());
-			AmountNum.Clear();
-		}
-	}
+void CInventory::RenderInventory() {
+  if (!IsOpened()) {
+    DropInvoked = false;
+    return;
+  }
+  // INPUT
+  if (!DropInvoked) {
+    if (zinput->KeyToggled(KEY_RSHIFT) || zinput->KeyToggled(KEY_LSHIFT)) {
+      InvokeAmountDrop();
+    }
+  } else {
+    if (zinput->KeyToggled(KEY_RSHIFT) || zinput->KeyToggled(KEY_LSHIFT)) {
+      DropInvoked = false;
+    }
+  }
+  if (DropInvoked) {
+    if (IsEmpty())
+      DropInvoked = false;
+    if (Owner->IsDead())
+      DropInvoked = false;
+    if (!Owner->IsMovLock())
+      Owner->SetMovLock(1);
+    screen->SetFontColor(Normal);
+    screen->Print(2000, 2000, (*Lang)[CLanguage::INV_HOWMUCH]);
+    screen->Print(2000, 2200, GetSelectedItem()->GetDescription());
+    q[0] = GInput::GetNumberCharacterFromKeyboard();
+    if ((q[0] == 0x08) && (AmountNum.Length() > 0))
+      AmountNum.DeleteRight(1);
+    if ((q[0] >= 0x20) && (AmountNum.Length() < 24))
+      AmountNum += q;
+    screen->Print(2000, 2400, AmountNum);
+    if (zinput->KeyPressed(KEY_RETURN)) {
+      zinput->ClearKeyBuffer();
+      DropInvoked = false;
+      Owner->SetMovLock(0);
+      DropAmount(GetSelectedItem(), AmountNum.ToInt());
+      AmountNum.Clear();
+    }
+  }
 };

@@ -36,7 +36,7 @@ SOFTWARE.
 #pragma once
 
 #include <vector>
-#include "g2Api.h"
+#include "ZenGin/zGothicAPI.h"
 #include <ctime>
 
 using namespace std;

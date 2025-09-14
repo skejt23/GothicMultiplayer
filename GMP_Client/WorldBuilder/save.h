@@ -24,34 +24,22 @@ SOFTWARE.
 */
 
 #pragma once
-#include <vector>
-#include "../common.h"
-#include "g2Api.h"
 #include <string>
-using namespace std;
-enum VobType
-{
-	TYPE_MOB,
-	TYPE_PARTICLE,
-	TYPE_MOBNOCOLLIDE
-};
-enum MobType
-{
-	MOB_NORMAL = 252,
-	MOB_LADDER,
-	MOB_CONTAINER,
-	MOB_DOOR
-};
+#include <vector>
 
-struct Info
-{
-     zCVob* Vob;
-     std::string VisualName;
-	 VobType Type;
-	 unsigned char MType;
+#include "../common.h"
+#include "ZenGin/zGothicAPI.h"
+
+enum VobType { TYPE_MOB, TYPE_PARTICLE, TYPE_MOBNOCOLLIDE };
+enum MobType { MOB_NORMAL = 252, MOB_LADDER, MOB_CONTAINER, MOB_DOOR };
+
+struct Info {
+  zCVob* Vob;
+  std::string VisualName;
+  VobType Type;
+  unsigned char MType;
 };
-namespace SaveWorld
-{
-	int SaveBuilderMap(vector<Info>& Vobs, const char* MapName);
-	BOOL FolderExists(LPCTSTR FolderName);
-};
+namespace SaveWorld {
+int SaveBuilderMap(std::vector<Info>& Vobs, const char* MapName);
+BOOL FolderExists(LPCTSTR FolderName);
+};  // namespace SaveWorld

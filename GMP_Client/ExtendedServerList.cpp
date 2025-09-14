@@ -23,13 +23,30 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#include "ExtendedServerList.h"
-#pragma warning (disable : 4101)
-#include <windows.h>
+
+/*
++#include <httplib.h>
+ #include "ExtendedServerList.h"
++#include <winsock.h>
++#include <icmpapi.h>
++
+ #pragma warning (disable : 4101)
+-#include <windows.h>
+-#include <httplib.h>
+-#include <Iphlpapi.h>
+-#include <Icmpapi.h>
+-#include <winsock2.h>
++*/
+
 #include <httplib.h>
+#include "ExtendedServerList.h"
+#include <windows.h>
 #include <Iphlpapi.h>
 #include <Icmpapi.h>
 #include <winsock2.h>
+
+#pragma warning (disable : 4101)
+
 #include "StandardFonts.h"
 #include "InjectMage.h"
 #include <stdio.h>
@@ -77,7 +94,6 @@ ExtendedServerList::ExtendedServerList()
 	list_fav->setFont(FNT_WHITE_10);
 
 	SelectedTab = TAB_ALL;
-	input = zCInput::GetInput();
 	SelectedServer = 0;
 	srvList_access = CreateMutex(NULL, FALSE, NULL);    
 
@@ -125,28 +141,28 @@ void ExtendedServerList::saveFav(const char * file){
 }
 
 void ExtendedServerList::HandleInput(){
-	if(input->KeyToggled(KEY_RIGHT)){
+	if(zinput->KeyToggled(KEY_RIGHT)){
 		this->nextTab();
 	}
-	if(input->KeyToggled(KEY_LEFT)){
+	if(zinput->KeyToggled(KEY_LEFT)){
 		this->prevTab();
 	}
-	if(input->KeyToggled(KEY_R)){
+	if(zinput->KeyToggled(KEY_R)){
 		this->RefreshList();
 	}
-	if(input->KeyToggled(KEY_DOWN) && (srvList.size())) {
+	if(zinput->KeyToggled(KEY_DOWN) && (srvList.size())) {
 		list_all->scrollDown(1);
 		if((srvList.size()-1)>(size_t)SelectedServer){
 			SelectedServer++;
 		}
 	}
-	if(input->KeyToggled(KEY_UP)) {
+	if(zinput->KeyToggled(KEY_UP)) {
 		list_all->scrollUp(1);
 		if(SelectedServer>0){
 			SelectedServer--;
 		}
 	}
-	if(input->KeyToggled(KEY_A)){
+	if(zinput->KeyToggled(KEY_A)){
 		addSelectedToFav();
 	}
 }

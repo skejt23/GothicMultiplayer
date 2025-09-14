@@ -23,68 +23,60 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-//ifdef zamiast #pragma once
-#ifndef _CINGAME_H
-#define _CINGAME_H
-#include "CLanguage.h"
-#include "CChat.h"
-#include "CPlayerList.h"
-#include "CMap.h"
-#include "CAnimMenu.h"
+#pragma once
+
 #include <ctime>
-#include "CShrinker.h"
-#include "CInventory.h"
+
+#include "CAnimMenu.h"
+#include "CChat.h"
 #include "CInterpolatePos.h"
+#include "CInventory.h"
+#include "CLanguage.h"
+#include "CMap.h"
+#include "CPlayerList.h"
+#include "CShrinker.h"
 
-enum CURRENT_MAP
-{
-	MAP_UNKNOWN,
-	MAP_COLONY,
-	MAP_OLDWORLD,
-	MAP_KHORINIS,
-	MAP_JARKENDAR
-};
+enum CURRENT_MAP { MAP_UNKNOWN, MAP_COLONY, MAP_OLDWORLD, MAP_KHORINIS, MAP_JARKENDAR };
 
-class CIngame{
+class CIngame {
 public:
-	CIngame(CLanguage *pLang);
-	~CIngame(void);
-	static void Loop(void);
-	void Draw(void);
-	void HandleInput(void);
-	void CheckForUpdate(void);
-	void CheckForHPDiff(void);
-	bool ValidatePlayerForHPDiff(CPlayer*);
-	void CheckSwampLights();
-	bool IgnoreFirstSync;
-	CURRENT_MAP RecognizedMap;
-	bool PlayerExists(const char* PlayerName);
-	time_t NextTimeSync;
-	std::string WhisperingTo;
-	CMap* MMap;
-	CShrinker* Shrinker;
-	bool Christmas;
-	CInventory* Inventory;
-	std::vector<CInterpolatePos*> Interpolation;
+  CIngame(CLanguage* pLang);
+  ~CIngame(void);
+  static void Loop(void);
+  void Draw(void);
+  void HandleInput(void);
+  void CheckForUpdate(void);
+  void CheckForHPDiff(void);
+  bool ValidatePlayerForHPDiff(CPlayer*);
+  void CheckSwampLights();
+  bool IgnoreFirstSync;
+  CURRENT_MAP RecognizedMap;
+  bool PlayerExists(const char* PlayerName);
+  time_t NextTimeSync;
+  std::string WhisperingTo;
+  CMap* MMap;
+  CShrinker* Shrinker;
+  bool Christmas;
+  CInventory* Inventory;
+  std::vector<CInterpolatePos*> Interpolation;
+
 private:
-	zSTRING szPing;
-	bool SwampLightsOn;
-	bool mapusable;
-	std::string chatbuffer;
-	char buffer[85];
-	time_t BuffTimer;
-	time_t SecTimer;
-	time_t ChatTimer;
-	zSTRING ChatTmp;
-	zCMaterial* GetBarriereMaterial();
-	oCMsgMovement* Movement;
-	void ClearAfterWrite();
-	void PrepareForWrite();
-	clock_t last_player_update;
-	CLanguage *lang;
-	CPlayerList* PList;
-	CChat *chat_interface;
-	CAnimMenu* AMenu;
-	bool WritingOnChat;
+  zSTRING szPing;
+  bool SwampLightsOn;
+  bool mapusable;
+  std::string chatbuffer;
+  char buffer[85];
+  time_t BuffTimer;
+  time_t SecTimer;
+  time_t ChatTimer;
+  zSTRING ChatTmp;
+  oCMsgMovement* Movement;
+  void ClearAfterWrite();
+  void PrepareForWrite();
+  clock_t last_player_update;
+  CLanguage* lang;
+  CPlayerList* PList;
+  CChat* chat_interface;
+  CAnimMenu* AMenu;
+  bool WritingOnChat;
 };
-#endif

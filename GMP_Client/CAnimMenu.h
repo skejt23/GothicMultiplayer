@@ -24,31 +24,32 @@ SOFTWARE.
 */
 
 #pragma once
-#include "g2Api.h"
-#include "singleton.h"
+
 #include <vector>
 
-struct Anim
-{
-	zSTRING AniName;
-	zSTRING AniStart;
-	zSTRING AniLoop;
-	zSTRING AniEnd;
+#include "ZenGin/zGothicAPI.h"
+#include "singleton.h"
+
+struct Anim {
+  zSTRING AniName;
+  zSTRING AniStart;
+  zSTRING AniLoop;
+  zSTRING AniEnd;
 };
 
-class CAnimMenu : public TSingleton<CAnimMenu>
-{
+class CAnimMenu : public TSingleton<CAnimMenu> {
 private:
-	int MenuPos;
-	int PrintFrom;
-	int PrintTo;
-	std::vector<Anim> AnimVector;
+  int MenuPos;
+  int PrintFrom;
+  int PrintTo;
+  std::vector<Anim> AnimVector;
+
 public:
-	bool Opened;
-	CAnimMenu();
-	~CAnimMenu();
-	void Open();
-	void Close();
-	void RunMenuItem();
-	void PrintMenu();
+  bool Opened;
+  CAnimMenu();
+  
+  void Open();
+  void Close();
+  void RunMenuItem();
+  void PrintMenu();
 };

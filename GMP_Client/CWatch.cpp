@@ -36,28 +36,26 @@ SOFTWARE.
 #include <time.h>
 #include "CWatch.h"
 
-extern zCOLOR Normal;
+using namespace Gothic_II_Addon;
+
 extern CLanguage* Lang;
 
-CWatch::CWatch()
-{
-	Langs = Lang;
-	Con = CConfig::GetInstance();
-	Screen = zCView::GetScreen();
+CWatch::CWatch() {
+  Langs = Lang;
+  Con = CConfig::GetInstance();
 };
 
-void CWatch::PrintWatch()
-{
-	time(&currtime);   
-	strftime(TimePrint,sizeof(TimePrint)-1,"%H:%M:%S",localtime(&currtime));
-	tmp = TimePrint;
-	Screen->SetFont("FONT_DEFAULT.TGA");
-	Screen->SetFontColor(Normal);
-	Screen->Print( Con->WatchPosX, Con->WatchPosY, (*Langs)[CLanguage::CWATCH_REALTIME]);
-	Screen->Print(Con->WatchPosX, Con->WatchPosY+200, tmp);
-	Screen->Print(Con->WatchPosX, Con->WatchPosY+400, (*Langs)[CLanguage::CWATCH_GAMETIME]);
-	oCGame::GetGame()->GetWorldTimer()->GetTime(H,M);
-	sprintf(TimePrint, "%d:%.2d", H,M);
-	tmp = TimePrint;
-	Screen->Print(Con->WatchPosX, Con->WatchPosY+600, tmp);
+void CWatch::PrintWatch() {
+  time(&currtime);
+  strftime(TimePrint, sizeof(TimePrint) - 1, "%H:%M:%S", localtime(&currtime));
+  tmp = TimePrint;
+  screen->SetFont("FONT_DEFAULT.TGA");
+  screen->SetFontColor({255, 255, 255});
+  screen->Print(Con->WatchPosX, Con->WatchPosY, (*Langs)[CLanguage::CWATCH_REALTIME]);
+  screen->Print(Con->WatchPosX, Con->WatchPosY + 200, tmp);
+  screen->Print(Con->WatchPosX, Con->WatchPosY + 400, (*Langs)[CLanguage::CWATCH_GAMETIME]);
+  ogame->GetWorldTimer()->GetTime(H, M);
+  sprintf(TimePrint, "%d:%.2d", H, M);
+  tmp = TimePrint;
+  screen->Print(Con->WatchPosX, Con->WatchPosY + 600, tmp);
 };
