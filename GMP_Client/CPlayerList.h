@@ -24,29 +24,31 @@ SOFTWARE.
 */
 
 #pragma once
-#include "g2Api.h"
-#include "singleton.h"
+
 #include <string>
 
-class CPlayerList : public TSingleton<CPlayerList>
-{
+#include "ZenGin/zGothicAPI.h"
+#include "singleton.h"
+
+class CPlayerList : public TSingleton<CPlayerList> {
 private:
-	std::string temp;
-	zCView* PlayerListBackground;
-	int x,y;
-	bool Opened;
-	short PrintTo;
-	short PrintFrom;
-	short MenuPos;
-	zSTRING ChosenPlayer;
-	oCNpc* ChPlayerNpc;
-	bool PlayerOptions;
-	void RunPlayerListItem();
+  std::string temp;
+  zCView* PlayerListBackground;
+  int x, y;
+  bool Opened;
+  short PrintTo;
+  short PrintFrom;
+  short MenuPos;
+  zSTRING ChosenPlayer;
+  oCNpc* ChPlayerNpc;
+  bool PlayerOptions;
+  void RunPlayerListItem();
+
 public:
-	CPlayerList();
-	~CPlayerList();
-	bool OpenPlayerList();
-	bool ClosePlayerList();
-	bool IsPlayerListOpen();
-	void UpdatePlayerList();
+  CPlayerList();
+  ~CPlayerList();
+  bool OpenPlayerList();
+  bool ClosePlayerList();
+  bool IsPlayerListOpen();
+  void UpdatePlayerList();
 };

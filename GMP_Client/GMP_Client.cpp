@@ -31,14 +31,14 @@ SOFTWARE.
 #include <iostream>
 #include <string>
 
+#include "ZenGin/zGothicAPI.h"
 #include "HooksManager.h"
+#include "patch_install.hpp"
 #include "Mod.h"
 #include "Network.h"
 #include "common.h"
 #include "config.h"
-#include "ocgame.hpp"
 #include "patch.h"
-#include "zcoption.hpp"
 
 SDL_Window* g_pSdlWindow;
 
@@ -132,10 +132,11 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
       Patch::DisableStartupScript();
       Patch::DisableAbnormalExit();
       Patch::AlwaysNoMenu();
-      oCGame::InstallPatches();
+      InstalloCGamePatches();
       HooksManager* hm = HooksManager::GetInstance();
       hm->AddHook(HT_AIMOVING, (DWORD)Initialize, false);
       Patch::ChangeDefaultIni();
+      SPDLOG_INFO("GMP.dll initialized successfully");
     } catch (const std::exception& e) {
       SPDLOG_ERROR("GMP.dll initialization failed: {}", e.what());
       return FALSE;

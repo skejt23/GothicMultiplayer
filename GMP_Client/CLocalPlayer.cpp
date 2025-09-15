@@ -65,7 +65,7 @@ void CLocalPlayer::EnterObserveMode()
 {
 	if(client->ObserveMode == CObservation::NO_OBSERVATION) return;
 	if(LocalPlayer->IsInObserveMode()) return;
-	if(client->player.size() < 2) return;
+	if(client->players.size() < 2) return;
 	LocalPlayer->Observe = new CObservation();
 	LocalPlayer->IsObserving = true;
 };

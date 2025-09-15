@@ -25,17 +25,19 @@ SOFTWARE.
 
 #ifndef CACTIVEANIID_H
 #define CACTIVEANIID_H
+
 #include <stack>
 
-class CActiveAniID{
+class CActiveAniID {
 private:
-	std::stack<int> animation_stack;
+  std::stack<int> animation_stack;
+
 public:
-	CActiveAniID(void);
-	~CActiveAniID(void);
-	static CActiveAniID *GetInstance();
-	void AddAni(int id);
-	void ValidateStack(void);
-	int GetAniID(void);
+  CActiveAniID(void);
+  ~CActiveAniID(void);
+  static CActiveAniID *GetInstance();
+  void AddAni(int id);
+  void ValidateStack(void);
+  int GetAniID(void);
 };
 #endif

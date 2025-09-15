@@ -57,8 +57,8 @@ bool CPlayerList::IsPlayerListOpen() {
 
 bool CPlayerList::OpenPlayerList() {
   if (!Opened) {
-    zCView::GetScreen()->InsertItem(PlayerListBackground);
-    oCNpc::GetHero()->GetAnictrl()->StopTurnAnis();
+    screen->InsertItem(PlayerListBackground);
+    player->GetAnictrl()->StopTurnAnis();
     MenuPos = 1, PrintTo = 0, PrintFrom = 1;
     Opened = true;
     return true;
@@ -69,8 +69,8 @@ bool CPlayerList::OpenPlayerList() {
 bool CPlayerList::ClosePlayerList() {
   if (Opened) {
     ChPlayerNpc = NULL;
-    zCView::GetScreen()->RemoveItem(PlayerListBackground);
-    oCNpc::GetHero()->SetMovLock(0);
+    screen->RemoveItem(PlayerListBackground);
+    player->SetMovLock(0);
     PlayerOptions = false;
     Opened = false;
     return true;
@@ -107,8 +107,9 @@ void CPlayerList::RunPlayerListItem() {
       ClosePlayerList();
       break;
     case 5:
-      if (!oCNpc::GetHero()->IsDead()) {
-        oCNpc::GetHero()->SetPosition(ChPlayerNpc->GetPosition().x, ChPlayerNpc->GetPosition().y + 100, ChPlayerNpc->GetPosition().z);
+      if (!player->IsDead()) {
+        zVEC3 pos = ChPlayerNpc->trafoObjToWorld.GetTranslation();
+        player->trafoObjToWorld.SetTranslation(zVEC3(pos[VX], pos[VY] + 100, pos[VZ]));
       }
       ClosePlayerList();
       break;
@@ -116,18 +117,17 @@ void CPlayerList::RunPlayerListItem() {
 };
 
 void CPlayerList::UpdatePlayerList() {
-  if (!oCNpc::GetHero()->IsMovLock())
-    oCNpc::GetHero()->SetMovLock(1);
+  if (!player->IsMovLock())
+    player->SetMovLock(1);
   if (!PlayerOptions) {
     // INIT
-    if (MenuPos > (int)client->player.size() - 1)
-      MenuPos = (int)client->player.size() - 1;
-    if (PrintFrom > (int)client->player.size() - 1)
+    if (MenuPos > (int)client->players.size() - 1)
+      MenuPos = (int)client->players.size() - 1;
+    if (PrintFrom > (int)client->players.size() - 1)
       PrintFrom--;
     // INPUT
-    zCInput* input = zCInput::GetInput();
-    if (client->player.size() > 1) {
-      if (input->KeyToggled(KEY_UP)) {
+    if (client->players.size() > 1) {
+      if (zinput->KeyToggled(KEY_UP)) {
         if (MenuPos > 1)
           MenuPos--;
         if (PrintFrom > 1) {
@@ -135,53 +135,53 @@ void CPlayerList::UpdatePlayerList() {
             PrintFrom--;
         }
       }
-      if (input->KeyToggled(KEY_DOWN)) {
-        if (MenuPos < (int)client->player.size() - 1) {
+      if (zinput->KeyToggled(KEY_DOWN)) {
+        if (MenuPos < (int)client->players.size() - 1) {
           MenuPos++;
           if (MenuPos > 17)
             PrintFrom++;
         }
       }
-      if (input->KeyPressed(KEY_RETURN)) {
-        input->ClearKeyBuffer();
-        ChosenPlayer = client->player[MenuPos]->npc->GetName();
-        ChPlayerNpc = client->player[MenuPos]->npc;
+      if (zinput->KeyPressed(KEY_RETURN)) {
+        zinput->ClearKeyBuffer();
+        ChosenPlayer = client->players[MenuPos]->npc->GetName();
+        ChPlayerNpc = client->players[MenuPos]->npc;
         PlayerOptions = true;
         MenuPos = 0;
       }
     }
     // PRINT
-    zCView* Screen = zCView::GetScreen();
+    zCView* Screen = screen;
     Screen->SetFontColor(Normal);
     if (client->game_mode == 0)
       Screen->Print(x + 400, y, (*Lang)[CLanguage::DEATHMATCH]);
     else
       Screen->Print(x + 400, y, (*Lang)[CLanguage::TEAM_DEATHMATCH]);
     char buffer[128];
-    sprintf(buffer, "%d", client->player.size());
+    sprintf(buffer, "%d", client->players.size());
     zSTRING NoOfPlayers = buffer;
     Screen->Print(x + 3000, y, NoOfPlayers);
     int Size = 2400;
-    if (client->player.size() > 1) {
-      if ((int)client->player.size() > 17)
+    if (client->players.size() > 1) {
+      if ((int)client->players.size() > 17)
         PrintTo = 17;
       else
-        PrintTo = (int)client->player.size() - 1;
+        PrintTo = (int)client->players.size() - 1;
       for (int i = PrintFrom; i < PrintFrom + PrintTo; i++) {
-        if (i > (int)client->player.size() - 1) {
-          MenuPos = (int)client->player.size() - 1;
-          if (PrintFrom > (int)client->player.size() - 1)
+        if (i > (int)client->players.size() - 1) {
+          MenuPos = (int)client->players.size() - 1;
+          if (PrintFrom > (int)client->players.size() - 1)
             PrintFrom--;
           break;
         }
-        if (client->player[i]->npc) {
+        if (client->players[i]->npc) {
           FColors1 = (MenuPos == i) ? Highlighted : Normal;
           Screen->SetFontColor(FColors1);
           ZeroMemory(buffer, 128);
-          temp = client->player[i]->GetClassName().ToChar();
+          temp = client->players[i]->GetClassName().ToChar();
           if (temp.length() > 20)
             temp.resize(20);
-          sprintf(buffer, "%s, %s", client->player[i]->GetName(), temp.c_str());
+          sprintf(buffer, "%s, %s", client->players[i]->GetName(), temp.c_str());
           NoOfPlayers = buffer;
           Screen->Print(x + 400, Size, NoOfPlayers);
           Size += 200;
@@ -191,12 +191,11 @@ void CPlayerList::UpdatePlayerList() {
       Screen->Print(x + 400, y + 200, (*Lang)[CLanguage::NOPLAYERS]);
   } else {
     // INPUT
-    zCInput* input = zCInput::GetInput();
-    if (input->KeyToggled(KEY_UP)) {
+    if (zinput->KeyToggled(KEY_UP)) {
       if (MenuPos > 0)
         MenuPos--;
     }
-    if (input->KeyToggled(KEY_DOWN)) {
+    if (zinput->KeyToggled(KEY_DOWN)) {
       if (client->IsAdminOrModerator) {
         if (MenuPos < 5)
           MenuPos++;
@@ -205,12 +204,12 @@ void CPlayerList::UpdatePlayerList() {
           MenuPos++;
       }
     }
-    if (input->KeyPressed(KEY_RETURN)) {
-      input->ClearKeyBuffer();
+    if (zinput->KeyPressed(KEY_RETURN)) {
+      zinput->ClearKeyBuffer();
       RunPlayerListItem();
     }
     // PRINT
-    zCView* Screen = zCView::GetScreen();
+    zCView* Screen = screen;
     Screen->SetFontColor(Normal);
     Screen->Print(x + 400, y, ChosenPlayer);
     FColors1 = (MenuPos == 0) ? Highlighted : Normal;

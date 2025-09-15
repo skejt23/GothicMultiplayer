@@ -24,150 +24,135 @@ SOFTWARE.
 */
 
 #include "CMap.h"
-#include "game_client.h"
+
 #include "CConfig.h"
+#include "game_client.h"
 
 extern GameClient* client;
 
-CMap::CMap()
-{
-	Opened = false;
-	PlayerMap = new zCView(0,0,8192,8192,VIEW_ITEM);
-	PlayerMap->SetSize(8200,8200);
+CMap::CMap() {
+  Opened = false;
+  PlayerMap = new zCView(0, 0, 8192, 8192, VIEW_ITEM);
+  PlayerMap->SetSize(8200, 8200);
 };
 
-CMap::~CMap()
-{
-	Opened = false;
-	delete PlayerMap;
-	PlayerMap = NULL;
+CMap::~CMap() {
+  Opened = false;
+  delete PlayerMap;
+  PlayerMap = NULL;
 };
 
-void CMap::Open()
-{
-	if(CConfig::GetInstance()->watch) CConfig::GetInstance()->watch = false;
-	zCView::GetScreen()->InsertItem(PlayerMap);
-	Opened = true;
+void CMap::Open() {
+  if (CConfig::GetInstance()->watch)
+    CConfig::GetInstance()->watch = false;
+  screen->InsertItem(PlayerMap);
+  Opened = true;
 };
-void CMap::Close()
-{
-	if(watchwastrue) CConfig::GetInstance()->watch = true;
-	zCView::GetScreen()->RemoveItem(PlayerMap);
-	Opened = false;
-};
-
-bool CMap::CheckMap()
-{
-	if(CConfig::GetInstance()->watch) watchwastrue = true; 
-	else watchwastrue = false;
-	if(!memcmp("NEWWORLD\\NEWWORLD.ZEN", oCGame::GetGame()->GetWorld()->GetWorldName().ToChar(), 21)){
-		PlayerMap->InsertBack(zSTRING("MAP_NEWWORLD.TGA"));
-		Map = MNEWWORLD;
-		return true;
-	}
-	else if(!memcmp("OLDWORLD\\OLDWORLD.ZEN", oCGame::GetGame()->GetWorld()->GetWorldName().ToChar(), 21)){
-		PlayerMap->InsertBack(zSTRING("MAP_OLDWORLD.TGA"));
-		Map = MOLDWORLD;
-		return true;
-	}
-	else if(strstr(oCGame::GetGame()->GetWorld()->GetWorldName().ToChar(), "ADDONWORLD")){
-		PlayerMap->InsertBack(zSTRING("MAP_ADDONWORLD.TGA"));
-		Map = MJARKENDAR;
-		return true;
-	}
-	else if(!memcmp("OLDVALLEY.ZEN", oCGame::GetGame()->GetWorld()->GetWorldName().ToChar(), 13)){
-		PlayerMap->InsertBack(zSTRING("MAP_WORLD_ORC.TGA"));
-		Map = MOLDVALLEY;
-		return true;
-	}
-	else if(strstr(oCGame::GetGame()->GetWorld()->GetWorldName().ToChar(), "COLONY")){
-		PlayerMap->InsertBack(zSTRING("MAP_WORLD_ORC.TGA"));
-		Map = MCOLONY;
-		return true;
-	}
-	return false;
+void CMap::Close() {
+  if (watchwastrue)
+    CConfig::GetInstance()->watch = true;
+  screen->RemoveItem(PlayerMap);
+  Opened = false;
 };
 
-void CMap::PrintMap()
-{
-	if(!Opened || !PlayerMap) return;
-	PlayerMap->ClrPrintwin();
-	switch (Map)
-	{
-		// NEWWORLD
-		case MNEWWORLD:
-			for (int i = 0; i < (int)client->player.size(); i++)
-			{
-				if(client->player[i]->npc)
-				{
-					zVEC3 MapPos = client->player[i]->npc->GetPosition();
-					zSTRING Name = client->player[i]->npc->GetName();
-					int x = (int)floor((MapPos.x / 15) + 1850);
-					int y = (int)floor((MapPos.z / 12));
-					sprintf(buffer,"+ %s",Name.ToChar());
-					PlayerMap->Print(x,4415-y, buffer);
-				}
-			}
-		break;
-		// OLDWORLD
-		case MOLDWORLD:
-			for (int i = 0; i < (int)client->player.size(); i++)
-			{
-				if(client->player[i]->npc)
-				{
-					zVEC3 MapPos = client->player[i]->npc->GetPosition();
-					zSTRING Name = client->player[i]->npc->GetName();
-					int x = (int)floor((MapPos.x / 16) + 4830);
-					int y = (int)floor((MapPos.z / 12));
-					sprintf(buffer,"+ %s",Name.ToChar());
-					PlayerMap->Print(x,3855-y, buffer);
-				}
-			}
-		break;
-		// JARKENDAR
-		case MJARKENDAR:
-			for (int i = 0; i < (int)client->player.size(); i++)
-			{
-					if(client->player[i]->npc)
-					{
-						zVEC3 MapPos = client->player[i]->npc->GetPosition();
-						zSTRING Name = client->player[i]->npc->GetName();
-						int x = (int)floor((MapPos.x / 11) + 4290);
-						int y = (int)floor((MapPos.z / 10));
-						sprintf(buffer,"+ %s",Name.ToChar());
-						PlayerMap->Print(x,4420-y, buffer);
-					}
-			}
-		break;
-		// OLD VALLEY
-		case MOLDVALLEY:
-			for (int i = 0; i < (int)client->player.size(); i++)
-			{
-					if(client->player[i]->npc)
-					{
-						zVEC3 MapPos = client->player[i]->npc->GetPosition();
-						zSTRING Name = client->player[i]->npc->GetName();
-						int x = (int)floor((MapPos.x / 24) + 4045);
-						int y = (int)floor((MapPos.z / 16));
-						sprintf(buffer,"+ %s",Name.ToChar());
-						PlayerMap->Print(x,4105-y, buffer);
-					}
-			}
-		break;
-		// COLONY.ZEN
-		case MCOLONY:
-			for (int i = 0; i < (int)client->player.size(); i++)
-			{
-					if(client->player[i]->npc)
-					{
-						zVEC3 MapPos = client->player[i]->npc->GetPosition();
-						zSTRING Name = client->player[i]->npc->GetName();
-						int x = (int)floor((MapPos.x / 24) + 4045);
-						int y = (int)floor((MapPos.z / 16));
-						sprintf(buffer,"+ %s",Name.ToChar());
-						PlayerMap->Print(x,4105-y, buffer);
-					}
-			}
-		break;
-	}
+bool CMap::CheckMap() {
+  if (CConfig::GetInstance()->watch)
+    watchwastrue = true;
+  else
+    watchwastrue = false;
+  if (!memcmp("NEWWORLD\\NEWWORLD.ZEN", ogame->GetGameWorld()->GetWorldFilename().ToChar(), 21)) {
+    PlayerMap->InsertBack(zSTRING("MAP_NEWWORLD.TGA"));
+    Map = MNEWWORLD;
+    return true;
+  } else if (!memcmp("OLDWORLD\\OLDWORLD.ZEN", ogame->GetGameWorld()->GetWorldFilename().ToChar(), 21)) {
+    PlayerMap->InsertBack(zSTRING("MAP_OLDWORLD.TGA"));
+    Map = MOLDWORLD;
+    return true;
+  } else if (strstr(ogame->GetGameWorld()->GetWorldFilename().ToChar(), "ADDONWORLD")) {
+    PlayerMap->InsertBack(zSTRING("MAP_ADDONWORLD.TGA"));
+    Map = MJARKENDAR;
+    return true;
+  } else if (!memcmp("OLDVALLEY.ZEN", ogame->GetGameWorld()->GetWorldFilename().ToChar(), 13)) {
+    PlayerMap->InsertBack(zSTRING("MAP_WORLD_ORC.TGA"));
+    Map = MOLDVALLEY;
+    return true;
+  } else if (strstr(ogame->GetGameWorld()->GetWorldFilename().ToChar(), "COLONY")) {
+    PlayerMap->InsertBack(zSTRING("MAP_WORLD_ORC.TGA"));
+    Map = MCOLONY;
+    return true;
+  }
+  return false;
+};
+
+void CMap::PrintMap() {
+  if (!Opened || !PlayerMap)
+    return;
+  PlayerMap->ClrPrintwin();
+  switch (Map) {
+    // NEWWORLD
+    case MNEWWORLD:
+      for (int i = 0; i < (int)client->players.size(); i++) {
+        if (client->players[i]->npc) {
+          zVEC3 MapPos = client->players[i]->npc->GetPositionWorld();
+          zSTRING Name = client->players[i]->npc->GetName();
+          int x = (int)floor((MapPos[VX] / 15) + 1850);
+          int y = (int)floor((MapPos[VZ] / 12));
+          sprintf(buffer, "+ %s", Name.ToChar());
+          PlayerMap->Print(x, 4415 - y, buffer);
+        }
+      }
+      break;
+    // OLDWORLD
+    case MOLDWORLD:
+      for (int i = 0; i < (int)client->players.size(); i++) {
+        if (client->players[i]->npc) {
+          zVEC3 MapPos = client->players[i]->npc->GetPositionWorld();
+          zSTRING Name = client->players[i]->npc->GetName();
+          int x = (int)floor((MapPos[VX] / 16) + 4830);
+          int y = (int)floor((MapPos[VZ] / 12));
+          sprintf(buffer, "+ %s", Name.ToChar());
+          PlayerMap->Print(x, 3855 - y, buffer);
+        }
+      }
+      break;
+    // JARKENDAR
+    case MJARKENDAR:
+      for (int i = 0; i < (int)client->players.size(); i++) {
+        if (client->players[i]->npc) {
+          zVEC3 MapPos = client->players[i]->npc->GetPositionWorld();
+          zSTRING Name = client->players[i]->npc->GetName();
+          int x = (int)floor((MapPos[VX] / 11) + 4290);
+          int y = (int)floor((MapPos[VZ] / 10));
+          sprintf(buffer, "+ %s", Name.ToChar());
+          PlayerMap->Print(x, 4420 - y, buffer);
+        }
+      }
+      break;
+    // OLD VALLEY
+    case MOLDVALLEY:
+      for (int i = 0; i < (int)client->players.size(); i++) {
+        if (client->players[i]->npc) {
+          zVEC3 MapPos = client->players[i]->npc->GetPositionWorld();
+          zSTRING Name = client->players[i]->npc->GetName();
+          int x = (int)floor((MapPos[VX] / 24) + 4045);
+          int y = (int)floor((MapPos[VZ] / 16));
+          sprintf(buffer, "+ %s", Name.ToChar());
+          PlayerMap->Print(x, 4105 - y, buffer);
+        }
+      }
+      break;
+    // COLONY.ZEN
+    case MCOLONY:
+      for (int i = 0; i < (int)client->players.size(); i++) {
+        if (client->players[i]->npc) {
+          zVEC3 MapPos = client->players[i]->npc->GetPositionWorld();
+          zSTRING Name = client->players[i]->npc->GetName();
+          int x = (int)floor((MapPos[VX] / 24) + 4045);
+          int y = (int)floor((MapPos[VZ] / 16));
+          sprintf(buffer, "+ %s", Name.ToChar());
+          PlayerMap->Print(x, 4105 - y, buffer);
+        }
+      }
+      break;
+  }
 }

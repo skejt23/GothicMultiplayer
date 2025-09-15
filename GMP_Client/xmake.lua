@@ -1,7 +1,6 @@
 -- g2api static library
 target("g2api")
     set_kind("static")
-    add_files("g2api/ocgame.cpp")
     add_includedirs("g2api", {public = true})
     add_includedirs("dx7sdk/inc", {public = true})
     add_deps("InjectMage")
@@ -70,7 +69,10 @@ target("ClientMain")
               "WorldBuilder/load.cpp",
               "WorldBuilder/save.cpp")
     
-    add_deps("common", "g2api", "SharedLib", "zNetInterface", "Client.Voice", "SDL3", "InjectMage", "BugTrap")    
+    add_files("gothic-patches/*.cpp")
+    add_includedirs("gothic-patches")
+    
+    add_deps("common", "SharedLib", "zNetInterface", "Client.Voice", "SDL3", "InjectMage", "BugTrap", "gothic_api")    
     add_packages("spdlog", "cpp-httplib", "dylib", "pugixml", "glm", "bitsery")
     add_syslinks("wsock32", "ws2_32", "Iphlpapi", "user32", "gdi32", "kernel32")
     
@@ -102,4 +104,4 @@ target("ClientMain")
     end)
 
 -- Include subdirectories
-includes("Voice", "Launcher")
+includes("Voice", "Launcher", "gothic-api")

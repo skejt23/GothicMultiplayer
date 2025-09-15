@@ -24,21 +24,24 @@ SOFTWARE.
 */
 
 #pragma once
-#include "WorldBuilder\load.h"
 
-class CObjectMenu
-{
+#include "WorldBuilder/load.h"
+#include "ZenGin/zGothicAPI.h"
+
+class CObjectMenu {
 private:
-	int PrintFrom;
-	int PrintTo;
-	zSTRING MenuTitle;
-	zSTRING TEMPSTRING;
-	char buffer[128];
+  int PrintFrom;
+  int PrintTo;
+  zSTRING MenuTitle;
+  zSTRING TEMPSTRING;
+  char buffer[128];
+
 public:
-	int MenuPos;
-	zMAT4 LastAngle;
+  int MenuPos;
+  zMAT4 LastAngle;
+
 public:
-	CObjectMenu();
-	~CObjectMenu();
-	void Draw();
+  CObjectMenu();
+  ~CObjectMenu();
+  void Draw();
 };

@@ -34,43 +34,37 @@ SOFTWARE.
 *****************************************************************************/
 
 #pragma once
+
 #include <vector>
-#include "g2Api.h"
+#include "ZenGin/zGothicAPI.h"
 #include "CConfig.h"
 
-struct MsgStruct
-{
-	zSTRING Message;
-	zCOLOR MsgColor;
+struct MsgStruct {
+  Gothic_II_Addon::zSTRING Message;
+  Gothic_II_Addon::zCOLOR MsgColor;
 };
 
-enum MsgType
-{
-	NORMAL,
-	WHISPER,
-	ADMIN
-};
+enum MsgType { NORMAL, WHISPER, ADMIN };
 
-class CChat : public TSingleton<CChat>
-{
+class CChat : public TSingleton<CChat> {
 public:
-	std::vector<MsgStruct> ChatMessages;
-	std::vector<MsgStruct> WhisperMessages;
-	std::vector<MsgStruct> AdminMessages;
-	MsgType PrintMsgType;
-	zCInput* Input;
-	zSTRING tmp;
-	zSTRING tmpnickname;
-	zSTRING tmpanimname;
-	char buffer[32];
-	bool ShowHow;
+  std::vector<MsgStruct> ChatMessages;
+  std::vector<MsgStruct> WhisperMessages;
+  std::vector<MsgStruct> AdminMessages;
+  MsgType PrintMsgType;
+  Gothic_II_Addon::zSTRING tmp;
+  Gothic_II_Addon::zSTRING tmpnickname;
+  Gothic_II_Addon::zSTRING tmpanimname;
+  char buffer[32];
+  bool ShowHow;
+
 public:
-	CChat();
-	~CChat();
-	void ClearChat();
-	void StartChatAnimation(int anim);
-	void SetWhisperTo(std::string& whisperto);
-	void WriteMessage(MsgType type, bool PrintTimed, const zCOLOR& rgb, const char * format, ...);
-	void WriteMessage(MsgType type, bool PrintTimed, const char * format, ...);
-	void PrintChat();
+  CChat();
+  ~CChat();
+  void ClearChat();
+  void StartChatAnimation(int anim);
+  void SetWhisperTo(std::string& whisperto);
+  void WriteMessage(MsgType type, bool PrintTimed, const Gothic_II_Addon::zCOLOR& rgb, const char* format, ...);
+  void WriteMessage(MsgType type, bool PrintTimed, const char* format, ...);
+  void PrintChat();
 };

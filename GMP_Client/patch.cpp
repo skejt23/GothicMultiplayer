@@ -30,7 +30,7 @@ SOFTWARE.
 #include "GMPSplash.h"
 #include "InjectMage.h"
 #include "common.h"
-#include "g2Api.h"
+#include "ZenGin/zGothicAPI.h"
 
 void Patch::NoStartupLogo() {
   BYTE buffer[] = {0xC2, 0x04, 0x00, 0x90, 0x90};
@@ -250,3 +250,13 @@ void Patch::DisableInjection() {
   BYTE buffer[] = {0x90, 0x90, 0x90, 0x90, 0x90, 0x90};
   WriteMemory(0x7B47FE, buffer, 6);
 }
+
+// This forces the camera to behave as if the player's inventory would be open
+void Patch::SetLookingOnNpcCamera(bool arg) {
+  if (arg)
+    EraseMemory(0x69D701, 0x90, 2);
+  else {
+    BYTE buffer[] = {0x74, 0x15};
+    WriteMemory(0x69D701, buffer, 2);
+  }
+};

@@ -37,14 +37,33 @@ SOFTWARE.
 #include "../game_client.h"
 #include "packets.h"
 
-extern zCOLOR RED;
+extern zCOLOR COLOR_RED;
 namespace Game {
+
+void SetAngleFromRightVector(oCNpc* npc, float right_x, float right_y, float right_z) {
+  // Map current right vector components to legacy nrot indices
+  float legacy_nx = right_z; // m[2][0]
+  float legacy_ny = right_x; // m[0][0]
+  float legacy_nz = right_y; // m[1][0]
+
+  // Reproduce SetAngle(-nx, ny, 0.0f, nx, ny, nz)
+  // Column 2 (position/orientation forward basis parts as legacy stored them)
+  npc->trafoObjToWorld.v[0][2] = -legacy_nx; // x parameter
+  npc->trafoObjToWorld.v[1][2] = 0.0f;       // z parameter (was 0.0f in call)
+  npc->trafoObjToWorld.v[2][2] = legacy_ny;  // y parameter
+
+  // Column 0 (right/normal vector)
+  npc->trafoObjToWorld.v[0][0] = legacy_ny;  // ny
+  npc->trafoObjToWorld.v[2][0] = legacy_nx;  // nx
+  npc->trafoObjToWorld.v[1][0] = legacy_nz;  // nz
+}
+
 void OnInitialInfo(GameClient* client, Packet p) {
   InitialInfoPacket packet;
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
 
-  std::string currentMap = oCGame::GetGame()->GetGameWorld()->GetWorldName().ToChar();
+  std::string currentMap = ogame->GetGameWorld()->GetWorldFilename().ToChar();
 
   if (packet.map_name != currentMap) {
     client->map = packet.map_name.c_str();
@@ -79,20 +98,20 @@ void OnActualStatistics(GameClient* client, Packet p) {
   SPDLOG_INFO("PlayerStateUpdatePacket: {}", packet);
 
   if (client->game_mode == 1) {
-    for (size_t i = 1; i < client->player.size(); i++) {
-      if (!memcmp((*client->classmgr)[client->player[i]->char_class]->team_name.ToChar(),
-                  (*client->classmgr)[client->player[0]->char_class]->team_name.ToChar(),
-                  (*client->classmgr)[client->player[0]->char_class]->team_name.Length())) {
-        client->player[i]->npc->variousFlags = 1 << 1;
-        client->player[i]->SameTeamAsLocalPlayer = true;
+    for (size_t i = 1; i < client->players.size(); i++) {
+      if (!memcmp((*client->classmgr)[client->players[i]->char_class]->team_name.ToChar(),
+                  (*client->classmgr)[client->players[0]->char_class]->team_name.ToChar(),
+                  (*client->classmgr)[client->players[0]->char_class]->team_name.Length())) {
+        client->players[i]->npc->variousFlags = 1 << 1;
+        client->players[i]->SameTeamAsLocalPlayer = true;
       }
     }
   }
 
   CPlayer* player = nullptr;
-  for (size_t i = 0; i < client->player.size(); i++) {
-    if (client->player[i]->id == *packet.player_id) {
-      player = client->player[i];
+  for (size_t i = 0; i < client->players.size(); i++) {
+    if (client->players[i]->id == *packet.player_id) {
+      player = client->players[i];
       break;
     };
   }
@@ -107,12 +126,13 @@ void OnActualStatistics(GameClient* client, Packet p) {
     }
 
     if (!player->npc->IsDead()) {
-      player->npc->SetAngle(-packet.state.nrot[0], packet.state.nrot[1], 0.0f, packet.state.nrot[0], packet.state.nrot[1], packet.state.nrot[2]);
+      const auto& right_vector = packet.state.nrot;
+      SetAngleFromRightVector(player->npc, right_vector[0], right_vector[1], right_vector[2]);
     }
     if (packet.state.left_hand_item_instance == 0) {
       if (player->npc->GetLeftHand()) {
-        oCItem* lptr = player->npc->GetLeftHand();
-        oCItem* ptr = player->npc->GetRightHand();
+        oCItem* lptr = static_cast<oCItem*>(player->npc->GetLeftHand());
+        oCItem* ptr = static_cast<oCItem*>(player->npc->GetRightHand());
         player->npc->DropAllInHand();
         lptr->RemoveVobFromWorld();
         if (ptr)
@@ -120,23 +140,23 @@ void OnActualStatistics(GameClient* client, Packet p) {
       }
     } else if (packet.state.left_hand_item_instance > 5892 && packet.state.left_hand_item_instance < 7850) {
       if (!player->npc->GetLeftHand()) {
-        oCItem* New = oCObjectFactory::GetFactory()->CreateItem(static_cast<int>(packet.state.left_hand_item_instance));
+        oCItem* New = zfactory->CreateItem(static_cast<int>(packet.state.left_hand_item_instance));
         player->npc->SetLeftHand(New);
-        client->CheckForSpecialEffects(player->npc->GetLeftHand(), player->npc);
+        client->CheckForSpecialEffects(static_cast<oCItem*>(player->npc->GetLeftHand()), player->npc);
       } else {
         if (player->npc->GetLeftHand()->GetInstance() != static_cast<int>(packet.state.left_hand_item_instance)) {
-          oCItem* New = oCObjectFactory::GetFactory()->CreateItem(static_cast<int>(packet.state.left_hand_item_instance));
-          oCItem* Old = player->npc->GetLeftHand();
+          oCItem* New = zfactory->CreateItem(static_cast<int>(packet.state.left_hand_item_instance));
+          oCItem* Old = static_cast<oCItem*>(player->npc->GetLeftHand());
           player->npc->SetLeftHand(New);
           Old->RemoveVobFromWorld();
-          client->CheckForSpecialEffects(player->npc->GetLeftHand(), player->npc);
+          client->CheckForSpecialEffects(static_cast<oCItem*>(player->npc->GetLeftHand()), player->npc);
         }
       }
     }
     if (packet.state.right_hand_item_instance == 0) {
       if (player->npc->GetRightHand()) {
-        oCItem* rptr = player->npc->GetRightHand();
-        oCItem* ptr = player->npc->GetLeftHand();
+        oCItem* rptr = static_cast<oCItem*>(player->npc->GetRightHand());
+        oCItem* ptr = static_cast<oCItem*>(player->npc->GetLeftHand());
         player->npc->DropAllInHand();
         if (ptr)
           player->npc->SetLeftHand(ptr);
@@ -145,16 +165,16 @@ void OnActualStatistics(GameClient* client, Packet p) {
       }
     } else if (packet.state.right_hand_item_instance > 5892 && packet.state.right_hand_item_instance < 7850) {
       if (!player->npc->GetRightHand()) {
-        oCItem* New = oCObjectFactory::GetFactory()->CreateItem(static_cast<int>(packet.state.right_hand_item_instance));
+        oCItem* New = zfactory->CreateItem(static_cast<int>(packet.state.right_hand_item_instance));
         player->npc->SetRightHand(New);
-        client->PlayDrawSound(player->npc->GetRightHand(), player->npc, true);
+        client->PlayDrawSound(static_cast<oCItem*>(player->npc->GetRightHand()), player->npc, true);
       } else {
         if (player->npc->GetRightHand()->GetInstance() != static_cast<int>(packet.state.right_hand_item_instance)) {
-          oCItem* New = oCObjectFactory::GetFactory()->CreateItem(static_cast<int>(packet.state.right_hand_item_instance));
-          oCItem* Old = player->npc->GetRightHand();
+          oCItem* New = zfactory->CreateItem(static_cast<int>(packet.state.right_hand_item_instance));
+          oCItem* Old = static_cast<oCItem*>(player->npc->GetRightHand());
           player->npc->SetRightHand(New);
           Old->RemoveVobFromWorld();
-          client->PlayDrawSound(player->npc->GetRightHand(), player->npc, true);
+          client->PlayDrawSound(static_cast<oCItem*>(player->npc->GetRightHand()), player->npc, true);
         }
       }
     }
@@ -165,20 +185,20 @@ void OnActualStatistics(GameClient* client, Packet p) {
       }
     } else if (packet.state.equipped_armor_instance > 5892 && packet.state.equipped_armor_instance < 7850) {
       if (!player->npc->GetEquippedArmor()) {
-        if (!player->npc->GetInventory()->IsIn(static_cast<int>(packet.state.equipped_armor_instance), 1)) {
-          oCItem* New = oCObjectFactory::GetFactory()->CreateItem(static_cast<int>(packet.state.equipped_armor_instance));
-          player->npc->GetInventory()->Insert(New);
+        if (!player->npc->inventory2.IsIn(static_cast<int>(packet.state.equipped_armor_instance), 1)) {
+          oCItem* New = zfactory->CreateItem(static_cast<int>(packet.state.equipped_armor_instance));
+          player->npc->inventory2.Insert(New);
           player->npc->Equip(New);
         } else
-          player->npc->Equip(player->npc->GetInventory()->IsIn(static_cast<int>(packet.state.equipped_armor_instance), 1));
+          player->npc->Equip(player->npc->inventory2.IsIn(static_cast<int>(packet.state.equipped_armor_instance), 1));
       } else {
         if (player->npc->GetEquippedArmor()->GetInstance() != static_cast<int>(packet.state.equipped_armor_instance)) {
-          if (!player->npc->GetInventory()->IsIn(static_cast<int>(packet.state.equipped_armor_instance), 1)) {
-            oCItem* New = oCObjectFactory::GetFactory()->CreateItem(static_cast<int>(packet.state.equipped_armor_instance));
-            player->npc->GetInventory()->Insert(New);
+          if (!player->npc->inventory2.IsIn(static_cast<int>(packet.state.equipped_armor_instance), 1)) {
+            oCItem* New = zfactory->CreateItem(static_cast<int>(packet.state.equipped_armor_instance));
+            player->npc->inventory2.Insert(New);
             player->npc->Equip(New);
           } else
-            player->npc->Equip(player->npc->GetInventory()->IsIn(static_cast<int>(packet.state.equipped_armor_instance), 1));
+            player->npc->Equip(player->npc->inventory2.IsIn(static_cast<int>(packet.state.equipped_armor_instance), 1));
         }
       }
     }
@@ -207,28 +227,28 @@ void OnActualStatistics(GameClient* client, Packet p) {
             if (!player->npc->GetModel()->IsAnimationActive(Ani->GetAniName())) {
               player->npc->GetModel()->StartAnimation(Ani->GetAniName());
               if (!memcmp("T_BOWRELOAD", Ani->GetAniName().ToChar(), 11)) {
-                oCItem* Bullet = oCObjectFactory::GetFactory()->CreateItem(zCParser::GetParser()->GetIndex(Arrows));
-                zCSoundSystem::GetSoundSystem()->PlaySound3D(BowSound, client->player[0]->npc, 2);
+                oCItem* Bullet = zfactory->CreateItem(zCParser::GetParser()->GetIndex(Arrows));
+                zsound->PlaySound3D(BowSound, client->players[0]->npc, 2);
                 player->npc->SetRightHand(Bullet);
-                oCItem* Arrowe = player->npc->GetInventory()->IsIn(7083, 1);
+                oCItem* Arrowe = player->npc->inventory2.IsIn(7083, 1);
                 if (Arrowe)
-                  player->npc->GetInventory()->Remove(7083, 1);
+                  player->npc->inventory2.Remove(7083, 1);
                 player->npc->DoShootArrow(1);
               }
               if (!memcmp("T_CBOWRELOAD", Ani->GetAniName().ToChar(), 12)) {
-                oCItem* Bullet = oCObjectFactory::GetFactory()->CreateItem(zCParser::GetParser()->GetIndex(Bolt));
-                zCSoundSystem::GetSoundSystem()->PlaySound3D(CrossbowSound, client->player[0]->npc, 2);
+                oCItem* Bullet = zfactory->CreateItem(zCParser::GetParser()->GetIndex(Bolt));
+                zsound->PlaySound3D(CrossbowSound, client->players[0]->npc, 2);
                 player->npc->SetLeftHand(Bullet);
-                oCItem* Bolte = player->npc->GetInventory()->IsIn(7084, 1);
+                oCItem* Bolte = player->npc->inventory2.IsIn(7084, 1);
                 if (Bolte)
-                  player->npc->GetInventory()->Remove(7084, 1);
+                  player->npc->inventory2.Remove(7084, 1);
                 player->npc->DoShootArrow(1);
               }
               if (!memcmp("T_LEVER_S0_2_S1", Ani->GetAniName().ToChar(), 15)) {
                 oCMobInter* LeverSwitch = player->npc->FindMobInter(Lever);
                 if (LeverSwitch) {
-                  if (!LeverSwitch->GetTriggerName().IsEmpty()) {
-                    zCMover* Mover = static_cast<zCMover*>(oCGame::GetGame()->GetGameWorld()->SearchVobByName(LeverSwitch->GetTriggerName()));
+                  if (!LeverSwitch->triggerTarget.IsEmpty()) {
+                    zCMover* Mover = static_cast<zCMover*>(ogame->GetGameWorld()->SearchVobByName(LeverSwitch->triggerTarget));
                     if (Mover)
                       Mover->TriggerMover(Mover);
                   }
@@ -238,8 +258,8 @@ void OnActualStatistics(GameClient* client, Packet p) {
                   !memcmp("T_TOUCHPLATE_S1_2_S0", Ani->GetAniName().ToChar(), 20)) {
                 oCMobInter* LeverSwitch = player->npc->FindMobInter(Touchplate);
                 if (LeverSwitch) {
-                  if (!LeverSwitch->GetTriggerName().IsEmpty()) {
-                    zCMover* Mover = static_cast<zCMover*>(oCGame::GetGame()->GetGameWorld()->SearchVobByName(LeverSwitch->GetTriggerName()));
+                  if (!LeverSwitch->triggerTarget.IsEmpty()) {
+                    zCMover* Mover = static_cast<zCMover*>(ogame->GetGameWorld()->SearchVobByName(LeverSwitch->triggerTarget));
                     if (Mover)
                       Mover->TriggerMover(Mover);
                   }
@@ -248,8 +268,8 @@ void OnActualStatistics(GameClient* client, Packet p) {
               if (!memcmp("T_VWHEEL_S0_2_S1", Ani->GetAniName().ToChar(), 16)) {
                 oCMobInter* LeverSwitch = player->npc->FindMobInter(VWheel);
                 if (LeverSwitch) {
-                  if (!LeverSwitch->GetTriggerName().IsEmpty()) {
-                    zCMover* Mover = static_cast<zCMover*>(oCGame::GetGame()->GetGameWorld()->SearchVobByName(LeverSwitch->GetTriggerName()));
+                  if (!LeverSwitch->triggerTarget.IsEmpty()) {
+                    zCMover* Mover = static_cast<zCMover*>(ogame->GetGameWorld()->SearchVobByName(LeverSwitch->triggerTarget));
                     if (Mover)
                       Mover->TriggerMover(Mover);
                   }
@@ -260,27 +280,27 @@ void OnActualStatistics(GameClient* client, Packet p) {
         }
       }
     }
-    if (packet.state.health_points > player->npc->GetHealth()) {
-      if (player->npc->GetHealth() == 1) {
+    if (packet.state.health_points > player->npc->attribute[NPC_ATR_HITPOINTS]) {
+      if (player->npc->attribute[NPC_ATR_HITPOINTS] == 1) {
         player->npc->RefreshNpc();
-        player->npc->SetHealth(1);
+        player->npc->attribute[NPC_ATR_HITPOINTS] = 1;
       }
     }
-    if ((!player->hp) && (packet.state.health_points == player->npc->GetMaxHealth())) {
+    if ((!player->hp) && (packet.state.health_points == player->npc->attribute[NPC_ATR_HITPOINTSMAX])) {
       player->hp = packet.state.health_points;
-      auto pos = player->npc->GetPosition();
+      auto pos = player->npc->GetPositionWorld();
       player->npc->ResetPos(pos);
-    } else if ((player->npc->GetHealth() > 0) && (packet.state.health_points == 0)) {
+    } else if ((player->npc->attribute[NPC_ATR_HITPOINTS] > 0) && (packet.state.health_points == 0)) {
       player->hp = 0;
     } else {
       if (player->update_hp_packet >= 5) {
         player->hp = packet.state.health_points;
-        player->npc->SetHealth(static_cast<int>(packet.state.health_points));
+        player->npc->attribute[NPC_ATR_HITPOINTS] = static_cast<int>(packet.state.health_points);
         player->update_hp_packet = 0;
       } else
         player->update_hp_packet++;
     }
-    player->npc->SetMana(static_cast<int>(packet.state.mana_points));
+    player->npc->attribute[NPC_ATR_MANA] = static_cast<int>(packet.state.mana_points);
 
     BYTE SpellNr = static_cast<BYTE>(packet.state.active_spell_nr);
     if (SpellNr != player->npc->GetActiveSpellNr() && SpellNr > 0 && SpellNr < 100) {
@@ -298,7 +318,7 @@ void OnActualStatistics(GameClient* client, Packet p) {
       player->npc->GetSpellBook()->Close(1);
     }
     if ((BYTE)player->npc->GetWeaponMode() != packet.state.weapon_mode) {
-      player->npc->SetWeaponMode((oCNpc_WeaponMode)packet.state.weapon_mode);
+      player->npc->SetWeaponMode(packet.state.weapon_mode);
     }
     switch ((CPlayer::HeadState)packet.state.head_direction) {
       case CPlayer::HEAD_NONE:
@@ -323,20 +343,20 @@ void OnActualStatistics(GameClient* client, Packet p) {
       }
     } else if (packet.state.ranged_weapon_instance > 5892 && packet.state.ranged_weapon_instance < 7850) {
       if (!player->npc->GetEquippedRangedWeapon()) {
-        if (!player->npc->GetInventory()->IsIn(static_cast<int>(packet.state.ranged_weapon_instance), 1)) {
-          oCItem* New = oCObjectFactory::GetFactory()->CreateItem(static_cast<int>(packet.state.ranged_weapon_instance));
-          player->npc->GetInventory()->Insert(New);
+        if (!player->npc->inventory2.IsIn(static_cast<int>(packet.state.ranged_weapon_instance), 1)) {
+          oCItem* New = zfactory->CreateItem(static_cast<int>(packet.state.ranged_weapon_instance));
+          player->npc->inventory2.Insert(New);
           player->npc->Equip(New);
         } else
-          player->npc->Equip(player->npc->GetInventory()->IsIn(static_cast<int>(packet.state.ranged_weapon_instance), 1));
+          player->npc->Equip(player->npc->inventory2.IsIn(static_cast<int>(packet.state.ranged_weapon_instance), 1));
       } else {
         if (player->npc->GetEquippedRangedWeapon()->GetInstance() != static_cast<int>(packet.state.ranged_weapon_instance)) {
-          if (!player->npc->GetInventory()->IsIn(static_cast<int>(packet.state.ranged_weapon_instance), 1)) {
-            oCItem* New = oCObjectFactory::GetFactory()->CreateItem(static_cast<int>(packet.state.ranged_weapon_instance));
-            player->npc->GetInventory()->Insert(New);
+          if (!player->npc->inventory2.IsIn(static_cast<int>(packet.state.ranged_weapon_instance), 1)) {
+            oCItem* New = zfactory->CreateItem(static_cast<int>(packet.state.ranged_weapon_instance));
+            player->npc->inventory2.Insert(New);
             player->npc->Equip(New);
           } else
-            player->npc->Equip(player->npc->GetInventory()->IsIn(static_cast<int>(packet.state.ranged_weapon_instance), 1));
+            player->npc->Equip(player->npc->inventory2.IsIn(static_cast<int>(packet.state.ranged_weapon_instance), 1));
         }
       }
     }
@@ -346,20 +366,20 @@ void OnActualStatistics(GameClient* client, Packet p) {
       }
     } else if (packet.state.melee_weapon_instance > 5892 && packet.state.melee_weapon_instance < 7850) {
       if (!player->npc->GetEquippedMeleeWeapon()) {
-        if (!player->npc->GetInventory()->IsIn(static_cast<int>(packet.state.melee_weapon_instance), 1)) {
-          oCItem* New = oCObjectFactory::GetFactory()->CreateItem(static_cast<int>(packet.state.melee_weapon_instance));
-          player->npc->GetInventory()->Insert(New);
+        if (!player->npc->inventory2.IsIn(static_cast<int>(packet.state.melee_weapon_instance), 1)) {
+          oCItem* New = zfactory->CreateItem(static_cast<int>(packet.state.melee_weapon_instance));
+          player->npc->inventory2.Insert(New);
           player->npc->Equip(New);
         } else
-          player->npc->Equip(player->npc->GetInventory()->IsIn(static_cast<int>(packet.state.melee_weapon_instance), 1));
+          player->npc->Equip(player->npc->inventory2.IsIn(static_cast<int>(packet.state.melee_weapon_instance), 1));
       } else {
         if (player->npc->GetEquippedMeleeWeapon()->GetInstance() != static_cast<int>(packet.state.melee_weapon_instance)) {
-          if (!player->npc->GetInventory()->IsIn(static_cast<int>(packet.state.melee_weapon_instance), 1)) {
-            oCItem* New = oCObjectFactory::GetFactory()->CreateItem(static_cast<int>(packet.state.melee_weapon_instance));
-            player->npc->GetInventory()->Insert(New);
+          if (!player->npc->inventory2.IsIn(static_cast<int>(packet.state.melee_weapon_instance), 1)) {
+            oCItem* New = zfactory->CreateItem(static_cast<int>(packet.state.melee_weapon_instance));
+            player->npc->inventory2.Insert(New);
             player->npc->Equip(New);
           } else
-            player->npc->Equip(player->npc->GetInventory()->IsIn(static_cast<int>(packet.state.melee_weapon_instance), 1));
+            player->npc->Equip(player->npc->inventory2.IsIn(static_cast<int>(packet.state.melee_weapon_instance), 1));
         }
       }
     }
@@ -376,11 +396,11 @@ void OnMapOnly(GameClient* client, Packet p) {
     return;
   }
 
-  for (size_t i = 0; i < client->player.size(); i++) {
-    if (client->player[i]->id == *packet.player_id) {
+  for (size_t i = 0; i < client->players.size(); i++) {
+    if (client->players[i]->id == *packet.player_id) {
       const auto& pos = packet.position;
-      client->player[i]->npc->SetPosition(pos[0], client->player[i]->npc->GetPosition().y, pos[1]);
-      client->player[i]->DisablePlayer();
+      client->players[i]->npc->trafoObjToWorld.SetTranslation(zVEC3(pos[0], client->players[i]->npc->GetPositionWorld()[VY], pos[1]));
+      client->players[i]->DisablePlayer();
     }
   }
 }
@@ -390,11 +410,11 @@ void OnDoDie(GameClient* client, Packet p) {
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
 
-  for (size_t i = 0; i < client->player.size(); i++) {
-    if (client->player[i]->id == packet.player_id) {
-      client->player[i]->hp = 0;
-      client->player[i]->update_hp_packet = 0;
-      client->player[i]->SetHealth(0);
+  for (size_t i = 0; i < client->players.size(); i++) {
+    if (client->players[i]->id == packet.player_id) {
+      client->players[i]->hp = 0;
+      client->players[i]->update_hp_packet = 0;
+      client->players[i]->SetHealth(0);
     }
   }
 }
@@ -404,9 +424,9 @@ void OnRespawn(GameClient* client, Packet p) {
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
 
-  for (size_t i = 0; i < client->player.size(); i++) {
-    if (client->player[i]->id == packet.player_id) {
-      client->player[i]->RespawnPlayer();
+  for (size_t i = 0; i < client->players.size(); i++) {
+    if (client->players[i]->id == packet.player_id) {
+      client->players[i]->RespawnPlayer();
     }
   }
 }
@@ -422,13 +442,13 @@ void OnCastSpell(GameClient* client, Packet p) {
   }
 
   if (packet.spell_id >= 0 && packet.spell_id < 100) {
-    for (size_t i = 0; i < client->player.size(); i++) {
-      if (client->player[i]->id == *packet.caster_id) {
-        oCSpell* Spell = oCSpell::_CreateNewInstance();
+    for (size_t i = 0; i < client->players.size(); i++) {
+      if (client->players[i]->id == *packet.caster_id) {
+        oCSpell* Spell = new oCSpell();
         Spell->InitValues(packet.spell_id);
-        Spell->Setup(client->player[i]->GetNpc(), 0, 0);
-        client->RunSpellLogic(packet.spell_id, client->player[i]->GetNpc(), 0);
-        client->RunSpellScript(Spell->GetSpellInstanceName(packet.spell_id).ToChar(), client->player[i]->GetNpc());
+        Spell->Setup(client->players[i]->GetNpc(), 0, 0);
+        client->RunSpellLogic(packet.spell_id, client->players[i]->GetNpc(), 0);
+        client->RunSpellScript(Spell->GetSpellInstanceName(packet.spell_id).ToChar(), client->players[i]->GetNpc());
         Spell->Cast();
       }
     }
@@ -448,13 +468,13 @@ void OnCastSpellOnTarget(GameClient* client, Packet p) {
   CPlayer* target = nullptr;
 
   if (packet.spell_id >= 0 && packet.spell_id < 100) {
-    for (size_t i = 0; i < client->player.size(); i++) {
-      if (client->player[i]->id == *packet.caster_id) {
-        caster = client->player[i];
+    for (size_t i = 0; i < client->players.size(); i++) {
+      if (client->players[i]->id == *packet.caster_id) {
+        caster = client->players[i];
         if (target)
           break;
-      } else if (client->player[i]->id == *packet.target_id) {
-        target = client->player[i];
+      } else if (client->players[i]->id == *packet.target_id) {
+        target = client->players[i];
         if (caster)
           break;
       }
@@ -465,7 +485,7 @@ void OnCastSpellOnTarget(GameClient* client, Packet p) {
     SPDLOG_WARN("Invalid CastSpellOnTarget packet. No caster or target found.");
   }
 
-  oCSpell* Spell = oCSpell::_CreateNewInstance();
+  oCSpell* Spell = new oCSpell;
   Spell->InitValues(packet.spell_id);
   Spell->Setup(caster->GetNpc(), target->GetNpc(), 0);
   client->RunSpellLogic(packet.spell_id, caster->GetNpc(), target->GetNpc());
@@ -483,13 +503,13 @@ void OnDropItem(GameClient* client, Packet packet) {
   }
 
   if (dropItemPacket.item_instance > 5892 && dropItemPacket.item_instance < 7850) {
-    for (size_t i = 0; i < client->player.size(); i++) {
-      if (!client->player[i]->id == *dropItemPacket.player_id) {
-        oCWorld* world = oCGame::GetGame()->GetGameWorld();
-        oCItem* NpcDrop = oCObjectFactory::GetFactory()->CreateItem(dropItemPacket.item_instance);
-        NpcDrop->SetAmount(dropItemPacket.item_amount);
-        zVEC3 startPos = client->player[i]->npc->GetTrafoModelNodeToWorld("ZS_RIGHTHAND").GetTranslation();
-        NpcDrop->SetPosition(startPos);
+    for (size_t i = 0; i < client->players.size(); i++) {
+      if (!client->players[i]->id == *dropItemPacket.player_id) {
+        oCWorld* world = ogame->GetGameWorld();
+        oCItem* NpcDrop = zfactory->CreateItem(dropItemPacket.item_instance);
+        NpcDrop->amount = dropItemPacket.item_amount;
+        zVEC3 startPos = client->players[i]->npc->GetTrafoModelNodeToWorld("ZS_RIGHTHAND").GetTranslation();
+        NpcDrop->trafoObjToWorld.SetTranslation(startPos);
         world->AddVob(NpcDrop);
         NpcDrop->SetSleeping(false);
         NpcDrop->SetStaticVob(false);
@@ -510,16 +530,15 @@ void OnTakeItem(GameClient* client, Packet packet) {
   }
 
   if (takeItemPacket.item_instance > 5892 && takeItemPacket.item_instance < 7850) {
-    zCListSort<oCItem>* ItemList = oCGame::GetGame()->GetWorld()->GetItemList();
-    int size = ItemList->GetSize();
-    for (size_t x = 0; x < client->player.size(); x++) {
-      if (client->player[x]->id == *takeItemPacket.player_id) {
-        for (int i = 0; i < size; i++) {
-          ItemList = ItemList->GetNext();
+    zCListSort<oCItem>* ItemList = ogame->GetGameWorld()->voblist_items;
+    for (size_t x = 0; x < client->players.size(); x++) {
+      if (client->players[x]->id == *takeItemPacket.player_id) {
+        for (int i = 0; i < ItemList->GetNumInList(); i++) {
+          ItemList = ItemList->GetNextInList();
           oCItem* ItemInList = ItemList->GetData();
           if (ItemInList->GetInstance() == takeItemPacket.item_instance) {
-            if (client->player[x]->npc->GetDistanceToVob(ItemInList) < 250.0f) {
-              client->player[x]->npc->DoTakeVob(ItemInList);
+            if (client->players[x]->npc->GetDistanceToVob(*ItemInList) < 250.0f) {
+              client->players[x]->npc->DoTakeVob(ItemInList);
               break;
             }
           }
@@ -539,9 +558,9 @@ void OnWhisper(GameClient* client, Packet packet) {
     return;
   }
 
-  for (size_t i = 0; i < client->player.size(); i++) {
-    if (*messagePacket.sender == client->player[i]->id) {
-      CChat::GetInstance()->WriteMessage(WHISPER, true, zCOLOR(0, 255, 255, 255), "%s-> %s", client->player[i]->npc->GetName().ToChar(),
+  for (size_t i = 0; i < client->players.size(); i++) {
+    if (*messagePacket.sender == client->players[i]->id) {
+      CChat::GetInstance()->WriteMessage(WHISPER, true, zCOLOR(0, 255, 255, 255), "%s-> %s", client->players[i]->npc->GetName().ToChar(),
                                          messagePacket.message.c_str());
       return;
     }
@@ -558,10 +577,10 @@ void OnMessage(GameClient* client, Packet packet) {
     return;
   }
 
-  for (size_t i = 0; i < client->player.size(); i++) {
-    if (*messagePacket.sender == client->player[i]->id) {
-      SPDLOG_INFO("Message from player: {} ({}): {}", client->player[i]->npc->GetName().ToChar(), client->player[i]->GetName(), messagePacket);
-      CChat::GetInstance()->WriteMessage(NORMAL, false, "%s: %s", client->player[i]->npc->GetName().ToChar(), messagePacket.message.c_str());
+  for (size_t i = 0; i < client->players.size(); i++) {
+    if (*messagePacket.sender == client->players[i]->id) {
+      SPDLOG_INFO("Message from player: {} ({}): {}", client->players[i]->npc->GetName().ToChar(), client->players[i]->GetName(), messagePacket);
+      CChat::GetInstance()->WriteMessage(NORMAL, false, "%s: %s", client->players[i]->npc->GetName().ToChar(), messagePacket.message.c_str());
       return;
     }
   }
@@ -592,7 +611,7 @@ void OnAllOthers(GameClient* client, Packet packet) {
     CPlayer* newhero = new CPlayer();
     newhero->enable = FALSE;
     newhero->id = existing_player.player_id;
-    oCNpc* npc = oCObjectFactory::GetFactory()->CreateNpc(oCNpc::GetHero()->GetInstance());
+    oCNpc* npc = zfactory->CreateNpc(player->GetInstance());
     newhero->SetNpc(npc);
     newhero->char_class = existing_player.selected_class;
     client->classmgr->EquipNPC(existing_player.selected_class, newhero, true);
@@ -608,7 +627,7 @@ void OnAllOthers(GameClient* client, Packet packet) {
     }
     newhero->SetName(existing_player.player_name.c_str());
     newhero->update_hp_packet = 0;
-    client->player.push_back(newhero);
+    client->players.push_back(newhero);
   }
 }
 
@@ -627,7 +646,7 @@ void OnJoinGame(GameClient* client, Packet packet) {
   CPlayer* newhero = new CPlayer();
   newhero->id = *joinGamePacket.player_id;
   zVEC3 pos(joinGamePacket.position.x, joinGamePacket.position.y, joinGamePacket.position.z);
-  oCNpc* npc = oCObjectFactory::GetFactory()->CreateNpc(oCNpc::GetHero()->GetInstance());
+  oCNpc* npc = zfactory->CreateNpc(player->GetInstance());
   newhero->SetNpc(npc);
   client->classmgr->EquipNPC(joinGamePacket.selected_class, newhero, true);
   newhero->char_class = joinGamePacket.selected_class;
@@ -635,7 +654,7 @@ void OnJoinGame(GameClient* client, Packet packet) {
   newhero->hp = static_cast<short>(newhero->GetHealth());
   newhero->SetPosition(pos);
   newhero->SetName(joinGamePacket.player_name.c_str());
-  npc->SetName(joinGamePacket.player_name.c_str());
+  npc->name[0] = joinGamePacket.player_name.c_str();
   if (newhero->Type == CPlayer::NPC_HUMAN)
     newhero->SetAppearance(joinGamePacket.head_model, joinGamePacket.skin_texture, joinGamePacket.face_texture);
   if (newhero->Type > CPlayer::NPC_DRACONIAN || newhero->Type == CPlayer::NPC_HUMAN)
@@ -645,7 +664,7 @@ void OnJoinGame(GameClient* client, Packet packet) {
   newhero->enable = FALSE;
   newhero->update_hp_packet = 0;
   // kod
-  client->player.push_back(newhero);
+  client->players.push_back(newhero);
 }
 
 void OnGameInfo(GameClient* client, Packet packet) {
@@ -655,14 +674,14 @@ void OnGameInfo(GameClient* client, Packet packet) {
 
   STime t;
   t.time = static_cast<int>(gameInfoPacket.raw_game_time);
-  oCGame::GetGame()->SetTime(static_cast<int>(t.day), static_cast<int>(t.hour), static_cast<int>(t.min));
+  ogame->SetTime(static_cast<int>(t.day), static_cast<int>(t.hour), static_cast<int>(t.min));
 
   if (!client->IgnoreFirstTimeMessage) {
     CChat::GetInstance()->WriteMessage(NORMAL, false, "Time set to: %d:%.2d", t.hour, t.min);
   }
   client->IgnoreFirstTimeMessage = false;
   client->game_mode = gameInfoPacket.game_mode;
-  UsePotionKeys = gameInfoPacket.flags & 0x01;
+  oCGame::s_bUsePotionKeys = gameInfoPacket.flags & 0x01;
   client->DropItemsAllowed = gameInfoPacket.flags & 0x02;
   client->ForceHideMap = gameInfoPacket.flags & 0x04;
 }
@@ -672,13 +691,13 @@ void OnLeftGame(GameClient* client, Packet packet) {
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({packet.data, packet.length}, disconnectionInfoPacket);
 
-  for (size_t i = 1; i < client->player.size(); i++) {
-    if (client->player[i]->id == disconnectionInfoPacket.disconnected_id) {
-      CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(255, 0, 0, 255), "%s%s", client->player[i]->GetName(),
+  for (size_t i = 1; i < client->players.size(); i++) {
+    if (client->players[i]->id == disconnectionInfoPacket.disconnected_id) {
+      CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(255, 0, 0, 255), "%s%s", client->players[i]->GetName(),
                                          (*client->lang)[CLanguage::SOMEONEDISCONNECT_FROM_SERVER].ToChar());
-      client->player[i]->LeaveGame();
-      delete client->player[i];
-      client->player.erase(client->player.begin() + i);
+      client->players[i]->LeaveGame();
+      delete client->players[i];
+      client->players.erase(client->players.begin() + i);
       break;
     }
   }

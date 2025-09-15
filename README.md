@@ -11,6 +11,8 @@
 
 Gothic Multiplayer is a fan-made multiplayer modification for Gothic 2: Night of the Raven that allows players to experience the world of Gothic together. Originally released in January 2011, this project has been improved with various fixes and enhancements since 2022, but the majority of its code is still quite dated.
 
+⚠️ Development status: The current development version is a work-in-progress and may be unstable or not playable. Expect bugs, crashes, incomplete features, and breaking changes.
+
 > **Historical Note**: To see the code close to its original 2011/2012 release state, check out the [v0.2b tagged version](https://github.com/Pinemarten/GothicMultiplayer/tree/v0.2b).
 
 ## 📋 Table of Contents
@@ -112,7 +114,6 @@ This will build and execute all test cases.
 
 - **Gothic Multiplayer Team**: pampi, skejt23, mecio - Original development
 - **Current contributors**: Continued development and improvements since 2022
-- **G2ext Headers**: Paindevs and Patrick Vogel ([g2ext repository](https://github.com/DaDummy/g2ext))
 
 ## 📄 License
 

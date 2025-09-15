@@ -26,36 +26,36 @@ SOFTWARE.
 #pragma once
 #include "common.h"
 
-namespace Patch
-{	
-	void NoStartupLogo();
-	void SetWndName(const char * name);
-	void SetRegProgram(const char *name);
-	void InitNewSplash();
-	void DisableStartupScript();
-	void PlayerInterfaceEnabled(bool isit);
-	void SetStatusScreenEnabled(bool isit);
-	void SetOpenInventoryEnabled(bool isit);
-	void SetLogScreenEnabled(bool isit);
-	void SetFirstPersonCameraEnabled(bool isit);
-	void DisablePause(void);
-	void DisableAbnormalExit(void);
-	void ErrorInCheckClassSizeEnabled(bool isit);
-	void ChangeLevelEnabled(bool isit);
-	void AlwaysNoMenu();
-	void EraseCastSecurity();
-	void FixApplyOverlay();
-	void FixLights();
-	void DisableGothicMainMenu(void);
-	void DisablePlayBink(void);
-	void DisableWriteSavegame(void);
-	void ChangeDefaultIni();
-	void DisableChangeSightKeys();
-	void DropVobEnabled(bool arg);
-	void CanNotUseMessageEnabled(bool isit);
-	void ObjectDestructorPatched(bool arg);
-	void FixSetTime();
-	void DisableCheat();
-	void DisableInjection();
-	HWND GetHWND();
-}
+namespace Patch {
+void NoStartupLogo();
+void SetWndName(const char *name);
+void SetRegProgram(const char *name);
+void InitNewSplash();
+void DisableStartupScript();
+void PlayerInterfaceEnabled(bool isit);
+void SetStatusScreenEnabled(bool isit);
+void SetOpenInventoryEnabled(bool isit);
+void SetLogScreenEnabled(bool isit);
+void SetFirstPersonCameraEnabled(bool isit);
+void DisablePause(void);
+void DisableAbnormalExit(void);
+void ErrorInCheckClassSizeEnabled(bool isit);
+void ChangeLevelEnabled(bool isit);
+void AlwaysNoMenu();
+void EraseCastSecurity();
+void FixApplyOverlay();
+void FixLights();
+void DisableGothicMainMenu(void);
+void DisablePlayBink(void);
+void DisableWriteSavegame(void);
+void ChangeDefaultIni();
+void DisableChangeSightKeys();
+void DropVobEnabled(bool arg);
+void CanNotUseMessageEnabled(bool isit);
+void ObjectDestructorPatched(bool arg);
+void FixSetTime();
+void DisableCheat();
+void DisableInjection();
+HWND GetHWND();
+void SetLookingOnNpcCamera(bool arg);
+}  // namespace Patch

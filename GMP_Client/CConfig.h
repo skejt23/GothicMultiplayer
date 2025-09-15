@@ -24,10 +24,9 @@ SOFTWARE.
 */
 
 #pragma once
-#include <fstream>
+
+#include "ZenGin/zGothicAPI.h"
 #include "singleton.h"
-#include "g2Api.h"
-#include "ztypes.hpp"
 
 // KEYBOARD LAYOUTS
 #define LAYOUT_GERMAN 0x00000407
@@ -35,39 +34,33 @@ SOFTWARE.
 #define LAYOUT_POLISH 0x00000415
 #define LAYOUT_RUSSIAN 0x00000419
 
-class CConfig : public TSingleton<CConfig>
-{
+class CConfig : public TSingleton<CConfig> {
 private:
-	BYTE d;
-	zCOption* Opt;
-	void LoadConfigFromFile();
-	zCOptionSection* MultiSection;
+  bool d;
+  void LoadConfigFromFile();
+  Gothic_II_Addon::zCOptionSection* MultiSection;
+
 public:
-	BOOL IsDefault(void);
-	zSTRING Nickname;
-	int skintexture;
-	int facetexture;
-	int headmodel;
-	int walkstyle;
-	int lang;
-	bool logchat;
-	bool watch;
-	bool antialiasing;
-	bool joystick;
-	bool potionkeys;
-	bool logovideos;
-	enum KeyboardLayout
-	{
-		KEYBOARD_POLISH,
-		KEYBOARD_GERMAN,
-		KEYBOARD_CYRYLLIC
-	};
-	int keyboardlayout;
-	int WatchPosX;
-	int WatchPosY;
-	int ChatLines;
-	CConfig();
-	~CConfig();
-	void DefaultSettings();
-	void SaveConfigToFile();
+  bool IsDefault();
+  Gothic_II_Addon::zSTRING Nickname;
+  int skintexture;
+  int facetexture;
+  int headmodel;
+  int walkstyle;
+  int lang;
+  bool logchat;
+  bool watch;
+  bool antialiasing;
+  bool joystick;
+  bool potionkeys;
+  bool logovideos;
+  enum KeyboardLayout { KEYBOARD_POLISH, KEYBOARD_GERMAN, KEYBOARD_CYRYLLIC };
+  int keyboardlayout;
+  int WatchPosX;
+  int WatchPosY;
+  int ChatLines;
+  CConfig();
+  ~CConfig();
+  void DefaultSettings();
+  void SaveConfigToFile();
 };

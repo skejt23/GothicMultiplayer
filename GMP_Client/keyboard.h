@@ -25,10 +25,7 @@ SOFTWARE.
 
 #pragma once
 
-#include "g2Api.h"
-
-namespace GInput
-{
-	char GetCharacterFormKeyboard(bool ignorekeyboardlayout = false);	//false - cyrillic
-	char GetNumberCharacterFromKeyboard();
-}
+namespace GInput {
+char GetCharacterFormKeyboard(bool ignorekeyboardlayout = false);  // false - cyrillic
+char GetNumberCharacterFromKeyboard();
+}  // namespace GInput

@@ -24,28 +24,44 @@ SOFTWARE.
 */
 
 #include "CActiveAniID.h"
-#include "g2Api.h"
 
-CActiveAniID *pActiveAniID=NULL;
+#include "ZenGin/zGothicAPI.h"
 
-CActiveAniID *CActiveAniID::GetInstance(){ return pActiveAniID; }
-CActiveAniID::CActiveAniID(){ pActiveAniID=this; }
-CActiveAniID::~CActiveAniID(){ pActiveAniID=NULL; }
-void CActiveAniID::AddAni(int id){
-	if(this->animation_stack.empty()) this->animation_stack.push(id);
-	else if(id!=this->animation_stack.top()) this->animation_stack.push(id);
+CActiveAniID *pActiveAniID = NULL;
+
+CActiveAniID *CActiveAniID::GetInstance() {
+  return pActiveAniID;
 }
-void CActiveAniID::ValidateStack(){
-	if(this->animation_stack.size()>100) for(int i=0; i<100; i++) this->animation_stack.pop();
+
+CActiveAniID::CActiveAniID() {
+  pActiveAniID = this;
+}
+
+CActiveAniID::~CActiveAniID() {
+  pActiveAniID = NULL;
+}
+
+void CActiveAniID::AddAni(int id) {
+  if (this->animation_stack.empty())
+    this->animation_stack.push(id);
+  else if (id != this->animation_stack.top())
+    this->animation_stack.push(id);
+}
+
+void CActiveAniID::ValidateStack() {
+  if (this->animation_stack.size() > 100)
+    for (int i = 0; i < 100; i++) this->animation_stack.pop();
 func_validate_ani_start:
-	if(!this->animation_stack.empty())
-		if(!oCNpc::GetHero()->GetModel()->IsAnimationActive(oCNpc::GetHero()->GetModel()->GetAniFromAniID(this->animation_stack.top())->GetAniName())){
-			this->animation_stack.pop();
-			goto func_validate_ani_start;
-		}
+  if (!this->animation_stack.empty())
+    if (!player->GetModel()->IsAnimationActive(player->GetModel()->GetAniFromAniID(this->animation_stack.top())->GetAniName())) {
+      this->animation_stack.pop();
+      goto func_validate_ani_start;
+    }
 }
-int CActiveAniID::GetAniID(){
-	ValidateStack();
-	if(this->animation_stack.empty()) return 265;
-	return this->animation_stack.top();
+
+int CActiveAniID::GetAniID() {
+  ValidateStack();
+  if (this->animation_stack.empty())
+    return 265;
+  return this->animation_stack.top();
 }

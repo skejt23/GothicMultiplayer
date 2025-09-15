@@ -24,10 +24,13 @@ SOFTWARE.
 */
 
 #pragma once
+
+#include <string>
+#include <vector>
+
 #include "save.h"
 
-namespace LoadWorld
-{
-	void LoadWorld(const char* MapName, vector<Info>& Vobs);
-	string GetZenName(const char* MapName);
-};
+namespace LoadWorld {
+void LoadWorld(const char* MapName, std::vector<Info>& Vobs);
+std::string GetZenName(const char* MapName);
+};  // namespace LoadWorld

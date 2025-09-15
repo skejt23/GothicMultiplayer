@@ -24,83 +24,71 @@ SOFTWARE.
 */
 
 #pragma once
-#include "load.h"
-#include "..\CObjectMenu.h"
 
-enum CurrentMode{
-	EDITING,
-	TESTING,
-	FREEROAM,
-	OBJECTMENU
-};
-enum SpawnMode{
-	MOBS,
-	PARTICLES,
-	ITEMS
-};
+#include "..\CObjectMenu.h"
+#include "load.h"
+
+enum CurrentMode { EDITING, TESTING, FREEROAM, OBJECTMENU };
+enum SpawnMode { MOBS, PARTICLES, ITEMS };
 
 void RenderEvent(void);
 
-class CBuilder
-{
+class CBuilder {
 private:
-	oCGame* Game;
-	zCView* screen;
-	oCNpc* Hero;
-	zCInput* keyboard;
-	zCVisual* TargetVisual; // ASC, MDS or 3DS
-	oCMobInter* CurrentInter;
-	zCAICamera* cam;
-	float CamDistHuman;
-	float CamDistEditor;
-	vector<zSTRING> BuildMessages;
-	vector<zSTRING> MobNames;
-	vector<zSTRING> ParticleNames;
-	zSTRING PlacedTest;
-	zSTRING VisualName;
-	int activemobname;
-	int activeparticlename;
-	int activeitemname;
-	zVEC3 LastPos;
-	zVEC3 LastTrafo;
-	zSTRING TextPosPrint;
-	zSTRING IdText;
-	zVEC3 CurPos;
-	zVEC3 CurAngle;
-	int DirectionAngle;
-	char buffer[32];
-	vector<zCVob*> VobsInWorld;
-	CurrentMode Mode;
-	SpawnMode SMode;
-	zCView* MobsWin;
-	zCView* ParticleWin;
-	zCView* ItemsWin;
-	Info info;
-	float MoveSpeed;
-	bool MobCollision;
-	CObjectMenu* ObjMenu;
-	unsigned char CurrentMobType;
-	zMAT4 LastMatrix;
+  zCVisual* TargetVisual;  // ASC, MDS or 3DS
+  oCMobInter* CurrentInter;
+  zCAICamera* cam;
+  float CamDistHuman;
+  float CamDistEditor;
+  std::vector<zSTRING> BuildMessages;
+  std::vector<zSTRING> MobNames;
+  std::vector<zSTRING> ParticleNames;
+  zSTRING PlacedTest;
+  zSTRING VisualName;
+  int activemobname;
+  int activeparticlename;
+  int activeitemname;
+  zVEC3 LastPos;
+  zVEC3 LastTrafo;
+  zSTRING TextPosPrint;
+  zSTRING IdText;
+  zVEC3 CurPos;
+  zVEC3 CurAngle;
+  int DirectionAngle;
+  char buffer[32];
+  std::vector<zCVob*> VobsInWorld;
+  CurrentMode Mode;
+  SpawnMode SMode;
+  zCView* MobsWin;
+  zCView* ParticleWin;
+  zCView* ItemsWin;
+  Info info;
+  float MoveSpeed;
+  bool MobCollision;
+  CObjectMenu* ObjMenu;
+  unsigned char CurrentMobType;
+  zMAT4 LastMatrix;
+
 public:
-	vector<Info> SpawnedVobs;
-public:
-	CBuilder();
-	~CBuilder();
-	void Render();
-	double CalculateRadians(double degree);
-	void SpawnObject();
-	void PrintItemIds();
-	void ClearAfterObjMenu();
-	void ClearUpBoxes();
-	void CreateModeBoxes();
-	void CollisionInObjectsEnabled(bool isit);
-	void LoadAllVobsFromTheWorld();
-	void CheckMsgSize();
-	void FillMobNames();
-	void FillParticleNames();
-	void DeleteAllNpcs();
-	void DisableAllItemsInWorld();
-	void RecreateMobInstance(bool RemoveOld, bool DoNotSave);
-	static void SaveVobMatrix(zCVob* Vob, zMAT4& Matrix);
-	static void RestoreVobMatrix(zCVob* Vob, zMAT4& Matrix);
+  std::vector<Info> SpawnedVobs;
+
+  CBuilder();
+  ~CBuilder();
+  void Render();
+  double CalculateRadians(double degree);
+  void SpawnObject();
+  void PrintItemIds();
+  void ClearAfterObjMenu();
+  void ClearUpBoxes();
+  void CreateModeBoxes();
+  void CollisionInObjectsEnabled(bool isit);
+  void LoadAllVobsFromTheWorld();
+  void CheckMsgSize();
+  void FillMobNames();
+  void FillParticleNames();
+  void DeleteAllNpcs();
+  void DisableAllItemsInWorld();
+  void RecreateMobInstance(bool RemoveOld, bool DoNotSave);
+  static void SaveVobMatrix(zCVob* Vob, zMAT4& Matrix);
+  static void RestoreVobMatrix(zCVob* Vob, zMAT4& Matrix);
 };
