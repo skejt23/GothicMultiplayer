@@ -62,6 +62,7 @@ target("ClientMain")
               "Mod.cpp",
               "Network.cpp",
               "HTTPDownloader.cpp",
+              "external_console_window.cpp",
               "patch.cpp",
               "Table.cpp",
               "config.cpp",

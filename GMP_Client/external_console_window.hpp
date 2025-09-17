@@ -1,7 +1,7 @@
 /*
 MIT License
 
-Copyright (c) 2025 Gothic Multiplayer Team (pampi, skejt23, mecio)
+Copyright (c) 2025 Gothic Multiplayer Team.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -24,40 +24,18 @@ SOFTWARE.
 
 #pragma once
 
-#include <cstdint>
-#include <optional>
-#include <filesystem>
-
-class Config {
+class ExternalConsoleWindow {
 public:
-  struct WindowPosition {
-    std::int32_t x;
-    std::int32_t y;
-  };
+  static void Init();
 
-  using ConsolePosition = WindowPosition;
-
-  static Config& Instance() {
-    static Config instance;
-    return instance;
-  }
-
-  Config(const Config&) = delete;
-  Config& operator=(const Config&) = delete;
-
-  void Save() const;
-
-  const std::optional<WindowPosition>& GetWindowPosition() const;
-  void SetWindowPosition(WindowPosition window_position);
-
-  const std::optional<ConsolePosition>& GetConsolePosition() const;
-  void SetConsolePosition(ConsolePosition console_position);
+  ~ExternalConsoleWindow();
 
 private:
-  Config();
-  void Load();
-  
-  std::filesystem::path config_file_path_;
-  std::optional<WindowPosition> window_position_;
-  std::optional<ConsolePosition> console_position_;
+  ExternalConsoleWindow();
+
+  ExternalConsoleWindow(const ExternalConsoleWindow&) = delete;
+  ExternalConsoleWindow& operator=(const ExternalConsoleWindow&) = delete;
+
+  void RedirectStdStreamsToConsole();
+  bool EnsureConsoleAvailable();
 };

@@ -31,14 +31,15 @@ SOFTWARE.
 #include <iostream>
 #include <string>
 
-#include "ZenGin/zGothicAPI.h"
 #include "HooksManager.h"
-#include "patch_install.hpp"
+#include "external_console_window.hpp"
 #include "Mod.h"
 #include "Network.h"
+#include "ZenGin/zGothicAPI.h"
 #include "common.h"
 #include "config.h"
 #include "patch.h"
+#include "patch_install.hpp"
 
 SDL_Window* g_pSdlWindow;
 
@@ -110,7 +111,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
   DisableThreadLibraryCalls(hinstDLL);
   if (fdwReason == DLL_PROCESS_ATTACH) {
     try {
-      AllocConsole();
+      ExternalConsoleWindow::Init();
       spdlog::default_logger()->sinks().push_back(std::make_shared<spdlog::sinks::basic_file_sink_mt>("GMP_Log.txt", false));
       spdlog::flush_on(spdlog::level::debug);
 

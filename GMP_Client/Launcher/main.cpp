@@ -51,12 +51,10 @@ private:
       // Create console sink with colors
       auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
       console_sink->set_level(spdlog::level::debug);
-      console_sink->set_pattern("[%^%l%$] %v");
 
       // Create file sink
       auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("gmp_launcher.log", true);
       file_sink->set_level(spdlog::level::debug);
-      file_sink->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] %v");
 
       // Create logger with both sinks
       logger = std::make_shared<spdlog::logger>("GMPLauncher", spdlog::sinks_init_list{console_sink, file_sink});
@@ -392,7 +390,6 @@ public:
 
     if (launchSuccess) {
       SPDLOG_INFO("Launch completed successfully! Gothic2.exe is running.");
-      SPDLOG_INFO("You can now close this launcher window.");
     } else {
       SPDLOG_ERROR("Launch failed! Check the error messages above.");
       SPDLOG_ERROR("Common issues:");
