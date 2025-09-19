@@ -55,6 +55,7 @@ SOFTWARE.
 #include "net_enums.h"
 #include "packets.h"
 #include "patch.h"
+#include "player_name_utils.hpp"
 
 CConfig *user_config = NULL;
 const char *LANG_DIR = ".\\Multiplayer\\Localization\\";
@@ -219,6 +220,9 @@ void GameClient::JoinGame(BYTE selected_class) {
   if (IsReadyToJoin) {
     HooksManager::GetInstance()->AddHook(HT_RENDER, (DWORD)InterfaceLoop, false);
     HooksManager::GetInstance()->RemoveHook(HT_RENDER, (DWORD)CSelectClass::Loop);
+
+    auto sanitized_name = SanitizePlayerName(user_config->Nickname.ToChar());
+    player->name[0] = sanitized_name.c_str();
 
     JoinGamePacket packet;
     packet.packet_type = PT_JOIN_GAME;

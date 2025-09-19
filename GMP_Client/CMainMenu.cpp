@@ -404,13 +404,7 @@ void CMainMenu::ClearNpcTalents(oCNpc* Npc) {
     Npc->SetTalentSkill(i, 0);
     Npc->SetTalentValue(i, 0);
   }
-};
-void CMainMenu::EraseSpacesInNickname() {
-  std::string erasenick = user_config->Nickname.ToChar();
-  erasenick.resize(24);
-  user_config->Nickname = erasenick.c_str();
-  user_config->SaveConfigToFile();
-};
+}
 
 void CMainMenu::LeaveOptionsMenu() {
   zinput->ClearKeyBuffer();
@@ -432,8 +426,6 @@ void CMainMenu::RunMenuItem() {
       esl->RefreshList();
       if (!ServerIP.IsEmpty())
         ServerIP.Clear();
-      EraseSpacesInNickname();
-      player->name[0] = user_config->Nickname;
       break;
     case 1:
       // WYBIERZ WYGLAD

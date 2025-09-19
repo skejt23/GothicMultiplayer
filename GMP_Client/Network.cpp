@@ -105,7 +105,7 @@ void Network::Receive() {
 
 bool Network::HandlePacket(unsigned char* data, std::uint32_t size) {
   try {
-    SPDLOG_INFO("Received packet: {}", (int)data[0]);
+    SPDLOG_TRACE("Received packet: {}", (int)data[0]);
     packetHandlers[(int)data[0]](client_, Packet{data, size});
   } catch (std::exception&) {
     error = data[0];

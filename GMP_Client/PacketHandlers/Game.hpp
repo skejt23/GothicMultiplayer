@@ -95,7 +95,7 @@ void OnActualStatistics(GameClient* client, Packet p) {
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
 
-  SPDLOG_INFO("PlayerStateUpdatePacket: {}", packet);
+  SPDLOG_TRACE("PlayerStateUpdatePacket: {}", packet);
 
   if (client->game_mode == 1) {
     for (size_t i = 1; i < client->players.size(); i++) {
@@ -654,7 +654,6 @@ void OnJoinGame(GameClient* client, Packet packet) {
   newhero->hp = static_cast<short>(newhero->GetHealth());
   newhero->SetPosition(pos);
   newhero->SetName(joinGamePacket.player_name.c_str());
-  npc->name[0] = joinGamePacket.player_name.c_str();
   if (newhero->Type == CPlayer::NPC_HUMAN)
     newhero->SetAppearance(joinGamePacket.head_model, joinGamePacket.skin_texture, joinGamePacket.face_texture);
   if (newhero->Type > CPlayer::NPC_DRACONIAN || newhero->Type == CPlayer::NPC_HUMAN)

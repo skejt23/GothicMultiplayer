@@ -118,7 +118,6 @@ public:
   void RunWbMenuItem();
   void RunOptionsItem();
   void ClearNpcTalents(Gothic_II_Addon::oCNpc* Npc);
-  void EraseSpacesInNickname();
   void static __stdcall MainMenuLoop();
   void SetServerIP(int selected);
 };

@@ -2,7 +2,7 @@
 /*
 MIT License
 
-Copyright (c) 2022 Gothic Multiplayer Team (pampi, skejt23, mecio)
+Copyright (c) 2025 Gothic Multiplayer Team.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -23,30 +23,22 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-/*****************************************************************************
-**	File name:		CGmpClient/CLocalPlayer.cpp	
-**	Created by:		23/12/11	-	skejt23
-**	Description:	Local Player class
-**
-*****************************************************************************/
 #pragma once
 
-#include "CPlayer.h"
+#include <string>
 
-class CObservation;
+constexpr auto kMaxPlayerNameLength = 24;
 
-class CLocalPlayer : public CPlayer {
-private:
-  CObservation* Observe;
-  bool IsObserving;
-
-public:
-  CLocalPlayer();
-  ~CLocalPlayer();
-  static void EnterObserveMode();
-  inline CObservation* GetObserve() {
-    return this->Observe;
-  };
-  bool IsInObserveMode();
-  static void LeaveObserveMode();
-};
+inline std::string SanitizePlayerName(const std::string& player_name) {
+  std::string sanitized = player_name;
+  // Remove any unwanted characters (e.g., non-printable characters)
+  sanitized.erase(std::remove_if(sanitized.begin(), sanitized.end(), [](unsigned char c) { return !std::isprint(c); }), sanitized.end());
+  // Trim whitespace from both ends
+  sanitized.erase(sanitized.begin(), std::find_if(sanitized.begin(), sanitized.end(), [](unsigned char c) { return !std::isspace(c); }));
+  sanitized.erase(std::find_if(sanitized.rbegin(), sanitized.rend(), [](unsigned char c) { return !std::isspace(c); }).base(), sanitized.end());
+  // Enforce maximum length
+  if (sanitized.length() > kMaxPlayerNameLength) {
+    sanitized = sanitized.substr(0, kMaxPlayerNameLength);
+  }
+  return sanitized;
+}

@@ -38,11 +38,11 @@ class CConfig : public TSingleton<CConfig> {
 private:
   bool d;
   void LoadConfigFromFile();
-  Gothic_II_Addon::zCOptionSection* MultiSection;
+  zCOptionSection* MultiSection;
 
 public:
   bool IsDefault();
-  Gothic_II_Addon::zSTRING Nickname;
+  zSTRING Nickname;
   int skintexture;
   int facetexture;
   int headmodel;
