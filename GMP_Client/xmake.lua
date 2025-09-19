@@ -1,11 +1,3 @@
--- g2api static library
-target("g2api")
-    set_kind("static")
-    add_includedirs("g2api", {public = true})
-    add_includedirs("dx7sdk/inc", {public = true})
-    add_deps("InjectMage")
-    set_default(false) -- So it's not installed by default
-
 -- zNetInterface header-only library
 target("zNetInterface")
     set_kind("headeronly")
@@ -80,6 +72,7 @@ target("ClientMain")
     add_defines("SPDLOG_FMT_EXTERNAL")
     add_defines("DIRECTINPUT_VERSION=0x0800")
     add_defines("_WIN32_WINNT=0x0601", "WINVER=0x0601")
+    add_defines("SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE")
     
     -- Resource file handling (Windows specific)
     if is_plat("windows") then
