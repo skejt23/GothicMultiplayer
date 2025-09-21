@@ -58,9 +58,13 @@ target("ClientMain")
               "patch.cpp",
               "Table.cpp",
               "config.cpp",
+              "DiscordPresence.cpp",
               "WorldBuilder/CBuilder.cpp",
               "WorldBuilder/load.cpp",
               "WorldBuilder/save.cpp")
+
+    add_files("DiscordGameSDK/src/*.cpp")
+    add_includedirs("DiscordGameSDK/src")
     
     add_files("gothic-patches/*.cpp")
     add_includedirs("gothic-patches")
@@ -68,6 +72,9 @@ target("ClientMain")
     add_deps("common", "SharedLib", "zNetInterface", "Client.Voice", "SDL3", "InjectMage", "BugTrap", "gothic_api")    
     add_packages("spdlog", "cpp-httplib", "dylib", "pugixml", "glm", "bitsery")
     add_syslinks("wsock32", "ws2_32", "Iphlpapi", "user32", "gdi32", "kernel32")
+
+    add_linkdirs("DiscordGameSDK/lib")
+    add_links("discord_game_sdk")
     
     add_defines("SPDLOG_FMT_EXTERNAL")
     add_defines("DIRECTINPUT_VERSION=0x0800")
@@ -95,6 +102,25 @@ target("ClientMain")
         os.cp(path.join(scriptdir, "resources/Data/*"), path.join(installdir, "Data"))
         os.cp(path.join(scriptdir, "resources/Multiplayer/*"), path.join(installdir, "Multiplayer"))
         print("Installed resources to " .. installdir)
+
+        local dllSource = path.join(scriptdir, "DiscordGameSDK/lib/discord_game_sdk.dll")
+        if os.isfile(dllSource) then
+            local systemLower = path.join(installdir, "system")
+            local systemUpper = path.join(installdir, "System")
+            local systemDir = nil
+
+            if os.isdir(systemLower) then
+                systemDir = systemLower
+            elseif os.isdir(systemUpper) then
+                systemDir = systemUpper
+            else
+                systemDir = systemLower
+                os.mkdir(systemDir)
+            end
+
+            os.cp(dllSource, systemDir)
+            print("Installed discord_game_sdk.dll to " .. systemDir)
+        end
     end)
 
 -- Include subdirectories
