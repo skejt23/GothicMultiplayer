@@ -121,6 +121,7 @@ void InitializeLogger(const Config& config) {
 }  // namespace
 
 GameServer::GameServer() {
+  spdlog::set_pattern("%v");
   InitializeLogger(config_);
   SPDLOG_INFO("|-----------------------------------|");
   constexpr std::string_view git_tag_long = GIT_TAG_LONG;
@@ -133,11 +134,13 @@ GameServer::GameServer() {
   config_.LogConfigValues();
   SPDLOG_INFO("|-----------------------------------|");
   g_server = this;
+  spdlog::set_pattern("[%T %^%l%$] %v");
 
   // Register server-side events.
   EventManager::Instance().RegisterEvent(kEventOnPlayerConnectName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerDisconnectName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerMessageName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerCommandName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerWhisperName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerChangeClassName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerKillName);
@@ -228,6 +231,8 @@ void GameServer::Run() {
   g_net_server->Pulse();
   clock_->RunClock();
 
+  ProcessRespawns();
+
   // Send updates to all players.
   auto now = std::chrono::steady_clock::now();
   if (now - last_update_time_ > std::chrono::milliseconds(config_.Get<std::int32_t>("tick_rate_ms"))) {
@@ -277,11 +282,13 @@ void GameServer::Run() {
         player_a_update_packet.packet_type = PT_ACTUAL_STATISTICS;
         player_a_update_packet.player_id = player_a.id.guid;
         player_a_update_packet.state = player_a.state;
+        player_a_update_packet.state.health_points = player_a.health;
 
         PlayerStateUpdatePacket player_b_update_packet;
         player_b_update_packet.packet_type = PT_ACTUAL_STATISTICS;
         player_b_update_packet.player_id = player_b.id.guid;
         player_b_update_packet.state = player_b.state;
+        player_b_update_packet.state.health_points = player_b.health;
 
         SerializeAndSend(player_a_update_packet, IMMEDIATE_PRIORITY, UNRELIABLE, player_b.id);
         SerializeAndSend(player_b_update_packet, IMMEDIATE_PRIORITY, UNRELIABLE, player_a.id);
@@ -299,6 +306,34 @@ void GameServer::Run() {
         SerializeAndSend(player_a_update_packet, IMMEDIATE_PRIORITY, UNRELIABLE, player_b.id);
         SerializeAndSend(player_b_update_packet, IMMEDIATE_PRIORITY, UNRELIABLE, player_a.id);
       }
+    }
+  }
+}
+
+void GameServer::ProcessRespawns() {
+  auto respawn_time = config_.Get<std::int32_t>("respawn_time_seconds");
+  if (respawn_time < 0) {
+    return;
+  }
+
+  auto now = std::time(nullptr);
+
+  for (auto& [id, player] : players_) {
+    if (!player.is_ingame || player.tod == 0) {
+      continue;
+    }
+
+    if (respawn_time == 0 || player.tod + respawn_time <= now) {
+      player.flags = 0;
+      player.tod = 0;
+
+      if (!character_definition_manager_->IsEmpty()) {
+        player.health = character_definition_manager_->GetCharacterDefinition(player.char_class).abilities[HP];
+      } else {
+        player.health = 100;
+      }
+
+      SendRespawnInfo(player.id.guid);
     }
   }
 }
@@ -466,6 +501,7 @@ void GameServer::HandlePlayerDeath(GameServer::sPlayer& victim, std::optional<st
   }
 
   victim.health = 0;
+  victim.state.health_points = 0;
   victim.tod = time(NULL);
 
   if (killer_id.has_value() && killer_id.value() != victim.id.guid) {
@@ -514,6 +550,7 @@ void GameServer::SomeoneJoinGame(Packet p) {
   } else {
     player.health = 100;
   }
+  player.state.health_points = player.health;
 
   if (!player.is_ingame || previous_class != player.char_class) {
     EventManager::Instance().TriggerEvent(kEventOnPlayerChangeClassName, OnPlayerChangeClassEvent{p.id.guid, player.char_class});
@@ -676,6 +713,8 @@ void GameServer::MakeHPDiff(Packet p) {
         victim.health = max_health;
       }
     }
+
+    victim.state.health_points = victim.health;
   }
 }
 

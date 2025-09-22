@@ -121,6 +121,8 @@ private:
   time_t last_stand_timer;
   time_t regen_time;
 
+  void ProcessRespawns();
+
   unsigned char GetPacketIdentifier(const Packet& p);
   int serverPort;
   unsigned short maxConnections;
