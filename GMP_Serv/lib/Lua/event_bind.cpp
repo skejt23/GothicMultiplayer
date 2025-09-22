@@ -69,6 +69,46 @@ void RegisterProxies() {
     OnPlayerChangeClassEvent player_changeclass_event = std::any_cast<OnPlayerChangeClassEvent>(args.event);
     args.callback(player_changeclass_event.pid, player_changeclass_event.cid);
   }};
+  kLuaEventProxies[kEventOnPlayerKillName] = {[](LuaProxyArgs args) {
+    OnPlayerKillEvent player_kill_event = std::any_cast<OnPlayerKillEvent>(args.event);
+    args.callback(player_kill_event.killer_id, player_kill_event.victim_id);
+  }};
+  kLuaEventProxies[kEventOnPlayerDeathName] = {[](LuaProxyArgs args) {
+    OnPlayerDeathEvent player_death_event = std::any_cast<OnPlayerDeathEvent>(args.event);
+    sol::state_view lua(args.callback.lua_state());
+    sol::object killer = player_death_event.killer_id.has_value() ? sol::make_object(lua, player_death_event.killer_id.value()) : sol::lua_nil;
+    args.callback(player_death_event.player_id, killer);
+  }};
+  kLuaEventProxies[kEventOnPlayerDropItemName] = {[](LuaProxyArgs args) {
+    OnPlayerDropItemEvent drop_item_event = std::any_cast<OnPlayerDropItemEvent>(args.event);
+    args.callback(drop_item_event.pid, drop_item_event.item_instance, drop_item_event.amount);
+  }};
+  kLuaEventProxies[kEventOnPlayerTakeItemName] = {[](LuaProxyArgs args) {
+    OnPlayerTakeItemEvent take_item_event = std::any_cast<OnPlayerTakeItemEvent>(args.event);
+    args.callback(take_item_event.pid, take_item_event.item_instance);
+  }};
+  kLuaEventProxies[kEventOnPlayerCastSpellName] = {[](LuaProxyArgs args) {
+    OnPlayerCastSpellEvent cast_spell_event = std::any_cast<OnPlayerCastSpellEvent>(args.event);
+    sol::state_view lua(args.callback.lua_state());
+    sol::object target = cast_spell_event.target_id.has_value() ? sol::make_object(lua, cast_spell_event.target_id.value()) : sol::lua_nil;
+    args.callback(cast_spell_event.caster_id, cast_spell_event.spell_id, target);
+  }};
+  kLuaEventProxies[kEventOnPlayerSpawnName] = {[](LuaProxyArgs args) {
+    OnPlayerSpawnEvent player_spawn_event = std::any_cast<OnPlayerSpawnEvent>(args.event);
+    args.callback(player_spawn_event.player_id, player_spawn_event.class_id, player_spawn_event.position.x, player_spawn_event.position.y,
+                  player_spawn_event.position.z);
+  }};
+  kLuaEventProxies[kEventOnPlayerRespawnName] = {[](LuaProxyArgs args) {
+    OnPlayerRespawnEvent player_respawn_event = std::any_cast<OnPlayerRespawnEvent>(args.event);
+    args.callback(player_respawn_event.player_id, player_respawn_event.class_id, player_respawn_event.position.x, player_respawn_event.position.y,
+                  player_respawn_event.position.z);
+  }};
+  kLuaEventProxies[kEventOnPlayerHitName] = {[](LuaProxyArgs args) {
+    OnPlayerHitEvent player_hit_event = std::any_cast<OnPlayerHitEvent>(args.event);
+    sol::state_view lua(args.callback.lua_state());
+    sol::object attacker = player_hit_event.attacker_id.has_value() ? sol::make_object(lua, player_hit_event.attacker_id.value()) : sol::lua_nil;
+    args.callback(attacker, player_hit_event.victim_id, player_hit_event.damage);
+  }};
 }
 
 std::optional<std::function<void(LuaProxyArgs)>> GetProxy(std::string event_name) {

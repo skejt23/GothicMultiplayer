@@ -26,7 +26,10 @@ SOFTWARE.
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
+
+#include <glm/glm.hpp>
 
 inline const std::string kEventOnClockUpdateName = "onClockUpdate";
 inline const std::string kEventOnPlayerConnectName = "onPlayerConnect";
@@ -34,6 +37,14 @@ inline const std::string kEventOnPlayerDisconnectName = "onPlayerDisconnect";
 inline const std::string kEventOnPlayerMessageName = "onPlayerMessage";
 inline const std::string kEventOnPlayerWhisperName = "onPlayerWhisper";
 inline const std::string kEventOnPlayerChangeClassName = "onPlayerChangeClass";
+inline const std::string kEventOnPlayerKillName = "onPlayerKill";
+inline const std::string kEventOnPlayerDeathName = "onPlayerDeath";
+inline const std::string kEventOnPlayerDropItemName = "onPlayerDropItem";
+inline const std::string kEventOnPlayerTakeItemName = "onPlayerTakeItem";
+inline const std::string kEventOnPlayerCastSpellName = "onPlayerCastSpell";
+inline const std::string kEventOnPlayerSpawnName = "onPlayerSpawn";
+inline const std::string kEventOnPlayerRespawnName = "onPlayerRespawn";
+inline const std::string kEventOnPlayerHitName = "onPlayerHit";
 
 struct OnClockUpdateEvent {
   std::uint16_t day;
@@ -55,4 +66,49 @@ struct OnPlayerWhisperEvent {
 struct OnPlayerChangeClassEvent {
   std::uint64_t pid;
   std::uint64_t cid;
+};
+
+struct OnPlayerKillEvent {
+  std::uint64_t killer_id;
+  std::uint64_t victim_id;
+};
+
+struct OnPlayerDeathEvent {
+  std::uint64_t player_id;
+  std::optional<std::uint64_t> killer_id;
+};
+
+struct OnPlayerDropItemEvent {
+  std::uint64_t pid;
+  std::int16_t item_instance;
+  std::int16_t amount;
+};
+
+struct OnPlayerTakeItemEvent {
+  std::uint64_t pid;
+  std::int16_t item_instance;
+};
+
+struct OnPlayerCastSpellEvent {
+  std::uint64_t caster_id;
+  std::uint16_t spell_id;
+  std::optional<std::uint64_t> target_id;
+};
+
+struct OnPlayerSpawnEvent {
+  std::uint64_t player_id;
+  std::uint8_t class_id;
+  glm::vec3 position;
+};
+
+struct OnPlayerRespawnEvent {
+  std::uint64_t player_id;
+  std::uint8_t class_id;
+  glm::vec3 position;
+};
+
+struct OnPlayerHitEvent {
+  std::optional<std::uint64_t> attacker_id;
+  std::uint64_t victim_id;
+  std::int16_t damage;
 };

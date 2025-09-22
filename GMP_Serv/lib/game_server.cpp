@@ -34,6 +34,7 @@ SOFTWARE.
 #include <fstream>
 #include <future>
 #include <iterator>
+#include <optional>
 #include <stack>
 #include <string>
 
@@ -135,7 +136,18 @@ GameServer::GameServer() {
 
   // Register server-side events.
   EventManager::Instance().RegisterEvent(kEventOnPlayerConnectName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerDisconnectName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerMessageName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerWhisperName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerChangeClassName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerKillName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerDeathName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerDropItemName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerTakeItemName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerCastSpellName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerSpawnName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerRespawnName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerHitName);
 }
 
 GameServer::~GameServer() {
@@ -298,12 +310,13 @@ bool GameServer::HandlePacket(Net::PlayerId playerId, unsigned char* data, std::
   switch (packetIdentifier) {
     case ID_DISCONNECTION_NOTIFICATION:
       SendDisconnectionInfo(p.id.guid);
-      DeleteFromPlayerList(p.id);
+      HandlePlayerDisconnect(p.id);
       SPDLOG_INFO("{} disconnected. Still connected {} users.", g_net_server->GetPlayerIp(p.id), players_.size());
       break;
     case ID_NEW_INCOMING_CONNECTION:  // nadchodzące połączenie zaakceptowane | można dodać guid gracza do listy graczy;
     {
       sPlayer pl;
+      pl.char_class = 0;
       pl.has_admin = 0;
       pl.moderator_passwd = 0;
       pl.admin_passwd = 0;
@@ -328,7 +341,7 @@ bool GameServer::HandlePacket(Net::PlayerId playerId, unsigned char* data, std::
       break;
     case ID_CONNECTION_LOST:
       SendDisconnectionInfo(p.id.guid);
-      DeleteFromPlayerList(p.id);
+      HandlePlayerDisconnect(p.id);
       SPDLOG_WARN("Connection lost from {}. Still connected {} users.", g_net_server->GetPlayerIp(p.id), players_.size());
       break;
     case PT_REQUEST_FILE_LENGTH:
@@ -435,6 +448,35 @@ void GameServer::DeleteFromPlayerList(Net::PlayerId id) {
   players_.erase(id.guid);
 }
 
+void GameServer::HandlePlayerDisconnect(Net::PlayerId id) {
+  auto player_opt = GetPlayerById(id.guid);
+  if (player_opt.has_value()) {
+    auto& player = player_opt.value().get();
+    if (player.is_ingame) {
+      EventManager::Instance().TriggerEvent(kEventOnPlayerDisconnectName, player.id.guid);
+    }
+  }
+
+  DeleteFromPlayerList(id);
+}
+
+void GameServer::HandlePlayerDeath(GameServer::sPlayer& victim, std::optional<std::uint64_t> killer_id) {
+  if (victim.tod != 0) {
+    return;
+  }
+
+  victim.health = 0;
+  victim.tod = time(NULL);
+
+  if (killer_id.has_value() && killer_id.value() != victim.id.guid) {
+    EventManager::Instance().TriggerEvent(kEventOnPlayerKillName, OnPlayerKillEvent{killer_id.value(), victim.id.guid});
+  }
+
+  EventManager::Instance().TriggerEvent(kEventOnPlayerDeathName, OnPlayerDeathEvent{victim.id.guid, killer_id});
+
+  SendDeathInfo(victim.id.guid);
+}
+
 std::optional<std::reference_wrapper<GameServer::sPlayer>> GameServer::GetPlayerById(std::uint64_t id) {
   auto it = players_.find(id);
   if (it != players_.end())
@@ -463,12 +505,18 @@ void GameServer::SomeoneJoinGame(Packet p) {
   auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
   SPDLOG_TRACE("{} from {}", packet, p.id.guid);
 
+  bool was_dead = player.tod != 0;
   player.tod = 0;
+  auto previous_class = player.char_class;
   player.char_class = packet.selected_class;
   if (!character_definition_manager_->IsEmpty()) {
     player.health = character_definition_manager_->GetCharacterDefinition(packet.selected_class).abilities[HP];
   } else {
     player.health = 100;
+  }
+
+  if (!player.is_ingame || previous_class != player.char_class) {
+    EventManager::Instance().TriggerEvent(kEventOnPlayerChangeClassName, OnPlayerChangeClassEvent{p.id.guid, player.char_class});
   }
 
   player.state.position = packet.position;
@@ -522,6 +570,13 @@ void GameServer::SomeoneJoinGame(Packet p) {
 
   player.is_ingame = 1;
 
+  // spawn
+  if (was_dead) {
+    EventManager::Instance().TriggerEvent(kEventOnPlayerRespawnName, OnPlayerRespawnEvent{p.id.guid, player.char_class, player.state.position});
+  }
+
+  EventManager::Instance().TriggerEvent(kEventOnPlayerSpawnName, OnPlayerSpawnEvent{p.id.guid, player.char_class, player.state.position});
+
   // join
   EventManager::Instance().TriggerEvent(kEventOnPlayerConnectName, p.id.guid);
 }
@@ -559,78 +614,69 @@ void GameServer::MakeHPDiff(Packet p) {
     memcpy(&diffed_hp, p.data + (1 + sizeof(uint64_t)), 2);
 
     auto victim_opt = GetPlayerById(player_id);
-    if (!victim_opt.has_value())
+    if (!victim_opt.has_value()) {
       return;
+    }
     auto& victim = victim_opt.value().get();
 
-    if ((victim.health <= 0) || (victim.tod))
-      return;  // just ignore
+    if ((victim.health <= 0) || (victim.tod)) {
+      return;
+    }
+
+    std::optional<std::uint64_t> killer_id;
+    if (player_id != p.id.guid) {
+      killer_id = p.id.guid;
+    }
+
     if (player_id == p.id.guid) {
-      if (victim.health)
+      if (victim.health) {
         victim.health += diffed_hp;
-      if (victim.health <= 0) {
-        victim.health = 0;
-        victim.tod = time(NULL);
-        SendDeathInfo(victim.id.guid);
       }
-      if (victim.health > character_definition_manager_->GetCharacterDefinition(victim.char_class).abilities[HP]) {
-        victim.health = character_definition_manager_->GetCharacterDefinition(victim.char_class).abilities[HP];
+    } else if (config_.Get<bool>("be_unconcious_before_dead")) {
+      switch (attacker.figth_pos) {
+        case 1:
+        case 3:
+        case 4:
+          if (victim.flags & PL_UNCONCIOUS) {
+            victim.flags &= ~PL_UNCONCIOUS;
+            HandlePlayerDeath(victim, killer_id);
+          } else {
+            victim.health += diffed_hp;
+            if (victim.health <= 1) {
+              victim.health = 1;
+              victim.flags |= PL_UNCONCIOUS;
+            }
+          }
+          break;
+        default:
+          if (victim.health > 0) {
+            victim.health += diffed_hp;
+            if (victim.health < 0) {
+              victim.health = 0;
+            }
+          }
+          break;
       }
     } else {
-      if (config_.Get<bool>("be_unconcious_before_dead")) {
-        switch (attacker.figth_pos) {
-          case 1:
-          case 3:
-          case 4:  // od tych broni nasz zawodnik na pewno nie padnie
-            if (victim.flags & PL_UNCONCIOUS) {
-              victim.flags &= 0xFE;
-              victim.tod = time(NULL);
-              victim.health = 0;
-              SendDeathInfo(victim.id.guid);
-            } else {
-              victim.health += diffed_hp;
-              if (victim.health <= 1) {
-                victim.health = 1;
-                victim.flags |= PL_UNCONCIOUS;
-              }
-            }
-            break;
-          default:
-            if (victim.health > 0) {
-              victim.health += diffed_hp;
-              if (victim.health < 0)
-                victim.health = 0;
-              if (victim.health <= 0) {
-                victim.tod = time(NULL);
-                SendDeathInfo(victim.id.guid);
-              }
-            }
-            break;
-        }
-      } else {
-        victim.health += diffed_hp;
-        if (victim.health == 1) {
-          victim.health = 0;
-          victim.tod = time(NULL);
-          SendDeathInfo(victim.id.guid);
-        }
-        if ((victim.health == 0) && (!victim.tod)) {
-          victim.tod = time(NULL);
-          SendDeathInfo(victim.id.guid);
-        }
-        if (victim.health < 0) {
-          victim.health = 0;
-          victim.tod = time(NULL);
-          SendDeathInfo(victim.id.guid);
-        }
-        if (victim.health > character_definition_manager_->GetCharacterDefinition(victim.char_class).abilities[HP]) {
-          victim.health = character_definition_manager_->GetCharacterDefinition(victim.char_class).abilities[HP];
-        }
+      victim.health += diffed_hp;
+      if (victim.health == 1) {
+        victim.health = 0;
+      } else if (victim.health < 0) {
+        victim.health = 0;
       }
     }
-    if ((victim.health <= 0) && (!victim.tod)) {
-      victim.tod = time(NULL);
-      SendDeathInfo(victim.id.guid);
+
+    if (diffed_hp < 0) {
+      EventManager::Instance().TriggerEvent(kEventOnPlayerHitName, OnPlayerHitEvent{killer_id, victim.id.guid, static_cast<std::int16_t>(-diffed_hp)});
+    }
+
+    if (victim.health <= 0) {
+      HandlePlayerDeath(victim, killer_id);
+    } else if (player_id == p.id.guid || !config_.Get<bool>("be_unconcious_before_dead")) {
+      auto max_health = character_definition_manager_->GetCharacterDefinition(victim.char_class).abilities[HP];
+      if (victim.health > max_health) {
+        victim.health = max_health;
+      }
     }
   }
 }
@@ -688,6 +734,8 @@ void GameServer::HandleWhisp(Packet p) {
   auto& recipient = recipient_opt.value().get();
   packet.sender = p.id.guid;
 
+  EventManager::Instance().TriggerEvent(kEventOnPlayerWhisperName, OnPlayerWhisperEvent{p.id.guid, recipient.id.guid, packet.message});
+
   SerializeAndSend(packet, LOW_PRIORITY, RELIABLE_ORDERED, p.id);
   SerializeAndSend(packet, LOW_PRIORITY, RELIABLE_ORDERED, recipient.id);
 
@@ -715,6 +763,9 @@ void GameServer::HandleCastSpell(Packet p, bool target) {
       return;
     }
   }
+
+  EventManager::Instance().TriggerEvent(kEventOnPlayerCastSpellName, OnPlayerCastSpellEvent{p.id.guid, packet.spell_id, packet.target_id});
+
   for (const auto& [id, existing_player] : players_) {
     if (existing_player.is_ingame && existing_player.id.guid != p.id.guid) {
       SerializeAndSend(packet, HIGH_PRIORITY, RELIABLE, existing_player.id);
@@ -731,6 +782,8 @@ void GameServer::HandleDropItem(Packet p) {
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
   packet.player_id = p.id.guid;
+
+  EventManager::Instance().TriggerEvent(kEventOnPlayerDropItemName, OnPlayerDropItemEvent{p.id.guid, packet.item_instance, packet.item_amount});
 
   for (const auto& [id, existing_player] : players_) {
     if (existing_player.is_ingame && existing_player.id.guid != p.id.guid) {
@@ -752,6 +805,8 @@ void GameServer::HandleTakeItem(Packet p) {
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
   packet.player_id = p.id.guid;
+
+  EventManager::Instance().TriggerEvent(kEventOnPlayerTakeItemName, OnPlayerTakeItemEvent{p.id.guid, packet.item_instance});
 
   for (const auto& [id, existing_player] : players_) {
     if (existing_player.is_ingame && existing_player.id.guid != p.id.guid) {

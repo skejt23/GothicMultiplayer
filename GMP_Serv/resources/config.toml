@@ -9,5 +9,5 @@ allow_modification = true
 message_of_the_day = "Welcome to my server!"
 log_to_stdout = true
 log_level = "trace"
-scripts = ["main.lua"]
+scripts = ["main.lua", "events.lua"]
 character_definitions_file = "class.json"

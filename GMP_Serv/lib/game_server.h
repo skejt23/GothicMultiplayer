@@ -103,6 +103,8 @@ private:
   void SomeoneJoinGame(Packet p);
   void HandlePlayerUpdate(Packet p);
   void MakeHPDiff(Packet p);
+  void HandlePlayerDisconnect(Net::PlayerId id);
+  void HandlePlayerDeath(sPlayer& victim, std::optional<std::uint64_t> killer_id);
   void HandleNormalMsg(Packet p);
   void HandleWhisp(Packet p);
   void HandleRMConsole(Packet p);
