@@ -61,6 +61,10 @@ void RegisterProxies() {
     OnPlayerMessageEvent player_message_event = std::any_cast<OnPlayerMessageEvent>(args.event);
     args.callback(player_message_event.pid, player_message_event.text);
   }};
+  kLuaEventProxies[kEventOnPlayerCommandName] = {[](LuaProxyArgs args) {
+    OnPlayerCommandEvent player_command_event = std::any_cast<OnPlayerCommandEvent>(args.event);
+    args.callback(player_command_event.pid, player_command_event.command);
+  }};
   kLuaEventProxies[kEventOnPlayerWhisperName] = {[](LuaProxyArgs args) {
     OnPlayerWhisperEvent player_whisper_event = std::any_cast<OnPlayerWhisperEvent>(args.event);
     args.callback(player_whisper_event.from_id, player_whisper_event.to_id, player_whisper_event.text);

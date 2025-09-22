@@ -35,6 +35,7 @@ inline const std::string kEventOnClockUpdateName = "onClockUpdate";
 inline const std::string kEventOnPlayerConnectName = "onPlayerConnect";
 inline const std::string kEventOnPlayerDisconnectName = "onPlayerDisconnect";
 inline const std::string kEventOnPlayerMessageName = "onPlayerMessage";
+inline const std::string kEventOnPlayerCommandName = "onPlayerCommand";
 inline const std::string kEventOnPlayerWhisperName = "onPlayerWhisper";
 inline const std::string kEventOnPlayerChangeClassName = "onPlayerChangeClass";
 inline const std::string kEventOnPlayerKillName = "onPlayerKill";
@@ -55,6 +56,11 @@ struct OnClockUpdateEvent {
 struct OnPlayerMessageEvent {
   std::uint64_t pid;
   std::string text;
+};
+
+struct OnPlayerCommandEvent {
+  std::uint64_t pid;
+  std::string command;
 };
 
 struct OnPlayerWhisperEvent {

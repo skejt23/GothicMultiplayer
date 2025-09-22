@@ -26,6 +26,10 @@ addEventHandler('onPlayerMessage', function(id, text)
     LOG_INFO("{} says: {}", id, text)
 end)
 
+addEventHandler('onPlayerCommand', function(id, command)
+    LOG_INFO("Command from {}: /{}", id, command)
+end)
+
 addEventHandler('onPlayerWhisper', function(fromId, toId, text)
     LOG_INFO("{} whispers to {}: {}", fromId, toId, text)
 end)

@@ -595,8 +595,6 @@ void GameServer::HandlePlayerUpdate(Packet p) {
   auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
 
   updated_player.state = packet.state;
-
-  // Lua event on player update?
 }
 
 void GameServer::MakeHPDiff(Packet p) {
@@ -701,6 +699,15 @@ void GameServer::HandleNormalMsg(Packet p) {
   MessagePacket packet;
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
+
+  if (!packet.message.empty() && packet.message.front() == '/') {
+    auto command = packet.message.substr(1);
+    if (!command.empty()) {
+      SPDLOG_INFO("{} issued command: {}", player_opt->get().name, command);
+      EventManager::Instance().TriggerEvent(kEventOnPlayerCommandName, OnPlayerCommandEvent{p.id.guid, std::move(command)});
+    }
+    return;
+  }
 
   EventManager::Instance().TriggerEvent(kEventOnPlayerMessageName, OnPlayerMessageEvent{p.id.guid, packet.message});
 
