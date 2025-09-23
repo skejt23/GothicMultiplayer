@@ -38,6 +38,7 @@ SOFTWARE.
 #include <fstream>
 
 #include <nlohmann/json.hpp>
+#include "localization_utils.h"
 
 #include "CLanguage.h"
 #include "CSyncFuncs.h"
@@ -251,8 +252,13 @@ void CMainMenu::LoadLangNames(void) {
     try {
       nlohmann::json jsonData;
       langFile >> jsonData;
-      auto langName = jsonData.value("LANGUAGE", lang);
-      vec_choose_lang.push_back(zSTRING(langName.c_str()));
+      auto rawLanguageName = jsonData.value("LANGUAGE", std::string{});
+      if (rawLanguageName.empty()) {
+        rawLanguageName = lang;
+      }
+      const auto encoding = localization::DetectLanguageEncoding(rawLanguageName, langPath);
+      const auto localizedName = localization::ConvertFromUtf8(rawLanguageName, encoding);
+      vec_choose_lang.push_back(zSTRING(localizedName.c_str()));
     } catch (const std::exception& ex) {
       SPDLOG_ERROR("Failed to parse language file {}: {}", langPath, ex.what());
       vec_choose_lang.push_back(zSTRING(lang.c_str()));

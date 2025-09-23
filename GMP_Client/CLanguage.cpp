@@ -33,6 +33,8 @@ SOFTWARE.
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
+#include "localization_utils.h"
+
 using namespace Gothic_II_Addon;
 
 namespace {
@@ -81,6 +83,9 @@ CLanguage::CLanguage(const char* file) {
     return;
   }
 
+  const std::string language_field = json_data.value("LANGUAGE", std::string{});
+  const auto encoding = localization::DetectLanguageEncoding(language_field, file);
+
   data.resize(kStringCount);
   for (std::size_t i = 0; i < kStringKeys.size(); ++i) {
     const auto key = kStringKeys[i];
@@ -93,6 +98,7 @@ CLanguage::CLanguage(const char* file) {
     } catch (const std::exception& ex) {
       SPDLOG_WARN("Language key '{}' in file {} has incompatible type: {}", key, file, ex.what());
     }
+    value = localization::ConvertFromUtf8(value, encoding);
     data[i] = value.c_str();
   }
 }
