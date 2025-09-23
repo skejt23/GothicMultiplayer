@@ -1,0 +1,100 @@
+{
+  "animations": [
+    {
+      "name": "Sit",
+      "loop": "S_SIT",
+      "start": "T_STAND_2_SIT",
+      "end": "T_SIT_2_STAND"
+    },
+    {
+      "name": "Piss",
+      "loop": "S_PEE",
+      "start": "T_STAND_2_PEE",
+      "end": "T_PEE_2_STAND"
+    },
+    {
+      "name": "Guard",
+      "loop": "S_HGUARD",
+      "start": "T_STAND_2_HGUARD",
+      "end": "T_HGUARD_2_STAND"
+    },
+    {
+      "name": "Wash",
+      "loop": "S_WASH",
+      "start": "T_STAND_2_WASH",
+      "end": "T_WASH_2_STAND"
+    },
+    {
+      "name": "Pray",
+      "loop": "S_PRAY",
+      "start": "T_STAND_2_PRAY",
+      "end": "T_PRAY_2_STAND"
+    },
+    {
+      "name": "Magic",
+      "loop": "T_PRACTICEMAGIC3"
+    },
+    {
+      "name": "Magic2",
+      "loop": "T_PRACTICEMAGIC4"
+    },
+    {
+      "name": "Magic3",
+      "loop": "T_PRACTICEMAGIC2"
+    },
+    {
+      "name": "Dance",
+      "loop": "T_DANCE_05"
+    },
+    {
+      "name": "WatchFight",
+      "loop": "S_WATCHFIGHT",
+      "start": "T_STAND_2_WATCHFIGHT",
+      "end": "T_WATCHFIGHT_2_STAND"
+    },
+    {
+      "name": "Cello",
+      "loop": "S_CELLO_S0",
+      "start": "T_CELLO_STAND_2_S0",
+      "end": "T_CELLO_S0_2_STAND"
+    },
+    {
+      "name": "Drumscheit",
+      "loop": "S_DRUMSCHEIT_S0",
+      "start": "T_DRUMSCHEIT_STAND_2_S0",
+      "end": "T_DRUMSCHEIT_S0_2_STAND"
+    },
+    {
+      "name": "Dudel",
+      "loop": "S_DUDEL_S0",
+      "start": "T_DUDEL_STAND_2_S0",
+      "end": "T_DUDEL_S0_2_STAND"
+    },
+    {
+      "name": "Harfe",
+      "loop": "S_HARFE_S0",
+      "start": "T_HARFE_STAND_2_S0",
+      "end": "T_HARFE_S0_2_STAND"
+    },
+    {
+      "name": "Ielaute",
+      "loop": "S_IELAUTE_S0",
+      "start": "T_IELAUTE_STAND_2_S0",
+      "end": "T_IELAUTE_S0_2_STAND"
+    },
+    {
+      "name": "Drums",
+      "loop": "S_PAUKE_S0",
+      "start": "T_PAUKE_STAND_2_S0",
+      "end": "T_PAUKE_S0_2_STAND"
+    },
+    {
+      "name": "Plunder",
+      "loop": "T_PLUNDER"
+    },
+    {
+      "name": "Kick",
+      "loop": "T_BORINGKICK"
+    }
+  ]
+}
