@@ -27,22 +27,80 @@ SOFTWARE.
 
 #include "CLanguage.h"
 
+#include <array>
 #include <fstream>
+
+#include <nlohmann/json.hpp>
+#include <spdlog/spdlog.h>
+
+#include "localization_utils.h"
 
 using namespace Gothic_II_Addon;
 
+namespace {
+constexpr std::size_t kStringCount = static_cast<std::size_t>(CLanguage::SRVLIST_PLAYERNUMBER) + 1;
+
+const std::array<const char*, kStringCount> kStringKeys = {
+    "LANGUAGE",           "WRITE_NICKNAME",     "CHOOSE_APPERANCE",      "FACE_APPERANCE",
+    "HEAD_MODEL",         "SKIN_TEXTURE",       "CHOOSE_SERVER",         "WRITE_SERVER_ADDR",
+    "CHOOSE_SERVER_TIP",  "MANUAL_IP_TIP",      "MMENU_CHSERVER",        "MMENU_OPTIONS",
+    "MMENU_APPEARANCE",   "MMENU_LEAVEGAME",    "EMPTY_SERVER_LIST",     "APP_INFO1",
+    "ERR_CONN_NO_ERROR",  "ERR_CONN_FAIL",      "ERR_CONN_ALREADY_CONNECTED",
+    "ERR_CONN_SRV_FULL",  "ERR_CONN_BANNED",    "ERR_CONN_INCOMP_TECHNIC", "MMENU_ONLINEOPTIONS",
+    "MMENU_BACK",         "CLASS_NAME",         "TEAM_NAME",             "SELECT_CONTROLS",
+    "MMENU_LOGCHATYES",   "MMENU_LOGCHATNO",    "MMENU_WATCHON",         "MMENU_WATCHOFF",
+    "MMENU_SETWATCHPOS",  "CWATCH_REALTIME",    "CWATCH_GAMETIME",       "MMENU_NICKNAME",
+    "MMENU_ANTIALIASINGYES", "MMENU_ANTIAlIASINGNO", "MMENU_JOYSTICKYES",  "MMENU_JOYSTICKNO",
+    "MMENU_POTIONKEYSYES",   "MMENU_POTIONKEYSNO",    "MMENU_CHATLINES",     "INGAMEM_HELP",
+    "INGAMEM_BACKTOGAME",    "HCONTROLS",            "HCHAT",                "HCHATMAIN",
+    "HCHATWHISPER",          "CHAT_WHISPERTONOONE",  "CHAT_WHISPERTO",       "CHAT_CANTWHISPERTOYOURSELF",
+    "SOMEONEDISCONNECT_FROM_SERVER",                   "NOPLAYERS",            "EXITTOMAINMENU",
+    "SRV_IP",                "SRV_NAME",             "SRV_MAP",              "SRV_PLAYERS",
+    "DISCONNECTED",          "SOMEONE_JOIN_GAME",    "CHAT_PLAYER_DOES_NOT_EXIST",
+    "ANIMS_MENU",            "HPLAYERLIST",          "HMAP",                 "HANIMSMENU",
+    "SHOWHOW",               "WHISPERSTOYOU",        "PRESSFORWHISPER",      "CHAT_WRONGWINDOW",
+    "DEATHMATCH",            "TEAM_DEATHMATCH",      "WALK_STYLE",           "UNMUTE_TIME",
+    "PLIST_PM",              "KILLEDSOMEONE_MSG",    "WB_NEWMAP",            "WB_LOADMAP",
+    "WB_SAVEMAP",            "KILL_PLAYER",          "GOTO_PLAYER",          "ITEM_TOOFAR",
+    "KEYBOARD_POLISH",       "KEYBOARD_GERMAN",      "KEYBOARD_RUSSIAN",     "INTRO_YES",
+    "INTRO_NO",              "MERRY_CHRISTMAS",      "NEW_NEWS",             "INV_HOWMUCH",
+    "CLASS_DESCRIPTION",     "START_OBSERVATION",    "END_OBSERVATION",      "SRVLIST_ALL",
+    "SRVLIST_FAVOURITES",    "SRVLIST_NAME",         "SRVLIST_MAP",          "SRVLIST_PLAYERNUMBER"};
+}  // namespace
+
 CLanguage::CLanguage(const char* file) {
-  char buffer[256];
   std::ifstream ifs(file);
   if (!ifs.good()) {
     MessageBoxA(NULL, file, "Can not open file!", MB_ICONERROR);
     return;
   }
-  do {
-    ifs.getline(buffer, 256);
-    data.push_back(zSTRING(buffer));
-    memset(buffer, 0, 256);
-  } while (!ifs.eof());
+  nlohmann::json json_data;
+  try {
+    ifs >> json_data;
+  } catch (const std::exception& ex) {
+    SPDLOG_ERROR("Failed to parse language file {}: {}", file, ex.what());
+    MessageBoxA(NULL, file, "Invalid language file!", MB_ICONERROR);
+    return;
+  }
+
+  const std::string language_field = json_data.value("LANGUAGE", std::string{});
+  const auto encoding = localization::DetectLanguageEncoding(language_field, file);
+
+  data.resize(kStringCount);
+  for (std::size_t i = 0; i < kStringKeys.size(); ++i) {
+    const auto key = kStringKeys[i];
+    std::string value;
+    try {
+      if (!json_data.contains(key)) {
+        SPDLOG_WARN("Missing language key '{}' in file {}", key, file);
+      }
+      value = json_data.value(key, std::string{});
+    } catch (const std::exception& ex) {
+      SPDLOG_WARN("Language key '{}' in file {} has incompatible type: {}", key, file, ex.what());
+    }
+    value = localization::ConvertFromUtf8(value, encoding);
+    data[i] = value.c_str();
+  }
 }
 
 void CLanguage::RemovePolishCharactersFromWideString(std::wstring& txt) {

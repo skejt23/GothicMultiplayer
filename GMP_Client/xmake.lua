@@ -70,7 +70,7 @@ target("ClientMain")
     add_includedirs("gothic-patches")
     
     add_deps("common", "SharedLib", "zNetInterface", "Client.Voice", "SDL3", "InjectMage", "BugTrap", "gothic_api")    
-    add_packages("spdlog", "cpp-httplib", "dylib", "pugixml", "glm", "bitsery")
+    add_packages("spdlog", "cpp-httplib", "dylib", "pugixml", "glm", "bitsery", "nlohmann_json")
     add_syslinks("wsock32", "ws2_32", "Iphlpapi", "user32", "gdi32", "kernel32")
 
     add_linkdirs("DiscordGameSDK/lib")
