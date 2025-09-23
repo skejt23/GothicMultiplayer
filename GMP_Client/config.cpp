@@ -54,8 +54,7 @@ void Config::Load() {
     return;
   }
 
-  std::optional<std::map<std::string, std::int32_t>> window_position =
-      toml.GetValue<std::map<std::string, int>>("window_position");
+  std::optional<std::map<std::string, std::int32_t>> window_position = toml.GetValue<std::map<std::string, int>>("window_position");
   if (window_position) {
     std::int32_t x = 0;
     std::int32_t y = 0;
@@ -72,8 +71,7 @@ void Config::Load() {
     }
   }
 
-  std::optional<std::map<std::string, std::int32_t>> console_position =
-      toml.GetValue<std::map<std::string, int>>("console_position");
+  std::optional<std::map<std::string, std::int32_t>> console_position = toml.GetValue<std::map<std::string, int>>("console_position");
   if (console_position) {
     std::int32_t x = 0;
     std::int32_t y = 0;
@@ -89,6 +87,8 @@ void Config::Load() {
       console_position_ = ConsolePosition{x, y};
     }
   }
+
+  window_always_on_top_ = toml.GetValue<bool>("window_always_on_top", window_always_on_top_);
 }
 
 const std::optional<Config::WindowPosition>& Config::GetWindowPosition() const {
@@ -123,5 +123,6 @@ void Config::Save() const {
 
     toml["console_position"] = console_position_map;
   }
+  toml["window_always_on_top"] = toml::value(window_always_on_top_);
   toml.Serialize(config_file_path_.string());
 }
