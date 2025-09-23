@@ -103,6 +103,8 @@ private:
   void SomeoneJoinGame(Packet p);
   void HandlePlayerUpdate(Packet p);
   void MakeHPDiff(Packet p);
+  void HandlePlayerDisconnect(Net::PlayerId id);
+  void HandlePlayerDeath(sPlayer& victim, std::optional<std::uint64_t> killer_id);
   void HandleNormalMsg(Packet p);
   void HandleWhisp(Packet p);
   void HandleRMConsole(Packet p);
@@ -118,6 +120,8 @@ private:
   std::unique_ptr<Script> script;
   time_t last_stand_timer;
   time_t regen_time;
+
+  void ProcessRespawns();
 
   unsigned char GetPacketIdentifier(const Packet& p);
   int serverPort;
