@@ -112,6 +112,8 @@ public:
   void CleanUpMainMenu();
   void PrintMenu();
   void PrintNews();
+  void ChangeLanguage(int direction);
+  void ApplyLanguage(int newLangIndex, bool persist = true);
   void SpeedUpTime();
   void LeaveOptionsMenu();
   void RunMenuItem();

@@ -51,4 +51,5 @@ private:
 public:
   CWatch();
   void PrintWatch();
+  void SetLanguage(CLanguage* lang);
 };

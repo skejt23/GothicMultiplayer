@@ -59,3 +59,7 @@ void CWatch::PrintWatch() {
   tmp = TimePrint;
   screen->Print(Con->WatchPosX, Con->WatchPosY + 600, tmp);
 };
+
+void CWatch::SetLanguage(CLanguage* lang) {
+  Langs = lang;
+}
