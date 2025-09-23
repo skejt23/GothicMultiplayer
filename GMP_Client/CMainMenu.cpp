@@ -37,6 +37,8 @@ SOFTWARE.
 
 #include <fstream>
 
+#include <nlohmann/json.hpp>
+
 #include "CLanguage.h"
 #include "CSyncFuncs.h"
 #include "CWatch.h"
@@ -225,17 +227,36 @@ void CMainMenu::LoadLangNames(void) {
 
   std::string line;
   while (std::getline(ifs, line)) {
-    vec_lang_files.push_back(std::move(line));
+    if (!line.empty() && line.back() == '\r') {
+      line.pop_back();
+    }
+    if (line.empty()) {
+      continue;
+    }
+    vec_lang_files.push_back(line);
   }
   if (vec_lang_files.size() >= 2 && !vec_lang_files.back().compare(vec_lang_files[vec_lang_files.size() - 2].c_str())) {
     vec_lang_files.pop_back();
   }
 
   for (const auto& lang : vec_lang_files) {
-    std::string langName;
-    std::ifstream langFile(LANG_DIR + lang, std::ifstream::in);
-    langFile >> langName;
-    vec_choose_lang.push_back(zSTRING(langName.c_str()));
+    const std::string langPath = std::string(LANG_DIR) + lang;
+    std::ifstream langFile(langPath, std::ifstream::in);
+    if (!langFile.is_open()) {
+      SPDLOG_ERROR("Couldn't open language file {}!", langPath);
+      vec_choose_lang.push_back(zSTRING(lang.c_str()));
+      continue;
+    }
+
+    try {
+      nlohmann::json jsonData;
+      langFile >> jsonData;
+      auto langName = jsonData.value("LANGUAGE", lang);
+      vec_choose_lang.push_back(zSTRING(langName.c_str()));
+    } catch (const std::exception& ex) {
+      SPDLOG_ERROR("Failed to parse language file {}: {}", langPath, ex.what());
+      vec_choose_lang.push_back(zSTRING(lang.c_str()));
+    }
   }
 };
 
