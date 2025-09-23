@@ -73,6 +73,7 @@ enum PacketID {
   PT_CASTSPELL,
   PT_CASTSPELLONTARGET,
   PT_VOICE,
+  PT_DISCORD_ACTIVITY,
 };
 
 inline const char* PacketIDToString(PacketID id) {
@@ -149,6 +150,8 @@ inline const char* PacketIDToString(PacketID id) {
       return "PT_CASTSPELLONTARGET";
     case PT_VOICE:
       return "PT_VOICE";
+    case PT_DISCORD_ACTIVITY:
+      return "PT_DISCORD_ACTIVITY";
   }
   return "UNKNOWN";
 }

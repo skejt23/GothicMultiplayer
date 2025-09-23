@@ -28,6 +28,14 @@ SOFTWARE.
 #include <memory>
 #include <string>
 
+#ifndef DISCORD_RICH_PRESENCE_ENABLED
+#define DISCORD_RICH_PRESENCE_ENABLED 0
+#endif
+
+#ifndef DISCORD_APPLICATION_ID
+#define DISCORD_APPLICATION_ID 0
+#endif
+
 namespace discord {
 class Core;
 struct Activity;
@@ -40,7 +48,9 @@ void Shutdown();
 
 void PumpCallbacks();
 
-void UpdateActivity(const std::string& state, const std::string& details, int64_t startTimestamp = 0, int64_t endTimestamp = 0);
+void UpdateActivity(const std::string& state, const std::string& details, int64_t startTimestamp = 0, int64_t endTimestamp = 0,
+                    const std::string& largeImageKey = "", const std::string& largeImageText = "", const std::string& smallImageKey = "",
+                    const std::string& smallImageText = "");
 
 void ClearActivity();
 }  // namespace DiscordGMP

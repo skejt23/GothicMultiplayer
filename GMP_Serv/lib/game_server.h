@@ -78,6 +78,15 @@ public:
     PlayerState state;
   };
 
+  struct DiscordActivityState {
+    std::string state;
+    std::string details;
+    std::string large_image_key;
+    std::string large_image_text;
+    std::string small_image_key;
+    std::string small_image_text;
+  };
+
 public:
   GameServer();
   ~GameServer() override;
@@ -92,6 +101,9 @@ public:
   void SendSpamMessage(void);
 
   std::optional<std::reference_wrapper<sPlayer>> GetPlayerById(std::uint64_t id);
+
+  void UpdateDiscordActivity(const DiscordActivityState& activity);
+  const DiscordActivityState& GetDiscordActivity() const;
 
 private:
   void DeleteFromPlayerList(Net::PlayerId guid);
@@ -114,6 +126,7 @@ private:
   void SendDeathInfo(uint64_t deadman);
   void SendRespawnInfo(uint64_t luckyguy);
   void SendGameInfo(Net::PlayerId guid);
+  void SendDiscordActivity(Net::PlayerId guid);
 
   std::vector<std::string> ban_list;
   std::unique_ptr<CharacterDefinitionManager> character_definition_manager_;
@@ -137,6 +150,8 @@ private:
   std::chrono::time_point<std::chrono::steady_clock> last_update_time_{};
   std::thread main_thread;
   std::atomic<bool> main_thread_running = false;
+  DiscordActivityState discord_activity_{};
+  bool discord_activity_initialized_{false};
 };
 
 inline GameServer* g_server = nullptr;

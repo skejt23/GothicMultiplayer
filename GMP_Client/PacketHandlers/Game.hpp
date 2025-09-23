@@ -34,6 +34,7 @@ SOFTWARE.
 #include <spdlog/spdlog.h>
 
 #include "../CChat.h"
+#include "../DiscordPresence.h"
 #include "../game_client.h"
 #include "packets.h"
 
@@ -708,5 +709,17 @@ void OnVoice(GameClient* client, Packet packet) {
   char* buffer = new char[size];
   memcpy(buffer, packet.data + 5, size);
   client->voicePlayback->PlayVoice(buffer, size);
+}
+
+void OnDiscordActivity(GameClient* /*client*/, Packet packet) {
+  DiscordActivityPacket activityPacket;
+  using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
+  auto state = bitsery::quickDeserialization<InputAdapter>({packet.data, packet.length}, activityPacket);
+  (void)state;
+
+  SPDLOG_DEBUG("DiscordActivityPacket: {}", activityPacket);
+
+  DiscordGMP::UpdateActivity(activityPacket.state, activityPacket.details, 0, 0, activityPacket.large_image_key, activityPacket.large_image_text,
+                             activityPacket.small_image_key, activityPacket.small_image_text);
 }
 }  // namespace Game

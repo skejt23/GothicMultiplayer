@@ -94,6 +94,18 @@ void SerializeAndSend(const Packet& packet, Net::PacketPriority priority, Net::P
   g_net_server->Send(buffer.data(), written_size, priority, reliable, channel, id);
 }
 
+DiscordActivityPacket MakeDiscordActivityPacket(const GameServer::DiscordActivityState& activity) {
+  DiscordActivityPacket packet;
+  packet.packet_type = PT_DISCORD_ACTIVITY;
+  packet.state = activity.state;
+  packet.details = activity.details;
+  packet.large_image_key = activity.large_image_key;
+  packet.large_image_text = activity.large_image_text;
+  packet.small_image_key = activity.small_image_key;
+  packet.small_image_text = activity.small_image_text;
+  return packet;
+}
+
 void LoadNetworkLibrary() {
   try {
     static dylib lib("znet_server");
@@ -607,6 +619,8 @@ void GameServer::SomeoneJoinGame(Packet p) {
 
   player.is_ingame = 1;
 
+  SendDiscordActivity(player.id);
+
   // spawn
   if (was_dead) {
     EventManager::Instance().TriggerEvent(kEventOnPlayerRespawnName, OnPlayerRespawnEvent{p.id.guid, player.char_class, player.state.position});
@@ -917,6 +931,34 @@ void GameServer::SendGameInfo(Net::PlayerId who) {
 
   SerializeAndSend(packet, MEDIUM_PRIORITY, RELIABLE, who, 9);
 }
+
+void GameServer::UpdateDiscordActivity(const DiscordActivityState& activity) {
+  discord_activity_ = activity;
+  discord_activity_initialized_ = true;
+
+  SPDLOG_INFO("Discord activity updated: state='{}', details='{}'", discord_activity_.state, discord_activity_.details);
+
+  auto packet = MakeDiscordActivityPacket(discord_activity_);
+  for (const auto& [id, existing_player] : players_) {
+    if (existing_player.is_ingame) {
+      SerializeAndSend(packet, LOW_PRIORITY, RELIABLE, existing_player.id);
+    }
+  }
+}
+
+const GameServer::DiscordActivityState& GameServer::GetDiscordActivity() const {
+  return discord_activity_;
+}
+
+void GameServer::SendDiscordActivity(Net::PlayerId guid) {
+  if (!discord_activity_initialized_) {
+    return;
+  }
+
+  auto packet = MakeDiscordActivityPacket(discord_activity_);
+  SerializeAndSend(packet, LOW_PRIORITY, RELIABLE, guid);
+}
+
 
 void GameServer::HandleMapNameReq(Packet p) {
 }

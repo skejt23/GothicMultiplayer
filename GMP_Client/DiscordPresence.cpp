@@ -24,12 +24,14 @@ SOFTWARE.
 */
 #include "DiscordPresence.h"
 
+#if DISCORD_RICH_PRESENCE_ENABLED
+
 #include <spdlog/spdlog.h>
 
 #include <memory>
 #include <mutex>
 
-#include "DiscordGameSDK/src/discord.h"
+#include "discord.h"
 
 namespace {
 std::unique_ptr<discord::Core> g_core;
@@ -77,7 +79,9 @@ void PumpCallbacks() {
   RunCallbacksLocked();
 }
 
-void UpdateActivity(const std::string& state, const std::string& details, int64_t startTimestamp, int64_t endTimestamp) {
+void UpdateActivity(const std::string& state, const std::string& details, int64_t startTimestamp, int64_t endTimestamp,
+                    const std::string& largeImageKey, const std::string& largeImageText, const std::string& smallImageKey,
+                    const std::string& smallImageText) {
   std::lock_guard<std::mutex> lock(g_coreMutex);
   if (!g_core) {
     spdlog::warn("Discord Rich Presence update requested before initialization");
@@ -95,6 +99,12 @@ void UpdateActivity(const std::string& state, const std::string& details, int64_
   if (endTimestamp != 0) {
     timestamps.SetEnd(endTimestamp);
   }
+
+  auto& assets = activity.GetAssets();
+  assets.SetLargeImage(largeImageKey.c_str());
+  assets.SetLargeText(largeImageText.c_str());
+  assets.SetSmallImage(smallImageKey.c_str());
+  assets.SetSmallText(smallImageText.c_str());
 
   g_core->ActivityManager().UpdateActivity(activity, [](discord::Result result) {
     if (result != discord::Result::Ok) {
@@ -120,3 +130,27 @@ void ClearActivity() {
   RunCallbacksLocked();
 }
 }  // namespace DiscordGMP
+
+#else  // DISCORD_RICH_PRESENCE_ENABLED
+
+namespace DiscordGMP {
+bool Initialize(long long) {
+  return false;
+}
+
+void Shutdown() {
+}
+
+void PumpCallbacks() {
+}
+
+void UpdateActivity(const std::string&, const std::string&, int64_t, int64_t,
+                    const std::string&, const std::string&, const std::string&,
+                    const std::string&){
+}
+
+void ClearActivity() {
+}
+}  // namespace DiscordGMP
+
+#endif  // DISCORD_RICH_PRESENCE_ENABLED

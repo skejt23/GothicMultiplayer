@@ -34,6 +34,12 @@ add_configfiles("version.h.in")
 add_moduledirs("xmake/modules")
 set_prefixdir("/", { bindir = "." })
 
+option("discord_app_id")
+    set_showmenu(true)
+    set_description("Discord application id used for rich presence")
+    set_default("")
+option_end()
+
 add_rules("mode.debug", "mode.release", "mode.releasedbg")
 
 add_requires("spdlog 1.15.1", {configs = {fmt_external = true}})
@@ -54,5 +60,6 @@ add_requires("fmt 11.0.2",
 includes("common", "Shared", "GMP_Serv", "thirdparty", "tests")
 
 if is_plat("windows") then
+    add_requires("discord")
     includes("GMP_Client", "InjectMage")
 end

@@ -62,25 +62,31 @@ target("ClientMain")
               "WorldBuilder/CBuilder.cpp",
               "WorldBuilder/load.cpp",
               "WorldBuilder/save.cpp")
-
-    add_files("DiscordGameSDK/src/*.cpp")
-    add_includedirs("DiscordGameSDK/src")
     
     add_files("gothic-patches/*.cpp")
     add_includedirs("gothic-patches")
     
-    add_deps("common", "SharedLib", "zNetInterface", "Client.Voice", "SDL3", "InjectMage", "BugTrap", "gothic_api")    
-    add_packages("spdlog", "cpp-httplib", "dylib", "pugixml", "glm", "bitsery", "nlohmann_json")
+    add_deps("common", "SharedLib", "zNetInterface", "Client.Voice", "SDL3", "InjectMage", "BugTrap", "gothic_api")
+    add_packages("spdlog", "fmt", "cpp-httplib", "dylib", "pugixml", "glm", "bitsery", "nlohmann_json")
     add_syslinks("wsock32", "ws2_32", "Iphlpapi", "user32", "gdi32", "kernel32")
 
-    add_linkdirs("DiscordGameSDK/lib")
-    add_links("discord_game_sdk")
-    
     add_defines("SPDLOG_FMT_EXTERNAL")
     add_defines("DIRECTINPUT_VERSION=0x0800")
     add_defines("_WIN32_WINNT=0x0601", "WINVER=0x0601")
     add_defines("SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE")
     
+    local discord_app_id = get_config("discord_app_id")
+    if discord_app_id and #discord_app_id > 0 then
+        if not discord_app_id:match("^%d+$") then
+            raise("discord_app_id must contain only digits")
+        end
+        add_packages("discord")
+        add_defines("DISCORD_RICH_PRESENCE_ENABLED=1")
+        add_defines(string.format("DISCORD_APPLICATION_ID=%sLL", discord_app_id))
+    else
+        add_defines("DISCORD_RICH_PRESENCE_ENABLED=0")
+    end
+
     -- Resource file handling (Windows specific)
     if is_plat("windows") then
         add_files("resource.rc")
@@ -103,23 +109,43 @@ target("ClientMain")
         os.cp(path.join(scriptdir, "resources/Multiplayer/*"), path.join(installdir, "Multiplayer"))
         print("Installed resources to " .. installdir)
 
-        local dllSource = path.join(scriptdir, "DiscordGameSDK/lib/discord_game_sdk.dll")
-        if os.isfile(dllSource) then
-            local systemLower = path.join(installdir, "system")
-            local systemUpper = path.join(installdir, "System")
-            local systemDir = nil
-
-            if os.isdir(systemLower) then
-                systemDir = systemLower
-            elseif os.isdir(systemUpper) then
-                systemDir = systemUpper
-            else
-                systemDir = systemLower
-                os.mkdir(systemDir)
+        local discord_pkg = target:pkg("discord")
+        if discord_pkg then
+            local dllCandidates = {}
+            local pkgdir = discord_pkg:installdir()
+            if pkgdir then
+                dllCandidates = os.files(path.join(pkgdir, "**/discord_game_sdk.dll")) or {}
             end
+            if #dllCandidates == 0 then
+                local fetchinfo = discord_pkg:fetch()
+                if fetchinfo then
+                    local libfiles = fetchinfo.libfiles or {}
+                    for _, libfile in ipairs(libfiles) do
+                        if libfile:lower():match("discord_game_sdk%.dll$") then
+                            table.insert(dllCandidates, libfile)
+                            break
+                        end
+                    end
+                end
+            end
+        if #dllCandidates > 0 then
+                local dllSource = dllCandidates[1]
+                local systemLower = path.join(installdir, "system")
+                local systemUpper = path.join(installdir, "System")
+                local systemDir = nil
 
-            os.cp(dllSource, systemDir)
-            print("Installed discord_game_sdk.dll to " .. systemDir)
+                if os.isdir(systemLower) then
+                    systemDir = systemLower
+                elseif os.isdir(systemUpper) then
+                    systemDir = systemUpper
+                else
+                    systemDir = systemLower
+                    os.mkdir(systemDir)
+                end
+
+                os.cp(dllSource, systemDir)
+                print("Installed discord_game_sdk.dll to " .. systemDir)
+            end
         end
     end)
 
