@@ -34,11 +34,41 @@ SOFTWARE.
 
 #include "CChat.h"
 
+#include <algorithm>
 #include <spdlog/spdlog.h>
 
 #include "CLanguage.h"
 
 using namespace Gothic_II_Addon;
+namespace {
+constexpr auto CHAT_FADE_DURATION = std::chrono::milliseconds(400);
+
+void UpdateMessageAlpha(MsgStruct& message, const std::chrono::steady_clock::time_point& now) {
+  const unsigned char target_alpha = message.MsgColor.alpha;
+  if (!message.IsFadingIn) {
+    message.CurrentAlpha = target_alpha;
+    return;
+  }
+
+  if (target_alpha == 0) {
+    message.CurrentAlpha = 0;
+    message.IsFadingIn = false;
+    return;
+  }
+
+  const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - message.FadeStart);
+  if (elapsed.count() >= CHAT_FADE_DURATION.count()) {
+    message.CurrentAlpha = target_alpha;
+    message.IsFadingIn = false;
+    return;
+  }
+
+  const float progress = static_cast<float>(elapsed.count()) / static_cast<float>(CHAT_FADE_DURATION.count());
+  const float alpha_value = std::min(progress, 1.0f) * static_cast<float>(target_alpha);
+  message.CurrentAlpha = static_cast<unsigned char>(alpha_value);
+}
+}  // namespace
+
 
 extern zCOLOR Normal;
 extern CLanguage* Lang;
@@ -84,6 +114,9 @@ void CChat::WriteMessage(MsgType type, bool PrintTimed, const zCOLOR& rgb, const
   MsgStruct msg;
   msg.Message = text;
   msg.MsgColor = rgb;
+  msg.FadeStart = std::chrono::steady_clock::now();
+  msg.CurrentAlpha = 0;
+  msg.IsFadingIn = true;
   switch (type) {
     case NORMAL:
       if (PrintTimed) {
@@ -131,6 +164,9 @@ void CChat::WriteMessage(MsgType type, bool PrintTimed, const char* format, ...)
   MsgStruct msg;
   msg.Message = text;
   msg.MsgColor = Normal;
+  msg.FadeStart = std::chrono::steady_clock::now();
+  msg.CurrentAlpha = 0;
+  msg.IsFadingIn = true;
   switch (type) {
     case NORMAL:
       if (PrintTimed) {
@@ -177,6 +213,7 @@ void CChat::ClearChat() {
 
 void CChat::PrintChat() {
   screen->SetFont("FONT_DEFAULT.TGA");
+  const auto now = std::chrono::steady_clock::now();
   if (zinput->KeyToggled(KEY_F5) && PrintMsgType != NORMAL)
     PrintMsgType = NORMAL;
   if (zinput->KeyToggled(KEY_F6) && PrintMsgType != WHISPER)
@@ -187,30 +224,39 @@ void CChat::PrintChat() {
     case NORMAL:
       if (ChatMessages.size() > CConfig::GetInstance()->ChatLines)
         ChatMessages.erase(ChatMessages.begin());
-      if ((int)ChatMessages.size() > 0)
-        for (int v = 0; v < (int)ChatMessages.size(); v++) {
-          screen->SetFontColor(ChatMessages[v].MsgColor);
-          screen->Print(0, v * 200, ChatMessages[v].Message);
+      if (!ChatMessages.empty())
+        for (size_t v = 0; v < ChatMessages.size(); v++) {
+          UpdateMessageAlpha(ChatMessages[v], now);
+          zCOLOR color = ChatMessages[v].MsgColor;
+          color.alpha = ChatMessages[v].CurrentAlpha;
+          screen->SetFontColor(color);
+          screen->Print(0, static_cast<int>(v) * 200, ChatMessages[v].Message);
           screen->SetFontColor(Normal);
         }
       break;
     case WHISPER:
       if (WhisperMessages.size() > CConfig::GetInstance()->ChatLines + 1)
         WhisperMessages.erase(WhisperMessages.begin() + 1);
-      if ((int)WhisperMessages.size() > 0)
-        for (int v = 0; v < (int)WhisperMessages.size(); v++) {
-          screen->SetFontColor(WhisperMessages[v].MsgColor);
-          screen->Print(0, v * 200, WhisperMessages[v].Message);
+      if (!WhisperMessages.empty())
+        for (size_t v = 0; v < WhisperMessages.size(); v++) {
+          UpdateMessageAlpha(WhisperMessages[v], now);
+          zCOLOR color = WhisperMessages[v].MsgColor;
+          color.alpha = WhisperMessages[v].CurrentAlpha;
+          screen->SetFontColor(color);
+          screen->Print(0, static_cast<int>(v) * 200, WhisperMessages[v].Message);
           screen->SetFontColor(Normal);
         }
       break;
     case ADMIN:
       if (AdminMessages.size() > CConfig::GetInstance()->ChatLines)
         AdminMessages.erase(AdminMessages.begin());
-      if ((int)AdminMessages.size() > 0)
-        for (int v = 0; v < (int)AdminMessages.size(); v++) {
-          screen->SetFontColor(AdminMessages[v].MsgColor);
-          screen->Print(0, v * 200, AdminMessages[v].Message);
+      if (!AdminMessages.empty())
+        for (size_t v = 0; v < AdminMessages.size(); v++) {
+          UpdateMessageAlpha(AdminMessages[v], now);
+          zCOLOR color = AdminMessages[v].MsgColor;
+          color.alpha = AdminMessages[v].CurrentAlpha;
+          screen->SetFontColor(color);
+          screen->Print(0, static_cast<int>(v) * 200, AdminMessages[v].Message);
           screen->SetFontColor(Normal);
         }
       break;
