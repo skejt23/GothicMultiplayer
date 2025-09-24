@@ -25,6 +25,10 @@ SOFTWARE.
 
 #pragma once
 
+#include <cstdint>
+#include <filesystem>
+#include <optional>
+
 #include "ZenGin/zGothicAPI.h"
 #include "singleton.h"
 
@@ -35,13 +39,16 @@ SOFTWARE.
 #define LAYOUT_RUSSIAN 0x00000419
 
 class CConfig : public TSingleton<CConfig> {
-private:
-  bool d;
-  void LoadConfigFromFile();
-  zCOptionSection* MultiSection;
-
 public:
+  struct WindowPosition {
+    std::int32_t x;
+    std::int32_t y;
+  };
+
+  using ConsolePosition = WindowPosition;
+
   bool IsDefault();
+
   zSTRING Nickname;
   int skintexture;
   int facetexture;
@@ -62,5 +69,20 @@ public:
   CConfig();
   ~CConfig();
   void DefaultSettings();
-  void SaveConfigToFile();
+  void SaveConfigToFile(bool sync_engine_settings = true);
+
+  const std::optional<WindowPosition>& GetWindowPosition() const;
+  void SetWindowPosition(WindowPosition window_position);
+
+  const std::optional<ConsolePosition>& GetConsolePosition() const;
+  void SetConsolePosition(ConsolePosition console_position);
+
+private:
+  void LoadConfigFromFile();
+  void ApplyEngineSettings() const;
+
+  bool d;
+  std::filesystem::path config_file_path_;
+  std::optional<WindowPosition> window_position_;
+  std::optional<ConsolePosition> console_position_;
 };

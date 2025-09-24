@@ -28,8 +28,9 @@ SOFTWARE.
 
 #include <memory>
 #include <mutex>
+#include <exception>
 
-#include "config.h"
+#include "CConfig.h"
 
 namespace {
 static std::unique_ptr<ExternalConsoleWindow> g_instance;
@@ -39,8 +40,9 @@ void SaveConsoleConfigOnExit() {
   try {
     RECT rc{};
     if (::GetWindowRect(hwnd, &rc)) {
-      Config::Instance().SetConsolePosition({rc.left, rc.top});
-      Config::Instance().Save();
+      auto *user_config = CConfig::GetInstance();
+      user_config->SetConsolePosition({rc.left, rc.top});
+      user_config->SaveConfigToFile();
     }
 
   } catch (const std::exception &ex) {
@@ -57,7 +59,7 @@ ExternalConsoleWindow::ExternalConsoleWindow() {
   if (EnsureConsoleAvailable()) {
     RedirectStdStreamsToConsole();
 
-    if (auto &opt_pos = Config::Instance().GetConsolePosition(); opt_pos) {
+    if (auto &opt_pos = CConfig::GetInstance()->GetConsolePosition(); opt_pos) {
       ::SetWindowPos(hwnd, nullptr, opt_pos->x, opt_pos->y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
     }
 

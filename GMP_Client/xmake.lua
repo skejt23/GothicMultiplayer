@@ -57,7 +57,6 @@ target("ClientMain")
               "external_console_window.cpp",
               "patch.cpp",
               "Table.cpp",
-              "config.cpp",
               "discord_presence.cpp",
               "WorldBuilder/CBuilder.cpp",
               "WorldBuilder/load.cpp",
