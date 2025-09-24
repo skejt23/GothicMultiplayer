@@ -30,7 +30,7 @@ SOFTWARE.
 #include <format>
 
 #include "CActiveAniID.h"
-#include "CConfig.h"
+#include "config.h"
 #include "CLocalPlayer.h"
 #include "CMainMenu.h"
 #include "CMenu.h"
@@ -327,9 +327,9 @@ void CIngame::HandleInput() {
     char key = GInput::GetCharacterFormKeyboard();
     screen->SetFontColor(Normal);
     if (chat_interface->PrintMsgType != WHISPER)
-      screen->Print(0, 200 * CConfig::GetInstance()->ChatLines, arrow);
+      screen->Print(0, 200 * Config::Instance().ChatLines, arrow);
     else
-      screen->Print(0, 200 * (CConfig::GetInstance()->ChatLines + 1), arrow);
+      screen->Print(0, 200 * (Config::Instance().ChatLines + 1), arrow);
     if (key == 0x0D) {
       if (chatbuffer.length() != 0) {
         switch (chat_interface->PrintMsgType) {
@@ -377,7 +377,7 @@ void CIngame::HandleInput() {
         chatbuffer.clear();
       }
       ClearAfterWrite();
-    } else if ((key >= 0x20) || ((key & 0x80) && (CConfig::GetInstance()->keyboardlayout == 1))) {
+    } else if ((key >= 0x20) || ((key & 0x80) && (Config::Instance().keyboardlayout == 1))) {
       if (chatbuffer.length() < 84)
         chatbuffer += (char)key;
     }
@@ -391,15 +391,15 @@ void CIngame::HandleInput() {
     } else
       ChatTmp = chatbuffer.c_str();
     if (chat_interface->PrintMsgType != WHISPER)
-      screen->Print(200, 200 * CConfig::GetInstance()->ChatLines, ChatTmp);
+      screen->Print(200, 200 * Config::Instance().ChatLines, ChatTmp);
     else
-      screen->Print(200, 200 * (CConfig::GetInstance()->ChatLines + 1), ChatTmp);
+      screen->Print(200, 200 * (Config::Instance().ChatLines + 1), ChatTmp);
   }
 }
 
 void CIngame::Draw() {
   this->chat_interface->PrintChat();
-  if (CConfig::GetInstance()->watch)
+  if (Config::Instance().watch)
     CWatch::GetInstance()->PrintWatch();
   /*if(client->IsConnected()){
                   char buffer[32];

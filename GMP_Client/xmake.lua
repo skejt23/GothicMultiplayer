@@ -22,7 +22,7 @@ target("ClientMain")
               "CActiveAniID.cpp",
               "CAnimMenu.cpp", 
               "CChat.cpp",
-              "CConfig.cpp",
+              "config.cpp",
               "game_client.cpp",
               "CHeroClass.cpp",
               "CIngame.cpp",
@@ -57,7 +57,6 @@ target("ClientMain")
               "external_console_window.cpp",
               "patch.cpp",
               "Table.cpp",
-              "config.cpp",
               "discord_presence.cpp",
               "WorldBuilder/CBuilder.cpp",
               "WorldBuilder/load.cpp",
@@ -126,23 +125,23 @@ target("ClientMain")
                 end
             end
         if #dllCandidates > 0 then
-                local dllSource = dllCandidates[1]
-                local systemLower = path.join(installdir, "system")
-                local systemUpper = path.join(installdir, "System")
-                local systemDir = nil
+           local dllSource = dllCandidates[1]
+           local systemLower = path.join(installdir, "system")
+           local systemUpper = path.join(installdir, "System")
+           local systemDir = nil
 
-                if os.isdir(systemLower) then
-                    systemDir = systemLower
-                elseif os.isdir(systemUpper) then
-                    systemDir = systemUpper
-                else
-                    systemDir = systemLower
-                    os.mkdir(systemDir)
-                end
+           if os.isdir(systemLower) then
+              systemDir = systemLower
+           elseif os.isdir(systemUpper) then
+              systemDir = systemUpper
+           else
+              systemDir = systemLower
+              os.mkdir(systemDir)
+           end
 
-                os.cp(dllSource, systemDir)
-                print("Installed discord_game_sdk.dll to " .. systemDir)
-            end
+           os.cp(dllSource, systemDir)
+           print("Installed discord_game_sdk.dll to " .. systemDir)
+        end
         end
     end)
 

@@ -36,18 +36,18 @@ SOFTWARE.
 #include <urlmon.h>
 
 #include <fstream>
-
 #include <nlohmann/json.hpp>
-#include "localization_utils.h"
 
 #include "CLanguage.h"
 #include "CSyncFuncs.h"
 #include "CWatch.h"
 #include "ExtendedServerList.h"
 #include "WorldBuilder\CBuilder.h"
+#include "config.h"
 #include "game_client.h"
 #include "interface.h"
 #include "keyboard.h"
+#include "localization_utils.h"
 #include "mod.h"
 #include "patch.h"
 #include "version.h"
@@ -55,7 +55,6 @@ SOFTWARE.
 using namespace Gothic_II_Addon;
 
 extern GameClient* client;
-extern CConfig* user_config;
 extern std::vector<zSTRING> vec_choose_lang;
 extern std::vector<std::string> vec_lang_files;
 extern const char* LANG_DIR;
@@ -278,17 +277,14 @@ void CMainMenu::LaunchMenuScene() {
 };
 
 void CMainMenu::LoadConfig() {
-  if (!user_config) {
-    user_config = CConfig::GetInstance();
-    LoadLangNames();
-    Language = user_config->lang;
-    if (!user_config->IsDefault()) {
-      headmodel_tmp = CPlayer::GetHeadModelNameFromByte(user_config->headmodel);
-      Walkstyle_tmp = CPlayer::GetWalkStyleFromByte(user_config->walkstyle);
-      string_tmp = "HUM_BODY_NAKED0";
-      player->SetAdditionalVisuals(string_tmp, user_config->skintexture, 0, headmodel_tmp, user_config->facetexture, 0, -1);
-      player->ApplyOverlay(Walkstyle_tmp);
-    }
+  LoadLangNames();
+  Language = Config::Instance().lang;
+  if (!Config::Instance().IsDefault()) {
+    headmodel_tmp = CPlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
+    Walkstyle_tmp = CPlayer::GetWalkStyleFromByte(Config::Instance().walkstyle);
+    string_tmp = "HUM_BODY_NAKED0";
+    player->SetAdditionalVisuals(string_tmp, Config::Instance().skintexture, 0, headmodel_tmp, Config::Instance().facetexture, 0, -1);
+    player->ApplyOverlay(Walkstyle_tmp);
   }
 };
 
@@ -316,7 +312,7 @@ void CMainMenu::CleanUpMainMenu() {
 
 void CMainMenu::PrintMenu() {
   if (!LangSetting) {
-    ApplyLanguage(user_config->lang, false);
+    ApplyLanguage(Config::Instance().lang, false);
   }
   switch (ps) {
     default:
@@ -353,42 +349,46 @@ void CMainMenu::PrintMenu() {
       screen->Print(200, 3200, (*LangSetting)[CLanguage::MMENU_NICKNAME]);
       screen->SetFontColor(Normal);
       if (ScreenResolution.x < 1024)
-        screen->Print(1800, 3200, user_config->Nickname);
+        screen->Print(1800, 3200, Config::Instance().Nickname);
       else
-        screen->Print(1500, 3200, user_config->Nickname);
+        screen->Print(1500, 3200, Config::Instance().Nickname);
       FColor = (OptionPos == 1) ? Highlighted : Normal;
       screen->SetFontColor(FColor);
-      screen->Print(200, 3600, (user_config->logchat) ? (*LangSetting)[CLanguage::MMENU_LOGCHATYES] : (*LangSetting)[CLanguage::MMENU_LOGCHATNO]);
+      screen->Print(200, 3600,
+                    (Config::Instance().logchat) ? (*LangSetting)[CLanguage::MMENU_LOGCHATYES] : (*LangSetting)[CLanguage::MMENU_LOGCHATNO]);
       FColor = (OptionPos == 2) ? Highlighted : Normal;
       screen->SetFontColor(FColor);
-      screen->Print(200, 4000, (user_config->watch) ? (*LangSetting)[CLanguage::MMENU_WATCHON] : (*LangSetting)[CLanguage::MMENU_WATCHOFF]);
+      screen->Print(200, 4000, (Config::Instance().watch) ? (*LangSetting)[CLanguage::MMENU_WATCHON] : (*LangSetting)[CLanguage::MMENU_WATCHOFF]);
       FColor = (OptionPos == 3) ? Highlighted : Normal;
       screen->SetFontColor(FColor);
       screen->Print(200, 4400, (*LangSetting)[CLanguage::MMENU_SETWATCHPOS]);
       FColor = (OptionPos == 4) ? Highlighted : Normal;
       screen->SetFontColor(FColor);
       screen->Print(200, 4800,
-                    (user_config->antialiasing) ? (*LangSetting)[CLanguage::MMENU_ANTIALIASINGYES] : (*LangSetting)[CLanguage::MMENU_ANTIAlIASINGNO]);
+                    (zoptions->ReadInt("ENGINE", "zVidEnableAntiAliasing", 0) == 1) ? (*LangSetting)[CLanguage::MMENU_ANTIALIASINGYES]
+                                                                                    : (*LangSetting)[CLanguage::MMENU_ANTIAlIASINGNO]);
       FColor = (OptionPos == 5) ? Highlighted : Normal;
       screen->SetFontColor(FColor);
-      screen->Print(200, 5200, (user_config->joystick) ? (*LangSetting)[CLanguage::MMENU_JOYSTICKYES] : (*LangSetting)[CLanguage::MMENU_JOYSTICKNO]);
+      screen->Print(200, 5200,
+                    (zoptions->ReadBool(zOPT_SEC_GAME, "joystick", 0) == 1) ? (*LangSetting)[CLanguage::MMENU_JOYSTICKYES]
+                                                                            : (*LangSetting)[CLanguage::MMENU_JOYSTICKNO]);
       FColor = (OptionPos == 6) ? Highlighted : Normal;
       screen->SetFontColor(FColor);
-      sprintf(tmpbuff, "%s %d", (*LangSetting)[CLanguage::MMENU_CHATLINES].ToChar(), user_config->ChatLines);
+      sprintf(tmpbuff, "%s %d", (*LangSetting)[CLanguage::MMENU_CHATLINES].ToChar(), Config::Instance().ChatLines);
       ChatLinesTMP = tmpbuff;
       screen->Print(200, 5600, ChatLinesTMP);
       FColor = (OptionPos == 7) ? Highlighted : Normal;
       screen->SetFontColor(FColor);
       int printx = 200;
       int printy = 6000;
-      switch (user_config->keyboardlayout) {
-        case CConfig::KEYBOARD_POLISH:
+      switch (Config::Instance().keyboardlayout) {
+        case Config::KEYBOARD_POLISH:
           screen->Print(printx, printy, (*LangSetting)[CLanguage::KEYBOARD_POLISH]);
           break;
-        case CConfig::KEYBOARD_GERMAN:
+        case Config::KEYBOARD_GERMAN:
           screen->Print(printx, printy, (*LangSetting)[CLanguage::KEYBOARD_GERMAN]);
           break;
-        case CConfig::KEYBOARD_CYRYLLIC:
+        case Config::KEYBOARD_CYRYLLIC:
           screen->Print(printx, printy, (*LangSetting)[CLanguage::KEYBOARD_RUSSIAN]);
           break;
       };
@@ -398,14 +398,16 @@ void CMainMenu::PrintMenu() {
         LoadLangNames();
       }
       zSTRING languageOptionText = "Language: ";
-      if (user_config->lang >= 0 && static_cast<size_t>(user_config->lang) < vec_choose_lang.size())
-        languageOptionText += vec_choose_lang[user_config->lang];
+      if (Config::Instance().lang >= 0 && static_cast<size_t>(Config::Instance().lang) < vec_choose_lang.size())
+        languageOptionText += vec_choose_lang[Config::Instance().lang];
       else
         languageOptionText += (*LangSetting)[CLanguage::LANGUAGE];
       screen->Print(200, 6400, languageOptionText);
       FColor = (OptionPos == 9) ? Highlighted : Normal;
       screen->SetFontColor(FColor);
-      screen->Print(200, 6800, (user_config->logovideos) ? (*LangSetting)[CLanguage::INTRO_YES] : (*LangSetting)[CLanguage::INTRO_NO]);
+      screen->Print(
+          200, 6800,
+          (zoptions->ReadBool(zOPT_SEC_GAME, "playLogoVideos", 1) == 1) ? (*LangSetting)[CLanguage::INTRO_YES] : (*LangSetting)[CLanguage::INTRO_NO]);
       FColor = (OptionPos == 10) ? Highlighted : Normal;
       screen->SetFontColor(FColor);
       screen->Print(200, 7200, (*LangSetting)[CLanguage::MMENU_BACK]);
@@ -425,7 +427,6 @@ void CMainMenu::PrintMenu() {
   }
 };
 
-
 void CMainMenu::ChangeLanguage(int direction) {
   if (vec_lang_files.empty() || vec_choose_lang.empty()) {
     LoadLangNames();
@@ -433,12 +434,12 @@ void CMainMenu::ChangeLanguage(int direction) {
   if (vec_lang_files.empty())
     return;
   int languageCount = static_cast<int>(vec_lang_files.size());
-  int newIndex = user_config->lang + direction;
+  int newIndex = Config::Instance().lang + direction;
   if (newIndex < 0)
     newIndex = languageCount - 1;
   if (newIndex >= languageCount)
     newIndex = 0;
-  if (newIndex == user_config->lang)
+  if (newIndex == Config::Instance().lang)
     return;
   ApplyLanguage(newIndex);
 }
@@ -473,9 +474,9 @@ void CMainMenu::ApplyLanguage(int newLangIndex, bool persist) {
   if (client)
     client->lang = LangSetting;
 
-  user_config->lang = newLangIndex;
+  Config::Instance().lang = newLangIndex;
   if (persist)
-    user_config->SaveConfigToFile();
+    Config::Instance().SaveConfigToFile();
 
   Language = newLangIndex;
 }
@@ -558,30 +559,34 @@ void CMainMenu::RunOptionsItem() {
       break;
     case 1:
       // LOGOWANIE CZATU
-      user_config->logchat = !user_config->logchat;
-      user_config->SaveConfigToFile();
+      Config::Instance().logchat = !Config::Instance().logchat;
+      Config::Instance().SaveConfigToFile();
       break;
     case 2:
       // WLACZENIE ZEGARA
-      user_config->watch = !user_config->watch;
-      user_config->SaveConfigToFile();
+      Config::Instance().watch = !Config::Instance().watch;
+      Config::Instance().SaveConfigToFile();
       break;
     case 3:
       // POZYCJA ZEGARA
-      user_config->watch = true;
+      Config::Instance().watch = true;
       screen->RemoveItem(GMPLogo);
       MState = MENU_SETWATCHPOS;
       break;
-    case 4:
-      // ANTYALIASING
-      user_config->antialiasing = !user_config->antialiasing;
-      user_config->SaveConfigToFile();
+    case 4: {
+      // ANTIALIASING
+      int current_value = zoptions->ReadInt("ENGINE", "zVidEnableAntiAliasing", 0);
+      zoptions->WriteInt("ENGINE", "zVidEnableAntiAliasing", (current_value == 0) ? 1 : 0);
+      gameMan->ApplySomeSettings();
       break;
-    case 5:
+    }
+    case 5: {
       // JOYSTICK
-      user_config->joystick = !user_config->joystick;
-      user_config->SaveConfigToFile();
+      int current_value = zoptions->ReadBool(zOPT_SEC_GAME, "enableJoystick", 0);
+      zoptions->WriteBool(zOPT_SEC_GAME, "enableJoystick", !current_value);
+      gameMan->ApplySomeSettings();
       break;
+    }
     case 6:
       // Chat Lines
       break;
@@ -591,11 +596,13 @@ void CMainMenu::RunOptionsItem() {
     case 8:
       // LANGUAGE
       break;
-    case 9:
+    case 9: {
       // INTROS
-      user_config->logovideos = !user_config->logovideos;
-      user_config->SaveConfigToFile();
+      int current_value = zoptions->ReadBool(zOPT_SEC_GAME, "playLogoVideos", 1);
+      zoptions->WriteBool(zOPT_SEC_GAME, "playLogoVideos", !current_value);
+      gameMan->ApplySomeSettings();
       break;
+    }
     case 10:
       // POWROT
       ps = MAIN_MENU;
@@ -639,7 +646,7 @@ void CMainMenu::RenderMenu() {
   static bool fast_localhost_join = false;
   switch (MState) {
     case CHOOSE_LANGUAGE:
-      if (user_config->IsDefault()) {
+      if (Config::Instance().IsDefault()) {
         string_tmp = "Choose your language:";
         screen->Print(200, 200, string_tmp);
         screen->Print(200, 350, vec_choose_lang[Language]);
@@ -657,17 +664,17 @@ void CMainMenu::RenderMenu() {
       }
       break;
     case CHOOSE_NICKNAME:
-      if (user_config->IsDefault() || user_config->Nickname.IsEmpty()) {
+      if (Config::Instance().IsDefault() || Config::Instance().Nickname.IsEmpty()) {
         screen->Print(200, 200, (*LangSetting)[CLanguage::WRITE_NICKNAME]);
         screen->Print(200 + static_cast<zINT>(static_cast<float>((*LangSetting)[CLanguage::WRITE_NICKNAME].Length() * 70) * fWRatio), 200,
-                      user_config->Nickname);
+                      Config::Instance().Nickname);
         x[0] = GInput::GetCharacterFormKeyboard();
-        if ((x[0] == 8) && (user_config->Nickname.Length() > 0))
-          user_config->Nickname.DeleteRight(1);
-        if ((x[0] >= 0x20) && (user_config->Nickname.Length() < 24))
-          user_config->Nickname += x;
-        if ((x[0] == 0x0D) && (!user_config->Nickname.IsEmpty())) {
-          user_config->SaveConfigToFile();
+        if ((x[0] == 8) && (Config::Instance().Nickname.Length() > 0))
+          Config::Instance().Nickname.DeleteRight(1);
+        if ((x[0] >= 0x20) && (Config::Instance().Nickname.Length() < 24))
+          Config::Instance().Nickname += x;
+        if ((x[0] == 0x0D) && (!Config::Instance().Nickname.IsEmpty())) {
+          Config::Instance().SaveConfigToFile();
           MState = MENU_LOOP;
         }
       } else {
@@ -691,8 +698,7 @@ void CMainMenu::RenderMenu() {
       static zSTRING HOWTOWB = "F1 - World Builder";
       screen->Print(100, 8192 - screen->FontY(), HOWTOWB);
       static zSTRING fast_localhost_join_text = "F5 - Fast join localhost server";
-      screen->Print(100 + screen->FontSize(HOWTOWB) + 50, 8192 - screen->FontY(),
-                    fast_localhost_join_text);
+      screen->Print(100 + screen->FontSize(HOWTOWB) + 50, 8192 - screen->FontY(), fast_localhost_join_text);
       if (TitleWeapon)
         TitleWeapon->RotateWorldX(0.6f);
       if (zinput->KeyToggled(KEY_F1)) {
@@ -825,11 +831,9 @@ void CMainMenu::RenderMenu() {
         AppWeapon->RotateWorldY(30);
         AppWeapon->name.Clear();
         string_tmp = "HUM_BODY_NAKED0";
-        if (!user_config)
-          user_config = CConfig::GetInstance();
-        headmodel_tmp = CPlayer::GetHeadModelNameFromByte(user_config->headmodel);
-        player->SetAdditionalVisuals(string_tmp, user_config->skintexture, 0, headmodel_tmp, user_config->facetexture, 0, -1);
-        player->GetModel()->meshLibList[0]->texAniState.actAniFrames[0][0] = user_config->skintexture;
+        headmodel_tmp = CPlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
+        player->SetAdditionalVisuals(string_tmp, Config::Instance().skintexture, 0, headmodel_tmp, Config::Instance().facetexture, 0, -1);
+        player->GetModel()->meshLibList[0]->texAniState.actAniFrames[0][0] = Config::Instance().skintexture;
         ChoosingApperance = ApperancePart::FACE;
         LastApperance = ApperancePart::FACE;
         ogame->CamInit(AppWeapon, zCCamera::activeCam);
@@ -843,7 +847,7 @@ void CMainMenu::RenderMenu() {
         string_tmp.Clear();
         zinput->ClearKeyBuffer();
         MState = MENU_LOOP;
-        user_config->SaveConfigToFile();
+        Config::Instance().SaveConfigToFile();
         ogame->CamInit(CamWeapon, zCCamera::activeCam);
       }
       switch (ChoosingApperance) {
@@ -851,17 +855,17 @@ void CMainMenu::RenderMenu() {
         case ApperancePart::HEAD:
           screen->Print(500, 2000, (*LangSetting)[CLanguage::HEAD_MODEL]);
           if ((zinput->KeyToggled(KEY_LEFT))) {
-            if (user_config->headmodel > 0) {
-              user_config->headmodel--;
-              headmodel_tmp = CPlayer::GetHeadModelNameFromByte(user_config->headmodel);
-              player->SetAdditionalVisuals(string_tmp, user_config->skintexture, 0, headmodel_tmp, user_config->facetexture, 0, -1);
+            if (Config::Instance().headmodel > 0) {
+              Config::Instance().headmodel--;
+              headmodel_tmp = CPlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
+              player->SetAdditionalVisuals(string_tmp, Config::Instance().skintexture, 0, headmodel_tmp, Config::Instance().facetexture, 0, -1);
             }
           }
           if ((zinput->KeyToggled(KEY_RIGHT))) {
-            if (user_config->headmodel < 5) {
-              user_config->headmodel++;
-              headmodel_tmp = CPlayer::GetHeadModelNameFromByte(user_config->headmodel);
-              player->SetAdditionalVisuals(string_tmp, user_config->skintexture, 0, headmodel_tmp, user_config->facetexture, 0, -1);
+            if (Config::Instance().headmodel < 5) {
+              Config::Instance().headmodel++;
+              headmodel_tmp = CPlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
+              player->SetAdditionalVisuals(string_tmp, Config::Instance().skintexture, 0, headmodel_tmp, Config::Instance().facetexture, 0, -1);
             }
           }
           if (LastApperance != ChoosingApperance) {
@@ -874,15 +878,15 @@ void CMainMenu::RenderMenu() {
         case ApperancePart::FACE:
           screen->Print(500, 2000, (*LangSetting)[CLanguage::FACE_APPERANCE]);
           if ((zinput->KeyToggled(KEY_LEFT))) {
-            if (user_config->facetexture > 0) {
-              user_config->facetexture--;
-              player->SetAdditionalVisuals(string_tmp, user_config->skintexture, 0, headmodel_tmp, user_config->facetexture, 0, -1);
+            if (Config::Instance().facetexture > 0) {
+              Config::Instance().facetexture--;
+              player->SetAdditionalVisuals(string_tmp, Config::Instance().skintexture, 0, headmodel_tmp, Config::Instance().facetexture, 0, -1);
             }
           }
           if ((zinput->KeyToggled(KEY_RIGHT))) {
-            if (user_config->facetexture < 162) {
-              user_config->facetexture++;
-              player->SetAdditionalVisuals(string_tmp, user_config->skintexture, 0, headmodel_tmp, user_config->facetexture, 0, -1);
+            if (Config::Instance().facetexture < 162) {
+              Config::Instance().facetexture++;
+              player->SetAdditionalVisuals(string_tmp, Config::Instance().skintexture, 0, headmodel_tmp, Config::Instance().facetexture, 0, -1);
             }
           }
           if (LastApperance != ChoosingApperance) {
@@ -897,17 +901,17 @@ void CMainMenu::RenderMenu() {
           if (player->GetModel()->IsAnimationActive(WalkAnim))
             player->GetModel()->StopAnimation(WalkAnim);
           if ((zinput->KeyToggled(KEY_LEFT))) {
-            if (user_config->skintexture > 0) {
-              user_config->skintexture--;
-              player->SetAdditionalVisuals(string_tmp, user_config->skintexture, 0, headmodel_tmp, user_config->facetexture, 0, -1);
-              player->GetModel()->meshLibList[0]->texAniState.actAniFrames[0][0] = user_config->skintexture;
+            if (Config::Instance().skintexture > 0) {
+              Config::Instance().skintexture--;
+              player->SetAdditionalVisuals(string_tmp, Config::Instance().skintexture, 0, headmodel_tmp, Config::Instance().facetexture, 0, -1);
+              player->GetModel()->meshLibList[0]->texAniState.actAniFrames[0][0] = Config::Instance().skintexture;
             }
           }
           if ((zinput->KeyToggled(KEY_RIGHT))) {
-            if (user_config->skintexture < 12) {
-              user_config->skintexture++;
-              player->SetAdditionalVisuals(string_tmp, user_config->skintexture, 0, headmodel_tmp, user_config->facetexture, 0, -1);
-              player->GetModel()->meshLibList[0]->texAniState.actAniFrames[0][0] = user_config->skintexture;
+            if (Config::Instance().skintexture < 12) {
+              Config::Instance().skintexture++;
+              player->SetAdditionalVisuals(string_tmp, Config::Instance().skintexture, 0, headmodel_tmp, Config::Instance().facetexture, 0, -1);
+              player->GetModel()->meshLibList[0]->texAniState.actAniFrames[0][0] = Config::Instance().skintexture;
             }
           }
           break;
@@ -915,23 +919,23 @@ void CMainMenu::RenderMenu() {
           screen->Print(500, 2000, (*LangSetting)[CLanguage::WALK_STYLE]);
           if ((zinput->KeyPressed(KEY_LEFT))) {
             zinput->ClearKeyBuffer();
-            if (user_config->walkstyle > 0) {
+            if (Config::Instance().walkstyle > 0) {
               if (player->GetModel()->IsAnimationActive(WalkAnim))
                 player->GetModel()->StopAnimation(WalkAnim);
               player->RemoveOverlay(Walkstyle_tmp);
-              user_config->walkstyle--;
-              Walkstyle_tmp = CPlayer::GetWalkStyleFromByte(user_config->walkstyle);
+              Config::Instance().walkstyle--;
+              Walkstyle_tmp = CPlayer::GetWalkStyleFromByte(Config::Instance().walkstyle);
               player->ApplyOverlay(Walkstyle_tmp);
             }
           }
           if ((zinput->KeyPressed(KEY_RIGHT))) {
             zinput->ClearKeyBuffer();
-            if (user_config->walkstyle < 6) {
+            if (Config::Instance().walkstyle < 6) {
               if (player->GetModel()->IsAnimationActive(WalkAnim))
                 player->GetModel()->StopAnimation(WalkAnim);
               player->RemoveOverlay(Walkstyle_tmp);
-              user_config->walkstyle++;
-              Walkstyle_tmp = CPlayer::GetWalkStyleFromByte(user_config->walkstyle);
+              Config::Instance().walkstyle++;
+              Walkstyle_tmp = CPlayer::GetWalkStyleFromByte(Config::Instance().walkstyle);
               player->ApplyOverlay(Walkstyle_tmp);
             }
           }
@@ -954,16 +958,16 @@ void CMainMenu::RenderMenu() {
     case MENU_OPTONLINE:
       if (TitleWeapon)
         TitleWeapon->RotateWorldX(0.6f);
-      if (user_config->watch)
+      if (Config::Instance().watch)
         CWatch::GetInstance()->PrintWatch();
       if (WritingNickname) {
         x[0] = GInput::GetCharacterFormKeyboard();
-        if ((x[0] == 8) && (user_config->Nickname.Length() > 0))
-          user_config->Nickname.DeleteRight(1);
-        if ((x[0] >= 0x20) && (user_config->Nickname.Length() < 24))
-          user_config->Nickname += x;
-        if ((x[0] == 0x0D) && (!user_config->Nickname.IsEmpty())) {
-          user_config->SaveConfigToFile();
+        if ((x[0] == 8) && (Config::Instance().Nickname.Length() > 0))
+          Config::Instance().Nickname.DeleteRight(1);
+        if ((x[0] >= 0x20) && (Config::Instance().Nickname.Length() < 24))
+          Config::Instance().Nickname += x;
+        if ((x[0] == 0x0D) && (!Config::Instance().Nickname.IsEmpty())) {
+          Config::Instance().SaveConfigToFile();
           WritingNickname = false;
         }
       }
@@ -983,35 +987,35 @@ void CMainMenu::RenderMenu() {
       // Opcja od ilosci lini czatu
       if (OptionPos == 6) {
         if (zinput->KeyToggled(KEY_LEFT)) {
-          if (user_config->ChatLines > 0) {
-            if (user_config->ChatLines <= 5)
-              user_config->ChatLines = 0;
+          if (Config::Instance().ChatLines > 0) {
+            if (Config::Instance().ChatLines <= 5)
+              Config::Instance().ChatLines = 0;
             else
-              user_config->ChatLines--;
-            user_config->SaveConfigToFile();
+              Config::Instance().ChatLines--;
+            Config::Instance().SaveConfigToFile();
           }
         }
         if (zinput->KeyToggled(KEY_RIGHT)) {
-          if (user_config->ChatLines < 30) {
-            if (user_config->ChatLines < 5)
-              user_config->ChatLines = 5;
+          if (Config::Instance().ChatLines < 30) {
+            if (Config::Instance().ChatLines < 5)
+              Config::Instance().ChatLines = 5;
             else
-              user_config->ChatLines++;
-            user_config->SaveConfigToFile();
+              Config::Instance().ChatLines++;
+            Config::Instance().SaveConfigToFile();
           }
         }
       }
       if (OptionPos == 7) {
         if (zinput->KeyToggled(KEY_LEFT)) {
-          if (user_config->keyboardlayout > CConfig::KEYBOARD_POLISH) {
-            user_config->keyboardlayout--;
-            user_config->SaveConfigToFile();
+          if (Config::Instance().keyboardlayout > Config::KEYBOARD_POLISH) {
+            Config::Instance().keyboardlayout--;
+            Config::Instance().SaveConfigToFile();
           }
         }
         if (zinput->KeyToggled(KEY_RIGHT)) {
-          if (user_config->keyboardlayout < CConfig::KEYBOARD_CYRYLLIC) {
-            user_config->keyboardlayout++;
-            user_config->SaveConfigToFile();
+          if (Config::Instance().keyboardlayout < Config::KEYBOARD_CYRYLLIC) {
+            Config::Instance().keyboardlayout++;
+            Config::Instance().SaveConfigToFile();
           }
         }
       }
@@ -1121,22 +1125,22 @@ void CMainMenu::RenderMenu() {
       screen->PrintCX(4000, WBMapName);
       break;
     case MENU_SETWATCHPOS:
-      if (user_config->watch)
+      if (Config::Instance().watch)
         CWatch::GetInstance()->PrintWatch();
       if (zinput->KeyPressed(KEY_ESCAPE)) {
         zinput->ClearKeyBuffer();
         MState = MENU_OPTONLINE;
         screen->InsertItem(GMPLogo, false);
-        user_config->SaveConfigToFile();
+        Config::Instance().SaveConfigToFile();
       }
       if (zinput->KeyPressed(KEY_UP))
-        user_config->WatchPosY -= 16;
+        Config::Instance().WatchPosY -= 16;
       if (zinput->KeyPressed(KEY_DOWN))
-        user_config->WatchPosY += 16;
+        Config::Instance().WatchPosY += 16;
       if (zinput->KeyPressed(KEY_LEFT))
-        user_config->WatchPosX -= 16;
+        Config::Instance().WatchPosX -= 16;
       if (zinput->KeyPressed(KEY_RIGHT))
-        user_config->WatchPosX += 16;
+        Config::Instance().WatchPosX += 16;
       break;
   };
 };

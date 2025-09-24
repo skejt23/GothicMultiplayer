@@ -2,8 +2,6 @@
 /*
 MIT License
 
-Copyright (c) 2022 Gothic Multiplayer Team (pampi, skejt23, mecio)
-
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
@@ -25,42 +23,45 @@ SOFTWARE.
 
 #pragma once
 
-#include "ZenGin/zGothicAPI.h"
-#include "singleton.h"
+#include <chrono>
+#include <cstdint>
+#include <optional>
+#include <unordered_map>
+#include <vector>
 
-// KEYBOARD LAYOUTS
-#define LAYOUT_GERMAN 0x00000407
-#define LAYOUT_ENGLISH 0x00000409
-#define LAYOUT_POLISH 0x00000415
-#define LAYOUT_RUSSIAN 0x00000419
+#include "sol/sol.hpp"
 
-class CConfig : public TSingleton<CConfig> {
-private:
-  bool d;
-  void LoadConfigFromFile();
-  zCOptionSection* MultiSection;
-
+class TimerManager {
 public:
-  bool IsDefault();
-  zSTRING Nickname;
-  int skintexture;
-  int facetexture;
-  int headmodel;
-  int walkstyle;
-  int lang;
-  bool logchat;
-  bool watch;
-  bool antialiasing;
-  bool joystick;
-  bool potionkeys;
-  bool logovideos;
-  enum KeyboardLayout { KEYBOARD_POLISH, KEYBOARD_GERMAN, KEYBOARD_CYRYLLIC };
-  int keyboardlayout;
-  int WatchPosX;
-  int WatchPosY;
-  int ChatLines;
-  CConfig();
-  ~CConfig();
-  void DefaultSettings();
-  void SaveConfigToFile();
+  using TimerId = std::uint32_t;
+
+  TimerManager();
+
+  TimerId CreateTimer(sol::protected_function callback, std::chrono::milliseconds interval, std::uint32_t execute_times,
+                      std::vector<sol::object> arguments);
+
+  void KillTimer(TimerId id);
+
+  std::optional<std::chrono::milliseconds> GetInterval(TimerId id) const;
+  void SetInterval(TimerId id, std::chrono::milliseconds interval);
+
+  std::optional<std::uint32_t> GetExecuteTimes(TimerId id) const;
+  void SetExecuteTimes(TimerId id, std::uint32_t execute_times);
+
+  void ProcessTimers();
+  void Clear();
+
+private:
+  struct Timer {
+    TimerId id;
+    sol::protected_function callback;
+    std::vector<sol::object> arguments;
+    std::chrono::milliseconds interval;
+    std::uint32_t remaining_executions;
+    bool infinite;
+    std::chrono::steady_clock::time_point next_call;
+  };
+
+  TimerId next_id_;
+  std::unordered_map<TimerId, Timer> timers_;
 };

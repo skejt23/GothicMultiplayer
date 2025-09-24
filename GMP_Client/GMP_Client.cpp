@@ -31,13 +31,13 @@ SOFTWARE.
 #include <iostream>
 #include <string>
 
-#include "discord_presence.h"
 #include "HooksManager.h"
 #include "Mod.h"
 #include "Network.h"
 #include "ZenGin/zGothicAPI.h"
 #include "common.h"
 #include "config.h"
+#include "discord_presence.h"
 #include "external_console_window.hpp"
 #include "patch.h"
 #include "patch_install.hpp"
@@ -66,7 +66,7 @@ void SetupWindowPositionTracking() {
 
             // Save window position to config
             Config::Instance().SetWindowPosition({x, y});
-            Config::Instance().Save();
+            Config::Instance().SaveConfigToFile();
 
             SPDLOG_DEBUG("Window position changed, saved to config: x={}, y={}", x, y);
           }
@@ -89,7 +89,7 @@ HWND HookCreateWindowExA(DWORD dwExStyle, LPCSTR lpClassName, LPCSTR lpWindowNam
     return CreateWindowExA(dwExStyle, lpClassName, lpWindowName, dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu, hInstance, lpParam);
   }
 
-  auto window_pos = Config::Instance().GetWindowPosition();
+  const auto& window_pos = Config::Instance().GetWindowPosition();
 
   uint32_t flags = 0;
   flags |= SDL_WINDOW_HIDDEN;

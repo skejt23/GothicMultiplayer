@@ -36,11 +36,11 @@ SOFTWARE.
 
 #include <list>
 
-#include "CConfig.h"
 #include "CHeroClass.h"
 #include "CIngame.h"
 #include "CInterpolatePos.h"
 #include "CLocalPlayer.h"
+#include "config.h"
 #include "game_client.h"
 
 // NEEDED FOR SETTING NPC TYPES
@@ -55,7 +55,6 @@ static int HeroInstance;
 extern GameClient* client;
 extern CIngame* global_ingame;
 extern CLocalPlayer* LocalPlayer;
-extern CConfig* user_config;
 
 constexpr const char* BODYMESHNAKED = "HUM_BODY_NAKED0";
 // Head models
@@ -345,8 +344,8 @@ void CPlayer::SetNpcType(NpcType TYPE) {
   char buffer[128];
   zSTRING TypeTemp;
   zCParser::GetParser()->SetInstance("SELF", npc);
-  if (npc->GetModel()->HasAppliedModelProtoOverlay(CPlayer::GetWalkStyleFromByte(user_config->walkstyle)))
-    npc->GetModel()->RemoveModelProtoOverlay(CPlayer::GetWalkStyleFromByte(user_config->walkstyle));
+  if (npc->GetModel()->HasAppliedModelProtoOverlay(CPlayer::GetWalkStyleFromByte(Config::Instance().walkstyle)))
+    npc->GetModel()->RemoveModelProtoOverlay(CPlayer::GetWalkStyleFromByte(Config::Instance().walkstyle));
   switch (TYPE) {
     case NPC_HUMAN: {
       oCNpc* New = zfactory->CreateNpc(zCParser::GetParser()->GetIndex(PCHERO));
@@ -356,9 +355,9 @@ void CPlayer::SetNpcType(NpcType TYPE) {
       New->Enable(position);
       if (IsLocalPlayer()) {
         TypeTemp = "HUM_BODY_NAKED0";
-        zSTRING headmodel_tmp = CPlayer::GetHeadModelNameFromByte(user_config->headmodel);
-        New->SetAdditionalVisuals(TypeTemp, user_config->skintexture, 0, headmodel_tmp, user_config->facetexture, 0, -1);
-        New->GetModel()->ApplyModelProtoOverlay(CPlayer::GetWalkStyleFromByte(user_config->walkstyle));
+        zSTRING headmodel_tmp = CPlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
+        New->SetAdditionalVisuals(TypeTemp, Config::Instance().skintexture, 0, headmodel_tmp, Config::Instance().facetexture, 0, -1);
+        New->GetModel()->ApplyModelProtoOverlay(CPlayer::GetWalkStyleFromByte(Config::Instance().walkstyle));
       }
       if (IsLocalPlayer())
         New->SetAsPlayer();
@@ -442,13 +441,13 @@ void CPlayer::SetNpcType(NpcType TYPE) {
       sprintf(buffer, "%s_%s", B_SETVISUALS, LESSER_SKELETON);
       TypeTemp = buffer;
       zCParser::GetParser()->CallFunc(TypeTemp);
-      npc->GetModel()->ApplyModelProtoOverlay(CPlayer::GetWalkStyleFromByte(user_config->walkstyle));
+      npc->GetModel()->ApplyModelProtoOverlay(CPlayer::GetWalkStyleFromByte(Config::Instance().walkstyle));
       break;
     case NPC_SKELETON:
       sprintf(buffer, "%s_%s", B_SETVISUALS, SKELETON);
       TypeTemp = buffer;
       zCParser::GetParser()->CallFunc(TypeTemp);
-      npc->GetModel()->ApplyModelProtoOverlay(CPlayer::GetWalkStyleFromByte(user_config->walkstyle));
+      npc->GetModel()->ApplyModelProtoOverlay(CPlayer::GetWalkStyleFromByte(Config::Instance().walkstyle));
       break;
     case NPC_SKELETONMAGE:
       sprintf(buffer, "%s_%s", B_SETVISUALS, SKELETON_MAGE);

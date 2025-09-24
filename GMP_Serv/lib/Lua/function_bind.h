@@ -25,8 +25,10 @@ SOFTWARE.
 
 #include "sol/sol.hpp"
 
+class TimerManager;
+
 namespace lua {
 namespace bindings {
-void BindFunctions(sol::state&);
+void BindFunctions(sol::state&, TimerManager&);
 }
 }  // namespace lua

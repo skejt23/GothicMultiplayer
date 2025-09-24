@@ -1,7 +1,8 @@
+
 /*
 MIT License
 
-Copyright (c) 2025 Gothic Multiplayer Team (pampi, skejt23, mecio)
+Copyright (c) 2022 Gothic Multiplayer Team (pampi, skejt23, mecio)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -28,6 +29,14 @@ SOFTWARE.
 #include <filesystem>
 #include <optional>
 
+#include "ZenGin/zGothicAPI.h"
+
+// KEYBOARD LAYOUTS
+#define LAYOUT_GERMAN 0x00000407
+#define LAYOUT_ENGLISH 0x00000409
+#define LAYOUT_POLISH 0x00000415
+#define LAYOUT_RUSSIAN 0x00000419
+
 class Config {
 public:
   struct WindowPosition {
@@ -37,15 +46,27 @@ public:
 
   using ConsolePosition = WindowPosition;
 
-  static Config& Instance() {
-    static Config instance;
-    return instance;
-  }
+  bool IsDefault() const;
 
-  Config(const Config&) = delete;
-  Config& operator=(const Config&) = delete;
+  zSTRING Nickname;
+  int skintexture;
+  int facetexture;
+  int headmodel;
+  int walkstyle;
+  int lang;
+  bool logchat;
+  bool watch;
+  enum KeyboardLayout { KEYBOARD_POLISH, KEYBOARD_GERMAN, KEYBOARD_CYRYLLIC };
+  int keyboardlayout;
+  int WatchPosX;
+  int WatchPosY;
+  int ChatLines;
 
-  void Save() const;
+  Config();
+  ~Config();
+
+  void DefaultSettings();
+  void SaveConfigToFile();
 
   const std::optional<WindowPosition>& GetWindowPosition() const;
   void SetWindowPosition(WindowPosition window_position);
@@ -57,10 +78,15 @@ public:
     return window_always_on_top_;
   }
 
-private:
-  Config();
-  void Load();
+  static Config& Instance() {
+    static Config instance;
+    return instance;
+  }
 
+private:
+  void LoadConfigFromFile();
+
+  bool is_default_{true};
   std::filesystem::path config_file_path_;
   std::optional<WindowPosition> window_position_;
   std::optional<ConsolePosition> console_position_;

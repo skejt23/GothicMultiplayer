@@ -45,26 +45,24 @@ SOFTWARE.
 #include <vector>
 
 #include "CChat.h"
-#include "CConfig.h"
 #include "CIngame.h"
 #include "CLocalPlayer.h"
 #include "CSelectClass.h"
 #include "HTTPDownloader.h"
 #include "Interface.h"
 #include "ZenGin/zGothicAPI.h"
+#include "config.h"
 #include "net_enums.h"
 #include "packets.h"
 #include "patch.h"
 #include "player_name_utils.hpp"
 
-CConfig *user_config = NULL;
 const char *LANG_DIR = ".\\Multiplayer\\Localization\\";
 std::vector<zSTRING> vec_choose_lang;
 std::vector<std::string> vec_lang_files;
 const BYTE GDI_MD5[16] = {0x34, 0x16, 0x98, 0x62, 0x43, 0xB0, 0x3D, 0x36, 0xD6, 0xB0, 0x1A, 0x4D, 0x2B, 0xCB, 0xDB, 0x8B};
 
 float fWRatio, fHRatio;
-extern CConfig *user_config;
 extern CIngame *global_ingame;
 extern CLocalPlayer *LocalPlayer;
 extern zCOLOR AQUA, RED;
@@ -221,7 +219,7 @@ void GameClient::JoinGame(BYTE selected_class) {
     HooksManager::GetInstance()->AddHook(HT_RENDER, (DWORD)InterfaceLoop, false);
     HooksManager::GetInstance()->RemoveHook(HT_RENDER, (DWORD)CSelectClass::Loop);
 
-    auto sanitized_name = SanitizePlayerName(user_config->Nickname.ToChar());
+    auto sanitized_name = SanitizePlayerName(Config::Instance().Nickname.ToChar());
     player->name[0] = sanitized_name.c_str();
 
     JoinGamePacket packet;
@@ -251,10 +249,10 @@ void GameClient::JoinGame(BYTE selected_class) {
       packet.equipped_armor_instance = itPtr->GetInstance();
     }
     packet.animation = 265;  // TODO: get current animation (or remove it?)
-    packet.head_model = user_config->headmodel;
-    packet.skin_texture = user_config->skintexture;
-    packet.face_texture = user_config->facetexture;
-    packet.walk_style = user_config->walkstyle;
+    packet.head_model = Config::Instance().headmodel;
+    packet.skin_texture = Config::Instance().skintexture;
+    packet.face_texture = Config::Instance().facetexture;
+    packet.walk_style = Config::Instance().walkstyle;
     packet.player_name = player->GetName().ToChar();
 
     SerializeAndSend(network, packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED);

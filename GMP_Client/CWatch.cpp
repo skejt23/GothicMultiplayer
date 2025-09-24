@@ -34,13 +34,11 @@ SOFTWARE.
 
 #include <time.h>
 
+#include "config.h"
+
 using namespace Gothic_II_Addon;
 
 extern CLanguage* Lang;
-
-CWatch::CWatch() {
-  Con = CConfig::GetInstance();
-};
 
 void CWatch::PrintWatch() {
   time(&currtime);
@@ -48,11 +46,11 @@ void CWatch::PrintWatch() {
   tmp = TimePrint;
   screen->SetFont("FONT_DEFAULT.TGA");
   screen->SetFontColor({255, 255, 255});
-  screen->Print(Con->WatchPosX, Con->WatchPosY, (*Lang)[CLanguage::CWATCH_REALTIME]);
-  screen->Print(Con->WatchPosX, Con->WatchPosY + 200, tmp);
-  screen->Print(Con->WatchPosX, Con->WatchPosY + 400, (*Lang)[CLanguage::CWATCH_GAMETIME]);
+  screen->Print(Config::Instance().WatchPosX, Config::Instance().WatchPosY, (*Lang)[CLanguage::CWATCH_REALTIME]);
+  screen->Print(Config::Instance().WatchPosX, Config::Instance().WatchPosY + 200, tmp);
+  screen->Print(Config::Instance().WatchPosX, Config::Instance().WatchPosY + 400, (*Lang)[CLanguage::CWATCH_GAMETIME]);
   ogame->GetWorldTimer()->GetTime(H, M);
   sprintf(TimePrint, "%d:%.2d", H, M);
   tmp = TimePrint;
-  screen->Print(Con->WatchPosX, Con->WatchPosY + 600, tmp);
+  screen->Print(Config::Instance().WatchPosX, Config::Instance().WatchPosY + 600, tmp);
 };

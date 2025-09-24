@@ -50,8 +50,6 @@ const std::unordered_map<std::string, std::variant<std::string, std::vector<std:
                               {"log_file", std::string("log.txt")},
                               {"map", std::string("NEWWORLD\\NEWWORLD.ZEN")},
                               {"respawn_time_seconds", 5},
-                              {"message_of_the_day", std::string("Welcome to the server.")},
-                              {"message_of_the_day_interval_seconds", 60},
                               {"allow_modification", true},
                               {"game_mode", 0},
                               {"allow_dropitems", true},

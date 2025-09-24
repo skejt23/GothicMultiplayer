@@ -26,6 +26,7 @@ SOFTWARE.
 
 #include <windows.h>
 
+#include <exception>
 #include <memory>
 #include <mutex>
 
@@ -40,7 +41,7 @@ void SaveConsoleConfigOnExit() {
     RECT rc{};
     if (::GetWindowRect(hwnd, &rc)) {
       Config::Instance().SetConsolePosition({rc.left, rc.top});
-      Config::Instance().Save();
+      Config::Instance().SaveConfigToFile();
     }
 
   } catch (const std::exception &ex) {

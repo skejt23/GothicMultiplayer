@@ -30,7 +30,7 @@ target("Server")
     add_includedirs("lib", {public = true})
     add_deps("common", "SharedLib", "znet_server")
     add_defines("SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE")
-    add_packages("spdlog", "fmt", "toml11", "nlohmann_json", "bitsery", "glm", "sol2", "pugixml", "cpp-httplib", "dylib", {public = true})
+    add_packages("spdlog", "fmt", "toml11", "nlohmann_json", "bitsery", "glm", "sol2", "pugixml", "cpp-httplib", "dylib", "openssl", {public = true})
     set_default(false) -- So it's not installed by default
 
 target("ServerApp")

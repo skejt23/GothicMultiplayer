@@ -25,7 +25,7 @@ SOFTWARE.
 
 #include "keyboard.h"
 
-#include "CConfig.h"
+#include "config.h"
 
 enum KeyboardLayout { KEYBOARD_LATIN, KEYBOARD_CYRYLLIC };
 
@@ -43,19 +43,19 @@ char GInput::GetCharacterFormKeyboard(bool ignorekeyboardlayout) {
   }
   if (zinput->KeyPressed(KEY_X)) {
     zinput->ClearKeyBuffer();
-    if (CConfig::GetInstance()->keyboardlayout == KEYBOARD_LATIN || ignorekeyboardlayout)
+    if (Config::Instance().keyboardlayout == KEYBOARD_LATIN || ignorekeyboardlayout)
       return (with_shift) ? 'X' : 'x';
     return (with_shift) ? 0xD7 : 0xF7;
   } else if (zinput->KeyPressed(KEY_F)) {
     zinput->ClearKeyBuffer();
-    if (CConfig::GetInstance()->keyboardlayout == KEYBOARD_LATIN || ignorekeyboardlayout)
+    if (Config::Instance().keyboardlayout == KEYBOARD_LATIN || ignorekeyboardlayout)
       return (with_shift) ? 'F' : 'f';
     return (with_shift) ? 0xC0 : 0xE0;
   }
   zINT i_keyboard = KEY_1;
   if (ignorekeyboardlayout)
     goto IGNORETHISCRAP;
-  switch (CConfig::GetInstance()->keyboardlayout) {
+  switch (Config::Instance().keyboardlayout) {
     case KEYBOARD_LATIN:
     IGNORETHISCRAP:
       do {

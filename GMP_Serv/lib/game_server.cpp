@@ -38,6 +38,8 @@ SOFTWARE.
 #include <stack>
 #include <string>
 
+#include <nlohmann/json.hpp>
+
 #include "HTTPServer.h"
 #include <version.h>
 #include "gothic_clock.h"
@@ -54,22 +56,6 @@ Net::NetServer* g_net_server = nullptr;
 const char* lobbyAddress = "http://lobby.your-site.com";
 const char* lobbyFile = "add.php";
 
-extern const char* SAY;
-extern const char* KICK;
-extern const char* BAN;
-extern const char* BAN_IP;
-extern const char* UNBAN;
-extern const char* SAVEBANS;
-extern const char* MUTE;
-extern const char* SET_TIME;
-extern const char* KILL;
-extern const char* LOOP_MSG;
-
-// admin only
-const char* MOD_ADD = "modadd ";
-const char* MOD_SET = "modset ";  // ustawia hasło dla określonego moderatora
-const char* MOD_DEL = "moddel ";
-
 const char* WTF = "Dude, I dont understand you.";
 const char* OK = "OK!";
 const char* AG = "Access granted!";
@@ -85,6 +71,8 @@ void (*g_destroy_net_server_func)(Net::NetServer*) = nullptr;
 using namespace Net;
 
 namespace {
+
+constexpr const char* kBanListFileName = "bans.json";
 
 template <typename Packet, typename TContainer = std::vector<std::uint8_t>>
 void SerializeAndSend(const Packet& packet, Net::PacketPriority priority, Net::PacketReliability reliable, Net::PlayerId id,
@@ -133,7 +121,7 @@ void InitializeLogger(const Config& config) {
 }  // namespace
 
 GameServer::GameServer() {
-  spdlog::set_pattern("%v");
+  spdlog::set_pattern("[%T %^%l%$] %v");
   InitializeLogger(config_);
   SPDLOG_INFO("|-----------------------------------|");
   constexpr std::string_view git_tag_long = GIT_TAG_LONG;
@@ -146,7 +134,6 @@ GameServer::GameServer() {
   config_.LogConfigValues();
   SPDLOG_INFO("|-----------------------------------|");
   g_server = this;
-  spdlog::set_pattern("[%T %^%l%$] %v");
 
   // Register server-side events.
   EventManager::Instance().RegisterEvent(kEventOnPlayerConnectName);
@@ -190,7 +177,6 @@ bool GameServer::Init() {
     System::MakeMeDaemon(false);
   }
 #endif
-  this->spam_time = time(NULL) + 10;
   character_definition_manager_ = std::make_unique<CharacterDefinitionManager>();
   auto character_definitions_file = config_.Get<std::string>("character_definitions_file");
   if (!character_definitions_file.empty()) {
@@ -201,7 +187,6 @@ bool GameServer::Init() {
 
   auto slots = config_.Get<std::int32_t>("slots");
   allow_modification = config_.Get<bool>("allow_modification");
-  loop_msg = config_.Get<std::string>("message_of_the_day");
 
   auto port = config_.Get<std::int32_t>("port");
 
@@ -228,7 +213,6 @@ bool GameServer::Init() {
   main_thread = std::thread([this]() {
     while (main_thread_running.load(std::memory_order_acquire)) {
       Run();
-      SendSpamMessage();
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
   });
@@ -242,6 +226,10 @@ void GameServer::Run() {
 
   g_net_server->Pulse();
   clock_->RunClock();
+
+  if (script) {
+    script->ProcessTimers();
+  }
 
   ProcessRespawns();
 
@@ -364,9 +352,6 @@ bool GameServer::HandlePacket(Net::PlayerId playerId, unsigned char* data, std::
     {
       sPlayer pl;
       pl.char_class = 0;
-      pl.has_admin = 0;
-      pl.moderator_passwd = 0;
-      pl.admin_passwd = 0;
       pl.is_ingame = 0;
       pl.passed_crc_test = 0;
       pl.id = p.id;
@@ -450,45 +435,81 @@ unsigned char GameServer::GetPacketIdentifier(const Packet& p) {
 }
 
 void GameServer::LoadBanList() {
-  std::string szTmp;
-  szTmp.reserve(32);
-  std::ifstream ifs("bans.txt");
-  if (ifs.is_open()) {
-    while (1) {
-      ifs.getline((char*)szTmp.data(), 32);
-      if (ifs.eof())
-        break;
-      if (szTmp.length() >= 7) {
-        this->ban_list.push_back(szTmp.c_str());
-      }
-    }
-    szTmp.clear();
-    ifs.close();
-  } else {
-    SPDLOG_WARN("bans.txt which contains active IP bans not exist");
+  ban_list.clear();
+
+  std::ifstream ifs(kBanListFileName);
+  if (!ifs.is_open()) {
+    SPDLOG_WARN("{} which contains active IP bans does not exist", kBanListFileName);
     return;
   }
-  if (!this->ban_list.empty()) {
-    for (size_t i = 0; i < this->ban_list.size(); i++) {
-      g_net_server->AddToBanList(this->ban_list[i].c_str(), 0);
-    }
+
+  nlohmann::json json_data;
+  try {
+    ifs >> json_data;
+  } catch (const std::exception& ex) {
+    SPDLOG_ERROR("Failed to parse {}: {}", kBanListFileName, ex.what());
+    return;
   }
-  SPDLOG_INFO("Active bans loaded.");
+
+  if (!json_data.is_array()) {
+    SPDLOG_ERROR("{} is expected to contain a JSON array of ban entries", kBanListFileName);
+
+      for (const auto& node : json_data) {
+        if (!node.is_object()) {
+          SPDLOG_WARN("Ignoring malformed ban entry that is not a JSON object");
+          continue;
+        }
+
+        auto ip_it = node.find("IP");
+        if (ip_it == node.end() || !ip_it->is_string()) {
+          SPDLOG_WARN("Ignoring ban entry without a valid IP string");
+          continue;
+        }
+
+        BanEntry entry;
+        entry.ip = ip_it->get<std::string>();
+
+        if (auto nickname_it = node.find("Nickname"); nickname_it != node.end() && nickname_it->is_string()) {
+          entry.nickname = nickname_it->get<std::string>();
+        }
+        if (auto date_it = node.find("Date"); date_it != node.end() && date_it->is_string()) {
+          entry.date = date_it->get<std::string>();
+        }
+        if (auto reason_it = node.find("Reason"); reason_it != node.end() && reason_it->is_string()) {
+          entry.reason = reason_it->get<std::string>();
+        }
+
+        ban_list.emplace_back(std::move(entry));
+      }
+
+      if (ban_list.empty()) {
+        SPDLOG_INFO("No active bans found in {}", kBanListFileName);
+        return;
+      }
+
+      for (const auto& entry : ban_list) {
+        g_net_server->AddToBanList(entry.ip.c_str(), 0);
+      }
+
+      SPDLOG_INFO("Active bans loaded.");
+  }
 }
 
 void GameServer::SaveBanList() {
-  if (!this->ban_list.empty()) {
-    std::ofstream ofs("bans.txt");
-    if (!ofs.is_open()) {
-      SPDLOG_ERROR("Could not save active bans to file bans.txt!");
-      return;
-    }
-    for (size_t i = 0; i < this->ban_list.size(); i++) {
-      ofs << this->ban_list[i].c_str() << "\n";
-    }
-    ofs.clear();
+  nlohmann::json json_data = nlohmann::json::array();
+  for (const auto& entry : ban_list) {
+      json_data.push_back({{"Nickname", entry.nickname}, {"IP", entry.ip}, {"Date", entry.date}, {"Reason", entry.reason}});
   }
-  SPDLOG_INFO("Bans written to bans.txt.");
+
+  std::ofstream ofs(kBanListFileName);
+  if (!ofs.is_open()) {
+      SPDLOG_ERROR("Could not save active bans to file {}!", kBanListFileName);
+      return;
+  }
+
+  ofs << json_data.dump(2) << '\n';
+
+  SPDLOG_INFO("Bans written to {}.", kBanListFileName);
 }
 
 void GameServer::DeleteFromPlayerList(Net::PlayerId id) {
@@ -979,22 +1000,18 @@ bool GameServer::IsPublic() {
   return (config_.Get<bool>("public")) ? true : false;
 }
 
-void GameServer::SendSpamMessage() {
-  auto loop_time = config_.Get<std::int32_t>("message_of_the_day_interval_seconds");
-  if (loop_time > 0) {
-    if (spam_time < time(NULL)) {
-      spam_time = time(NULL) + loop_time;
-      if (!players_.empty()) {
-        MessagePacket packet;
-        packet.packet_type = PT_SRVMSG;
-        packet.message = loop_msg;
+void GameServer::SendServerMessage(const std::string& message) {
+  if (message.empty()) {
+    return;
+  }
 
-        for (const auto& [id, existing_player] : players_) {
-          if (existing_player.is_ingame) {
-            SerializeAndSend(packet, MEDIUM_PRIORITY, UNRELIABLE, existing_player.id, 11);
-          }
-        }
-      }
+  MessagePacket packet;
+  packet.packet_type = PT_SRVMSG;
+  packet.message = message;
+
+  for (const auto& [id, existing_player] : players_) {
+    if (existing_player.is_ingame) {
+      SerializeAndSend(packet, MEDIUM_PRIORITY, RELIABLE, existing_player.id, 11);
     }
   }
 }
