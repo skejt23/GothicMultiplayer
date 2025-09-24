@@ -28,17 +28,13 @@ game_time.day = 1
 game_time.hour = 8
 game_time.min = 0
 
-# --- MOTD ---------00000------------------------------------------------------
-message_of_the_day = "Welcome to the server."
-message_of_the_day_interval_seconds = 60
-
 # --- Logging -----------------------------------------------------------------
 log_file = "log.txt"
 log_to_stdout = true
 log_level = "info"
 
 # --- Scripts -----------------------------------------------------------------
-scripts = ["main.lua", "events.lua"]
+scripts = ["main.lua", "discord.lua", "events.lua", "functions.lua"]
 character_definitions_file = "class.json"
 
 # --- Performance -------------------------------------------------------------

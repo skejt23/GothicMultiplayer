@@ -70,8 +70,7 @@ public:
   struct sPlayer {
     Net::PlayerId id;
     std::string name;
-    unsigned char char_class, flags, head, skin, body, walkstyle, figth_pos, spellhand, headstate, has_admin, admin_passwd, moderator_passwd,
-        is_ingame, passed_crc_test, mute;
+    unsigned char char_class, flags, head, skin, body, walkstyle, figth_pos, spellhand, headstate, is_ingame, passed_crc_test, mute;
     short health, mana;
     // miejce na obrót głowy
     time_t tod;  // time of death
@@ -98,7 +97,7 @@ public:
   bool Init();
   void SaveBanList(void);
   bool IsPublic(void);
-  void SendSpamMessage(void);
+  void SendServerMessage(const std::string& message);
 
   std::optional<std::reference_wrapper<sPlayer>> GetPlayerById(std::uint64_t id);
 
@@ -139,10 +138,8 @@ private:
   unsigned char GetPacketIdentifier(const Packet& p);
   int serverPort;
   unsigned short maxConnections;
-  time_t spam_time;
   std::unordered_map<std::uint64_t, sPlayer> players_;
   bool allow_modification = false;
-  std::string loop_msg;
   Config config_;
   std::unique_ptr<GothicClock> clock_;
   std::unique_ptr<HTTPServer> http_server_;

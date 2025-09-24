@@ -41,6 +41,18 @@ sol::optional<std::string> GetOptionalString(const sol::table& table, const char
 
 }  // namespace
 
+
+// Functions
+int Function_Log(string name, string text) {
+  ofstream logfile;
+  logfile.open(name, std::ios_base::app);
+  if (logfile.is_open()) {
+    logfile << text << "\n";
+    logfile.close();
+  }
+  return 0;
+}
+
 void Function_SetDiscordActivity(const sol::table& params) {
   if (!g_server) {
     SPDLOG_WARN("Cannot update Discord activity before the server is initialized");
@@ -71,19 +83,18 @@ void Function_SetDiscordActivity(const sol::table& params) {
   g_server->UpdateDiscordActivity(activity);
 }
 
-// Functions
-int Function_Log(string name, string text) {
-  ofstream logfile;
-  logfile.open(name, std::ios_base::app);
-  if (logfile.is_open()) {
-    logfile << text << "\n";
-    logfile.close();
+void Function_SendServerMessage(const std::string& message) {
+  if (!g_server) {
+    SPDLOG_WARN("Cannot send server message before the server is initialized");
+    return;
   }
-  return 0;
+
+  g_server->SendServerMessage(message);
 }
 
 // Register Functions
 void lua::bindings::BindFunctions(sol::state& lua) {
   lua["Log"] = Function_Log;
   lua["SetDiscordActivity"] = Function_SetDiscordActivity;
+  lua["SendServerMessage"] = Function_SendServerMessage;
 }

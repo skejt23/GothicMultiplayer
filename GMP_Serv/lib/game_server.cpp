@@ -54,22 +54,6 @@ Net::NetServer* g_net_server = nullptr;
 const char* lobbyAddress = "http://lobby.your-site.com";
 const char* lobbyFile = "add.php";
 
-extern const char* SAY;
-extern const char* KICK;
-extern const char* BAN;
-extern const char* BAN_IP;
-extern const char* UNBAN;
-extern const char* SAVEBANS;
-extern const char* MUTE;
-extern const char* SET_TIME;
-extern const char* KILL;
-extern const char* LOOP_MSG;
-
-// admin only
-const char* MOD_ADD = "modadd ";
-const char* MOD_SET = "modset ";  // ustawia hasło dla określonego moderatora
-const char* MOD_DEL = "moddel ";
-
 const char* WTF = "Dude, I dont understand you.";
 const char* OK = "OK!";
 const char* AG = "Access granted!";
@@ -189,7 +173,6 @@ bool GameServer::Init() {
     System::MakeMeDaemon(false);
   }
 #endif
-  this->spam_time = time(NULL) + 10;
   character_definition_manager_ = std::make_unique<CharacterDefinitionManager>();
   auto character_definitions_file = config_.Get<std::string>("character_definitions_file");
   if (!character_definitions_file.empty()) {
@@ -200,7 +183,6 @@ bool GameServer::Init() {
 
   auto slots = config_.Get<std::int32_t>("slots");
   allow_modification = config_.Get<bool>("allow_modification");
-  loop_msg = config_.Get<std::string>("message_of_the_day");
 
   auto port = config_.Get<std::int32_t>("port");
 
@@ -227,7 +209,6 @@ bool GameServer::Init() {
   main_thread = std::thread([this]() {
     while (main_thread_running.load(std::memory_order_acquire)) {
       Run();
-      SendSpamMessage();
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
   });
@@ -363,9 +344,6 @@ bool GameServer::HandlePacket(Net::PlayerId playerId, unsigned char* data, std::
     {
       sPlayer pl;
       pl.char_class = 0;
-      pl.has_admin = 0;
-      pl.moderator_passwd = 0;
-      pl.admin_passwd = 0;
       pl.is_ingame = 0;
       pl.passed_crc_test = 0;
       pl.id = p.id;
@@ -978,22 +956,18 @@ bool GameServer::IsPublic() {
   return (config_.Get<bool>("public")) ? true : false;
 }
 
-void GameServer::SendSpamMessage() {
-  auto loop_time = config_.Get<std::int32_t>("message_of_the_day_interval_seconds");
-  if (loop_time > 0) {
-    if (spam_time < time(NULL)) {
-      spam_time = time(NULL) + loop_time;
-      if (!players_.empty()) {
-        MessagePacket packet;
-        packet.packet_type = PT_SRVMSG;
-        packet.message = loop_msg;
+void GameServer::SendServerMessage(const std::string& message) {
+  if (message.empty()) {
+    return;
+  }
 
-        for (const auto& [id, existing_player] : players_) {
-          if (existing_player.is_ingame) {
-            SerializeAndSend(packet, MEDIUM_PRIORITY, UNRELIABLE, existing_player.id, 11);
-          }
-        }
-      }
+  MessagePacket packet;
+  packet.packet_type = PT_SRVMSG;
+  packet.message = message;
+
+  for (const auto& [id, existing_player] : players_) {
+    if (existing_player.is_ingame) {
+      SerializeAndSend(packet, MEDIUM_PRIORITY, RELIABLE, existing_player.id, 11);
     }
   }
 }
