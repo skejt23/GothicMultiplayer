@@ -35,6 +35,7 @@ SOFTWARE.
 
 #pragma once
 
+#include <chrono>
 #include <vector>
 #include "ZenGin/zGothicAPI.h"
 #include "CConfig.h"
@@ -42,6 +43,9 @@ SOFTWARE.
 struct MsgStruct {
   Gothic_II_Addon::zSTRING Message;
   Gothic_II_Addon::zCOLOR MsgColor;
+  std::chrono::steady_clock::time_point FadeStart;
+  unsigned char CurrentAlpha = 0;
+  bool IsFadingIn = false;
 };
 
 enum MsgType { NORMAL, WHISPER, ADMIN };

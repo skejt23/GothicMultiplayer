@@ -37,6 +37,9 @@ SOFTWARE.
 
 #include <fstream>
 
+#include <nlohmann/json.hpp>
+#include "localization_utils.h"
+
 #include "CLanguage.h"
 #include "CSyncFuncs.h"
 #include "CWatch.h"
@@ -116,6 +119,7 @@ CMainMenu::CMainMenu() {
   AppWeapon = NULL;
   LangSetting = NULL;
   Options = NULL;
+  esl = NULL;
   MState = CHOOSE_LANGUAGE;
 
   oCSpawnManager::SetRemoveRange(2097152.0f);
@@ -213,6 +217,8 @@ char* Convert(const wchar_t* wString) {
 }
 
 void CMainMenu::LoadLangNames(void) {
+  vec_lang_files.clear();
+  vec_choose_lang.clear();
   std::string indexPath = std::string(LANG_DIR) + "index";
   std::ifstream ifs(indexPath, std::ifstream::in);
   if (!ifs.is_open()) {
@@ -222,17 +228,41 @@ void CMainMenu::LoadLangNames(void) {
 
   std::string line;
   while (std::getline(ifs, line)) {
-    vec_lang_files.push_back(std::move(line));
+    if (!line.empty() && line.back() == '\r') {
+      line.pop_back();
+    }
+    if (line.empty()) {
+      continue;
+    }
+    vec_lang_files.push_back(line);
   }
-  if (!vec_lang_files.back().compare(vec_lang_files[vec_lang_files.size() - 2].c_str())) {
+  if (vec_lang_files.size() >= 2 && !vec_lang_files.back().compare(vec_lang_files[vec_lang_files.size() - 2].c_str())) {
     vec_lang_files.pop_back();
   }
 
   for (const auto& lang : vec_lang_files) {
-    std::string langName;
-    std::ifstream langFile(LANG_DIR + lang, std::ifstream::in);
-    langFile >> langName;
-    vec_choose_lang.push_back(zSTRING(langName.c_str()));
+    const std::string langPath = std::string(LANG_DIR) + lang;
+    std::ifstream langFile(langPath, std::ifstream::in);
+    if (!langFile.is_open()) {
+      SPDLOG_ERROR("Couldn't open language file {}!", langPath);
+      vec_choose_lang.push_back(zSTRING(lang.c_str()));
+      continue;
+    }
+
+    try {
+      nlohmann::json jsonData;
+      langFile >> jsonData;
+      auto rawLanguageName = jsonData.value("LANGUAGE", std::string{});
+      if (rawLanguageName.empty()) {
+        rawLanguageName = lang;
+      }
+      const auto encoding = localization::DetectLanguageEncoding(rawLanguageName, langPath);
+      const auto localizedName = localization::ConvertFromUtf8(rawLanguageName, encoding);
+      vec_choose_lang.push_back(zSTRING(localizedName.c_str()));
+    } catch (const std::exception& ex) {
+      SPDLOG_ERROR("Failed to parse language file {}: {}", langPath, ex.what());
+      vec_choose_lang.push_back(zSTRING(lang.c_str()));
+    }
   }
 };
 
@@ -251,6 +281,7 @@ void CMainMenu::LoadConfig() {
   if (!user_config) {
     user_config = CConfig::GetInstance();
     LoadLangNames();
+    Language = user_config->lang;
     if (!user_config->IsDefault()) {
       headmodel_tmp = CPlayer::GetHeadModelNameFromByte(user_config->headmodel);
       Walkstyle_tmp = CPlayer::GetWalkStyleFromByte(user_config->walkstyle);
@@ -285,13 +316,7 @@ void CMainMenu::CleanUpMainMenu() {
 
 void CMainMenu::PrintMenu() {
   if (!LangSetting) {
-    zSTRING path = LANG_DIR;
-    path += vec_lang_files[user_config->lang].c_str();
-    LangSetting = new CLanguage(path.ToChar());
-    Lang = LangSetting;
-    esl = new ExtendedServerList();
-    path.Clear();
-    vec_lang_files.clear();
+    ApplyLanguage(user_config->lang, false);
   }
   switch (ps) {
     default:
@@ -369,10 +394,21 @@ void CMainMenu::PrintMenu() {
       };
       FColor = (OptionPos == 8) ? Highlighted : Normal;
       screen->SetFontColor(FColor);
-      screen->Print(200, 6400, (user_config->logovideos) ? (*LangSetting)[CLanguage::INTRO_YES] : (*LangSetting)[CLanguage::INTRO_NO]);
+      if (vec_choose_lang.empty() || vec_lang_files.empty()) {
+        LoadLangNames();
+      }
+      zSTRING languageOptionText = "Language: ";
+      if (user_config->lang >= 0 && static_cast<size_t>(user_config->lang) < vec_choose_lang.size())
+        languageOptionText += vec_choose_lang[user_config->lang];
+      else
+        languageOptionText += (*LangSetting)[CLanguage::LANGUAGE];
+      screen->Print(200, 6400, languageOptionText);
       FColor = (OptionPos == 9) ? Highlighted : Normal;
       screen->SetFontColor(FColor);
-      screen->Print(200, 6800, (*LangSetting)[CLanguage::MMENU_BACK]);
+      screen->Print(200, 6800, (user_config->logovideos) ? (*LangSetting)[CLanguage::INTRO_YES] : (*LangSetting)[CLanguage::INTRO_NO]);
+      FColor = (OptionPos == 10) ? Highlighted : Normal;
+      screen->SetFontColor(FColor);
+      screen->Print(200, 7200, (*LangSetting)[CLanguage::MMENU_BACK]);
     } break;
     case WORLDBUILDER_MENU:
       screen->SetFont("FONT_OLD_20_WHITE.TGA");
@@ -388,6 +424,61 @@ void CMainMenu::PrintMenu() {
       break;
   }
 };
+
+
+void CMainMenu::ChangeLanguage(int direction) {
+  if (vec_lang_files.empty() || vec_choose_lang.empty()) {
+    LoadLangNames();
+  }
+  if (vec_lang_files.empty())
+    return;
+  int languageCount = static_cast<int>(vec_lang_files.size());
+  int newIndex = user_config->lang + direction;
+  if (newIndex < 0)
+    newIndex = languageCount - 1;
+  if (newIndex >= languageCount)
+    newIndex = 0;
+  if (newIndex == user_config->lang)
+    return;
+  ApplyLanguage(newIndex);
+}
+
+void CMainMenu::ApplyLanguage(int newLangIndex, bool persist) {
+  if (vec_lang_files.empty() || vec_choose_lang.empty()) {
+    LoadLangNames();
+  }
+  if (vec_lang_files.empty())
+    return;
+  if (newLangIndex < 0 || newLangIndex >= static_cast<int>(vec_lang_files.size()))
+    newLangIndex = 0;
+
+  zSTRING path = LANG_DIR;
+  path += vec_lang_files[newLangIndex].c_str();
+  CLanguage* newLanguage = new CLanguage(path.ToChar());
+  path.Clear();
+
+  if (LangSetting)
+    delete LangSetting;
+  LangSetting = newLanguage;
+  Lang = LangSetting;
+
+  if (esl) {
+    delete esl;
+  }
+  esl = new ExtendedServerList();
+  SelectedServer = 0;
+
+  if (ClassSelect)
+    ClassSelect->lang = LangSetting;
+  if (client)
+    client->lang = LangSetting;
+
+  user_config->lang = newLangIndex;
+  if (persist)
+    user_config->SaveConfigToFile();
+
+  Language = newLangIndex;
+}
 
 void CMainMenu::SpeedUpTime() {
   ogame->GetWorldTimer()->GetTime(Hour, Minute);
@@ -498,11 +589,14 @@ void CMainMenu::RunOptionsItem() {
       // KEYBOARD LAYOUT
       break;
     case 8:
+      // LANGUAGE
+      break;
+    case 9:
       // INTROS
       user_config->logovideos = !user_config->logovideos;
       user_config->SaveConfigToFile();
       break;
-    case 9:
+    case 10:
       // POWROT
       ps = MAIN_MENU;
       MState = MENU_LOOP;
@@ -554,14 +648,7 @@ void CMainMenu::RenderMenu() {
         if (zinput->KeyToggled(KEY_RIGHT))
           Language = (++Language == vec_choose_lang.size()) ? 0 : Language;
         if (zinput->KeyPressed(KEY_RETURN)) {
-          user_config->lang = Language;
-          zSTRING path = LANG_DIR;
-          path += vec_lang_files[user_config->lang].c_str();
-          LangSetting = new CLanguage(path.ToChar());
-          Lang = LangSetting;
-          esl = new ExtendedServerList();
-          path.Clear();
-          vec_lang_files.clear();
+          ApplyLanguage(Language);
           zinput->ClearKeyBuffer();
           MState = CHOOSE_NICKNAME;
         }
@@ -571,8 +658,6 @@ void CMainMenu::RenderMenu() {
       break;
     case CHOOSE_NICKNAME:
       if (user_config->IsDefault() || user_config->Nickname.IsEmpty()) {
-        if (!vec_choose_lang.empty())
-          vec_choose_lang.clear();
         screen->Print(200, 200, (*LangSetting)[CLanguage::WRITE_NICKNAME]);
         screen->Print(200 + static_cast<zINT>(static_cast<float>((*LangSetting)[CLanguage::WRITE_NICKNAME].Length() * 70) * fWRatio), 200,
                       user_config->Nickname);
@@ -885,10 +970,10 @@ void CMainMenu::RenderMenu() {
       // Wybor opcji przez enter
       if (!WritingNickname) {
         if (zinput->KeyToggled(KEY_UP)) {
-          OptionPos == 0 ? OptionPos = 9 : OptionPos--;
+          OptionPos == 0 ? OptionPos = 10 : OptionPos--;
         }
         if (zinput->KeyToggled(KEY_DOWN)) {
-          OptionPos == 9 ? OptionPos = 0 : OptionPos++;
+          OptionPos == 10 ? OptionPos = 0 : OptionPos++;
         }
         if (zinput->KeyPressed(KEY_RETURN)) {
           zinput->ClearKeyBuffer();
@@ -928,6 +1013,14 @@ void CMainMenu::RenderMenu() {
             user_config->keyboardlayout++;
             user_config->SaveConfigToFile();
           }
+        }
+      }
+      if (OptionPos == 8) {
+        if (zinput->KeyToggled(KEY_LEFT)) {
+          ChangeLanguage(-1);
+        }
+        if (zinput->KeyToggled(KEY_RIGHT)) {
+          ChangeLanguage(1);
         }
       }
       PrintMenu();

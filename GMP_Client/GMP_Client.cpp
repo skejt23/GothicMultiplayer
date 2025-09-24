@@ -31,13 +31,14 @@ SOFTWARE.
 #include <iostream>
 #include <string>
 
+#include "discord_presence.h"
 #include "HooksManager.h"
-#include "external_console_window.hpp"
 #include "Mod.h"
 #include "Network.h"
 #include "ZenGin/zGothicAPI.h"
 #include "common.h"
 #include "config.h"
+#include "external_console_window.hpp"
 #include "patch.h"
 #include "patch_install.hpp"
 
@@ -140,6 +141,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
       HooksManager* hm = HooksManager::GetInstance();
       hm->AddHook(HT_AIMOVING, (DWORD)Initialize, false);
       Patch::ChangeDefaultIni();
+      DiscordRichPresence::Instance().Init();
       SPDLOG_INFO("GMP.dll initialized successfully");
     } catch (const std::exception& e) {
       SPDLOG_ERROR("GMP.dll initialization failed: {}", e.what());

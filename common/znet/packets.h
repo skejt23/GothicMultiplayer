@@ -447,3 +447,35 @@ inline std::ostream& operator<<(std::ostream& os, const GameInfoPacket& packet) 
      << ", game_mode: " << static_cast<int>(packet.game_mode) << ", flags: " << static_cast<int>(packet.flags) << " }";
   return os;
 }
+
+struct DiscordActivityPacket {
+  std::uint8_t packet_type;
+  std::string state;
+  std::string details;
+  std::string large_image_key;
+  std::string large_image_text;
+  std::string small_image_key;
+  std::string small_image_text;
+};
+
+template <typename S>
+void serialize(S& s, DiscordActivityPacket& packet) {
+  s.value1b(packet.packet_type);
+  s.text1b(packet.state, 128);
+  s.text1b(packet.details, 128);
+  s.text1b(packet.large_image_key, 32);
+  s.text1b(packet.large_image_text, 128);
+  s.text1b(packet.small_image_key, 32);
+  s.text1b(packet.small_image_text, 128);
+}
+
+inline std::ostream& operator<<(std::ostream& os, const DiscordActivityPacket& packet) {
+  os << "DiscordActivityPacket {"
+     << " packet_type: " << static_cast<int>(packet.packet_type) << ", state: '" << packet.state << "', details: '" << packet.details
+     << "', large_image_key: '" << packet.large_image_key << "', large_image_text: '" << packet.large_image_text << "', small_image_key: '"
+     << packet.small_image_key << "', small_image_text: '" << packet.small_image_text << "' }";
+  return os;
+}
+
+template <>
+struct fmt::formatter<DiscordActivityPacket> : ostream_formatter {};

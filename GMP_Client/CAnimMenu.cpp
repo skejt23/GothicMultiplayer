@@ -30,6 +30,11 @@ SOFTWARE.
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <utility>
+#include <array>
+
+#include <nlohmann/json.hpp>
+#include <spdlog/spdlog.h>
 
 #include "CChat.h"
 #include "CLanguage.h"
@@ -44,68 +49,70 @@ zCOLOR FColors;
 CAnimMenu::CAnimMenu() {
   MenuPos = 0, PrintFrom = 0, PrintTo = 0;
   Opened = false;
-  ifstream AniNames(".\\Multiplayer\\AnimMenu.txt");
-  char _buff[512];
-  char AniName[32];
-  char AniStart[32];
-  char AniLoop[32];
-  char AniEnd[32];
-  string buffer;
-  if (AniNames.good()) {
-    while (!AniNames.eof()) {
-      memset(AniName, 0, 32);
-      memset(AniStart, 0, 32);
-      memset(AniLoop, 0, 32);
-      memset(AniEnd, 0, 32);
-      AniNames.getline(_buff, 512);
-      sscanf(_buff, "%s %s %s %s", AniName, AniLoop, AniStart, AniEnd);
-      if (strlen(AniName) < 1)
-        continue;
-      std::string check = AniLoop;
-      if (check.find("DIVE") != std::string::npos)
-        continue;
-      if (check.find("TOUCHPLATE") != std::string::npos)
-        continue;
-      if (check.find("VWHEEL") != std::string::npos)
-        continue;
-      if (check.find("RELOAD") != std::string::npos)
-        continue;
-      if (check.find("LADDER") != std::string::npos)
-        continue;
-      check = AniStart;
-      if (check.find("DIVE") != std::string::npos)
-        continue;
-      if (check.find("TOUCHPLATE") != std::string::npos)
-        continue;
-      if (check.find("VWHEEL") != std::string::npos)
-        continue;
-      if (check.find("RELOAD") != std::string::npos)
-        continue;
-      if (check.find("LADDER") != std::string::npos)
-        continue;
-      check = AniEnd;
-      if (check.find("DIVE") != std::string::npos)
-        continue;
-      if (check.find("TOUCHPLATE") != std::string::npos)
-        continue;
-      if (check.find("VWHEEL") != std::string::npos)
-        continue;
-      if (check.find("RELOAD") != std::string::npos)
-        continue;
-      if (check.find("LADDER") != std::string::npos)
-        continue;
-      Anim anim;
-      anim.AniName = AniName;
-      anim.AniLoop = AniLoop;
-      if (strlen(AniStart) > 0)
-        anim.AniStart = AniStart;
-      if (strlen(AniEnd) > 0)
-        anim.AniEnd = AniEnd;
-      AnimVector.push_back(anim);
+  std::ifstream anim_file(".\\Multiplayer\\AnimMenu.json");
+
+  if (!anim_file.good()) {
+    CChat::GetInstance()->WriteMessage(NORMAL, false, "Couldn't find AnimMenu.json in Multiplayer folder.");
+    return;
+  }
+
+  nlohmann::json json_data;
+  try {
+    anim_file >> json_data;
+  } catch (const std::exception& ex) {
+    SPDLOG_ERROR("Failed to parse AnimMenu.json: {}", ex.what());
+    CChat::GetInstance()->WriteMessage(NORMAL, false, "AnimMenu.json is invalid.");
+    return;
+  }
+
+  if (!json_data.contains("animations") || !json_data["animations"].is_array()) {
+    SPDLOG_WARN("AnimMenu.json does not contain an 'animations' array.");
+    return;
+  }
+
+  const auto should_skip =
+      [](const std::string& value) {
+        if (value.empty()) {
+          return false;
     }
-  } else
-    CChat::GetInstance()->WriteMessage(NORMAL, false, "Couldn't find AnimMenu.txt in Multiplayer folder.");
-  AniNames.close();
+    static const std::array<const char*, 5> kBlockedSubstrings = {"DIVE", "TOUCHPLATE", "VWHEEL", "RELOAD", "LADDER"};
+    for (const auto* substring : kBlockedSubstrings) {
+      if (value.find(substring) != std::string::npos) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  for (const auto& entry : json_data["animations"]) {
+    if (!entry.is_object()) {
+      continue;
+    }
+
+    const auto name = entry.value("name", std::string{});
+    const auto loop = entry.value("loop", std::string{});
+    const auto start = entry.value("start", std::string{});
+    const auto end = entry.value("end", std::string{});
+
+    if (name.empty() || loop.empty()) {
+      continue;
+    }
+
+    if (should_skip(loop) || should_skip(start) || should_skip(end)) {
+      continue;
+    }
+
+    Anim anim;
+    anim.AniName = name.c_str();
+    anim.AniLoop = loop.c_str();
+    if (!start.empty()) {
+      anim.AniStart = start.c_str();
+    }
+    if (!end.empty()) {
+      anim.AniEnd = end.c_str();
+    }
+    AnimVector.push_back(std::move(anim));
+  }
 }
 
 void CAnimMenu::Open() {

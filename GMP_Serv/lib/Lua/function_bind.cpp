@@ -25,8 +25,51 @@ SOFTWARE.
 
 #include <spdlog/spdlog.h>
 
+#include "game_server.h"
+
 #include <fstream>
 using namespace std;
+
+namespace {
+
+sol::optional<std::string> GetOptionalString(const sol::table& table, const char* lowerKey, const char* upperKey) {
+  if (auto value = table.get<sol::optional<std::string>>(lowerKey); value) {
+    return value;
+  }
+  return table.get<sol::optional<std::string>>(upperKey);
+}
+
+}  // namespace
+
+void Function_SetDiscordActivity(const sol::table& params) {
+  if (!g_server) {
+    SPDLOG_WARN("Cannot update Discord activity before the server is initialized");
+    return;
+  }
+
+  auto activity = g_server->GetDiscordActivity();
+
+  if (auto state = GetOptionalString(params, "state", "State")) {
+    activity.state = *state;
+  }
+  if (auto details = GetOptionalString(params, "details", "Details")) {
+    activity.details = *details;
+  }
+  if (auto largeImageKey = GetOptionalString(params, "largeImageKey", "LargeImageKey")) {
+    activity.large_image_key = *largeImageKey;
+  }
+  if (auto largeImageText = GetOptionalString(params, "largeImageText", "LargeImageText")) {
+    activity.large_image_text = *largeImageText;
+  }
+  if (auto smallImageKey = GetOptionalString(params, "smallImageKey", "SmallImageKey")) {
+    activity.small_image_key = *smallImageKey;
+  }
+  if (auto smallImageText = GetOptionalString(params, "smallImageText", "SmallImageText")) {
+    activity.small_image_text = *smallImageText;
+  }
+
+  g_server->UpdateDiscordActivity(activity);
+}
 
 // Functions
 int Function_Log(string name, string text) {
@@ -42,4 +85,5 @@ int Function_Log(string name, string text) {
 // Register Functions
 void lua::bindings::BindFunctions(sol::state& lua) {
   lua["Log"] = Function_Log;
+  lua["SetDiscordActivity"] = Function_SetDiscordActivity;
 }

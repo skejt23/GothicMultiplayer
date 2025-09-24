@@ -34,6 +34,7 @@ SOFTWARE.
 #include <spdlog/spdlog.h>
 
 #include "../CChat.h"
+#include "../discord_presence.h"
 #include "../game_client.h"
 #include "packets.h"
 
@@ -42,15 +43,15 @@ namespace Game {
 
 void SetAngleFromRightVector(oCNpc* npc, float right_x, float right_y, float right_z) {
   // Map current right vector components to legacy nrot indices
-  float legacy_nx = right_z; // m[2][0]
-  float legacy_ny = right_x; // m[0][0]
-  float legacy_nz = right_y; // m[1][0]
+  float legacy_nx = right_z;  // m[2][0]
+  float legacy_ny = right_x;  // m[0][0]
+  float legacy_nz = right_y;  // m[1][0]
 
   // Reproduce SetAngle(-nx, ny, 0.0f, nx, ny, nz)
   // Column 2 (position/orientation forward basis parts as legacy stored them)
-  npc->trafoObjToWorld.v[0][2] = -legacy_nx; // x parameter
-  npc->trafoObjToWorld.v[1][2] = 0.0f;       // z parameter (was 0.0f in call)
-  npc->trafoObjToWorld.v[2][2] = legacy_ny;  // y parameter
+  npc->trafoObjToWorld.v[0][2] = -legacy_nx;  // x parameter
+  npc->trafoObjToWorld.v[1][2] = 0.0f;        // z parameter (was 0.0f in call)
+  npc->trafoObjToWorld.v[2][2] = legacy_ny;   // y parameter
 
   // Column 0 (right/normal vector)
   npc->trafoObjToWorld.v[0][0] = legacy_ny;  // ny
@@ -708,5 +709,17 @@ void OnVoice(GameClient* client, Packet packet) {
   char* buffer = new char[size];
   memcpy(buffer, packet.data + 5, size);
   client->voicePlayback->PlayVoice(buffer, size);
+}
+
+void OnDiscordActivity(GameClient* /*client*/, Packet packet) {
+  DiscordActivityPacket activityPacket;
+  using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
+  auto state = bitsery::quickDeserialization<InputAdapter>({packet.data, packet.length}, activityPacket);
+  (void)state;
+
+  SPDLOG_DEBUG("DiscordActivityPacket: {}", activityPacket);
+
+  DiscordRichPresence::Instance().UpdateActivity(activityPacket.state, activityPacket.details, 0, 0, activityPacket.large_image_key,
+                                                 activityPacket.large_image_text, activityPacket.small_image_key, activityPacket.small_image_text);
 }
 }  // namespace Game
