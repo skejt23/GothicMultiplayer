@@ -38,6 +38,8 @@ SOFTWARE.
 #include <stack>
 #include <string>
 
+#include <nlohmann/json.hpp>
+
 #include "HTTPServer.h"
 #include <version.h>
 #include "gothic_clock.h"
@@ -69,6 +71,8 @@ void (*g_destroy_net_server_func)(Net::NetServer*) = nullptr;
 using namespace Net;
 
 namespace {
+
+constexpr const char* kBanListFileName = "bans.json";
 
 template <typename Packet, typename TContainer = std::vector<std::uint8_t>>
 void SerializeAndSend(const Packet& packet, Net::PacketPriority priority, Net::PacketReliability reliable, Net::PlayerId id,
@@ -427,45 +431,81 @@ unsigned char GameServer::GetPacketIdentifier(const Packet& p) {
 }
 
 void GameServer::LoadBanList() {
-  std::string szTmp;
-  szTmp.reserve(32);
-  std::ifstream ifs("bans.txt");
-  if (ifs.is_open()) {
-    while (1) {
-      ifs.getline((char*)szTmp.data(), 32);
-      if (ifs.eof())
-        break;
-      if (szTmp.length() >= 7) {
-        this->ban_list.push_back(szTmp.c_str());
-      }
-    }
-    szTmp.clear();
-    ifs.close();
-  } else {
-    SPDLOG_WARN("bans.txt which contains active IP bans not exist");
+  ban_list.clear();
+
+  std::ifstream ifs(kBanListFileName);
+  if (!ifs.is_open()) {
+    SPDLOG_WARN("{} which contains active IP bans does not exist", kBanListFileName);
     return;
   }
-  if (!this->ban_list.empty()) {
-    for (size_t i = 0; i < this->ban_list.size(); i++) {
-      g_net_server->AddToBanList(this->ban_list[i].c_str(), 0);
-    }
+
+  nlohmann::json json_data;
+  try {
+    ifs >> json_data;
+  } catch (const std::exception& ex) {
+    SPDLOG_ERROR("Failed to parse {}: {}", kBanListFileName, ex.what());
+    return;
   }
-  SPDLOG_INFO("Active bans loaded.");
+
+  if (!json_data.is_array()) {
+    SPDLOG_ERROR("{} is expected to contain a JSON array of ban entries", kBanListFileName);
+
+      for (const auto& node : json_data) {
+        if (!node.is_object()) {
+          SPDLOG_WARN("Ignoring malformed ban entry that is not a JSON object");
+          continue;
+        }
+
+        auto ip_it = node.find("IP");
+        if (ip_it == node.end() || !ip_it->is_string()) {
+          SPDLOG_WARN("Ignoring ban entry without a valid IP string");
+          continue;
+        }
+
+        BanEntry entry;
+        entry.ip = ip_it->get<std::string>();
+
+        if (auto nickname_it = node.find("Nickname"); nickname_it != node.end() && nickname_it->is_string()) {
+          entry.nickname = nickname_it->get<std::string>();
+        }
+        if (auto date_it = node.find("Date"); date_it != node.end() && date_it->is_string()) {
+          entry.date = date_it->get<std::string>();
+        }
+        if (auto reason_it = node.find("Reason"); reason_it != node.end() && reason_it->is_string()) {
+          entry.reason = reason_it->get<std::string>();
+        }
+
+        ban_list.emplace_back(std::move(entry));
+      }
+
+      if (ban_list.empty()) {
+        SPDLOG_INFO("No active bans found in {}", kBanListFileName);
+        return;
+      }
+
+      for (const auto& entry : ban_list) {
+        g_net_server->AddToBanList(entry.ip.c_str(), 0);
+      }
+
+      SPDLOG_INFO("Active bans loaded.");
+  }
 }
 
 void GameServer::SaveBanList() {
-  if (!this->ban_list.empty()) {
-    std::ofstream ofs("bans.txt");
-    if (!ofs.is_open()) {
-      SPDLOG_ERROR("Could not save active bans to file bans.txt!");
-      return;
-    }
-    for (size_t i = 0; i < this->ban_list.size(); i++) {
-      ofs << this->ban_list[i].c_str() << "\n";
-    }
-    ofs.clear();
+  nlohmann::json json_data = nlohmann::json::array();
+  for (const auto& entry : ban_list) {
+      json_data.push_back({{"Nickname", entry.nickname}, {"IP", entry.ip}, {"Date", entry.date}, {"Reason", entry.reason}});
   }
-  SPDLOG_INFO("Bans written to bans.txt.");
+
+  std::ofstream ofs(kBanListFileName);
+  if (!ofs.is_open()) {
+      SPDLOG_ERROR("Could not save active bans to file {}!", kBanListFileName);
+      return;
+  }
+
+  ofs << json_data.dump(2) << '\n';
+
+  SPDLOG_INFO("Bans written to {}.", kBanListFileName);
 }
 
 void GameServer::DeleteFromPlayerList(Net::PlayerId id) {

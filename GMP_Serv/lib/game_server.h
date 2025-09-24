@@ -86,7 +86,13 @@ public:
     std::string small_image_text;
   };
 
-public:
+  struct BanEntry {
+    std::string nickname;
+    std::string ip;
+    std::string date;
+    std::string reason;
+  };
+
   GameServer();
   ~GameServer() override;
 
@@ -127,7 +133,7 @@ private:
   void SendGameInfo(Net::PlayerId guid);
   void SendDiscordActivity(Net::PlayerId guid);
 
-  std::vector<std::string> ban_list;
+  std::vector<BanEntry> ban_list;
   std::unique_ptr<CharacterDefinitionManager> character_definition_manager_;
   std::unique_ptr<Script> script;
   time_t last_stand_timer;
