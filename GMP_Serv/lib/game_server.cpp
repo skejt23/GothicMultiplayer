@@ -133,7 +133,7 @@ void InitializeLogger(const Config& config) {
 }  // namespace
 
 GameServer::GameServer() {
-  spdlog::set_pattern("%v");
+  spdlog::set_pattern("[%T %^%l%$] %v");
   InitializeLogger(config_);
   SPDLOG_INFO("|-----------------------------------|");
   constexpr std::string_view git_tag_long = GIT_TAG_LONG;
@@ -146,7 +146,6 @@ GameServer::GameServer() {
   config_.LogConfigValues();
   SPDLOG_INFO("|-----------------------------------|");
   g_server = this;
-  spdlog::set_pattern("[%T %^%l%$] %v");
 
   // Register server-side events.
   EventManager::Instance().RegisterEvent(kEventOnPlayerConnectName);
