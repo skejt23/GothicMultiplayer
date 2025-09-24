@@ -95,7 +95,7 @@ HWND HookCreateWindowExA(DWORD dwExStyle, LPCSTR lpClassName, LPCSTR lpWindowNam
   uint32_t flags = 0;
   flags |= SDL_WINDOW_HIDDEN;
   flags |= SDL_WINDOW_RESIZABLE;
-  if (Config::Instance().IsWindowAlwaysOnTop()) {
+  if (CConfig::GetInstance()->IsWindowAlwaysOnTop()) {
     flags |= SDL_WINDOW_ALWAYS_ON_TOP;
   }
   g_pSdlWindow = SDL_CreateWindow(lpWindowName, nWidth, nHeight, flags);
