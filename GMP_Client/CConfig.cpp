@@ -143,7 +143,7 @@ void CConfig::LoadConfigFromFile() {
     logovideos = *logo_opt;
   }
 
-  if (auto window_position = toml.GetValue<std::map<std::string, int>>("window_position"); window_position) {
+  if (std::optional<std::map<std::string, std::int32_t>> window_position = toml.GetValue<std::map<std::string, int>>("window_position")) {
     std::int32_t x = 0;
     std::int32_t y = 0;
     if (auto it = window_position->find("x"); it != window_position->end()) {
@@ -157,7 +157,7 @@ void CConfig::LoadConfigFromFile() {
     }
   }
 
-  if (auto console_position = toml.GetValue<std::map<std::string, int>>("console_position"); console_position) {
+  if (std::optional<std::map<std::string, std::int32_t>> console_position = toml.GetValue<std::map<std::string, int>>("console_position")) {
     std::int32_t x = 0;
     std::int32_t y = 0;
     if (auto it = console_position->find("x"); it != console_position->end()) {
@@ -170,6 +170,8 @@ void CConfig::LoadConfigFromFile() {
       console_position_ = ConsolePosition{x, y};
     }
   }
+
+  window_always_on_top_ = toml.GetValue<bool>("window_always_on_top", window_always_on_top_);
 
   d = Nickname.IsEmpty();
 
@@ -236,6 +238,8 @@ void CConfig::SaveConfigToFile(bool sync_engine_settings) {
     console_position_map["y"] = toml::value(console_position_->y);
     toml["console_position"] = console_position_map;
   }
+
+  toml["window_always_on_top"] = toml::value(window_always_on_top_);
 
   toml.Serialize(config_file_path_.string());
   d = Nickname.IsEmpty();

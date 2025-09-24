@@ -77,6 +77,10 @@ public:
   const std::optional<ConsolePosition>& GetConsolePosition() const;
   void SetConsolePosition(ConsolePosition console_position);
 
+  bool IsWindowAlwaysOnTop() const {
+    return window_always_on_top_;
+  }
+
 private:
   void LoadConfigFromFile();
   void ApplyEngineSettings() const;
@@ -85,4 +89,5 @@ private:
   std::filesystem::path config_file_path_;
   std::optional<WindowPosition> window_position_;
   std::optional<ConsolePosition> console_position_;
+  bool window_always_on_top_ = false;
 };
