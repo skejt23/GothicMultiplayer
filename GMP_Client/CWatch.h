@@ -42,7 +42,6 @@ SOFTWARE.
 class CWatch : public TSingleton<CWatch> {
 private:
   CConfig* Con;
-  CLanguage* Langs;
   Gothic_II_Addon::zSTRING tmp;
   time_t currtime;
   char TimePrint[64];
@@ -51,5 +50,4 @@ private:
 public:
   CWatch();
   void PrintWatch();
-  void SetLanguage(CLanguage* lang);
 };

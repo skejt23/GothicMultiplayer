@@ -473,9 +473,6 @@ void CMainMenu::ApplyLanguage(int newLangIndex, bool persist) {
   if (client)
     client->lang = LangSetting;
 
-  if (persist)
-    CWatch::GetInstance()->SetLanguage(LangSetting);
-
   user_config->lang = newLangIndex;
   if (persist)
     user_config->SaveConfigToFile();

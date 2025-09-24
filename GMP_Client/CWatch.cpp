@@ -24,24 +24,21 @@ SOFTWARE.
 */
 
 /*****************************************************************************
-**																			**
-**	File name:		Interface/CWatch.cpp		   							**
-**																			**
-**	Created by:		01/07/11	-	skejt23									**
-**																			**
-**	Description:	Watch functionallity	 								**
-**																			**
+**	File name:		Interface/CWatch.cpp
+**	Created by:		01/07/11	-	skejt23
+**	Description:	Watch functionallity
+**
 *****************************************************************************/
 
-#include <time.h>
 #include "CWatch.h"
+
+#include <time.h>
 
 using namespace Gothic_II_Addon;
 
 extern CLanguage* Lang;
 
 CWatch::CWatch() {
-  Langs = Lang;
   Con = CConfig::GetInstance();
 };
 
@@ -51,15 +48,11 @@ void CWatch::PrintWatch() {
   tmp = TimePrint;
   screen->SetFont("FONT_DEFAULT.TGA");
   screen->SetFontColor({255, 255, 255});
-  screen->Print(Con->WatchPosX, Con->WatchPosY, (*Langs)[CLanguage::CWATCH_REALTIME]);
+  screen->Print(Con->WatchPosX, Con->WatchPosY, (*Lang)[CLanguage::CWATCH_REALTIME]);
   screen->Print(Con->WatchPosX, Con->WatchPosY + 200, tmp);
-  screen->Print(Con->WatchPosX, Con->WatchPosY + 400, (*Langs)[CLanguage::CWATCH_GAMETIME]);
+  screen->Print(Con->WatchPosX, Con->WatchPosY + 400, (*Lang)[CLanguage::CWATCH_GAMETIME]);
   ogame->GetWorldTimer()->GetTime(H, M);
   sprintf(TimePrint, "%d:%.2d", H, M);
   tmp = TimePrint;
   screen->Print(Con->WatchPosX, Con->WatchPosY + 600, tmp);
 };
-
-void CWatch::SetLanguage(CLanguage* lang) {
-  Langs = lang;
-}
