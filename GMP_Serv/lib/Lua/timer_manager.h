@@ -23,12 +23,45 @@ SOFTWARE.
 
 #pragma once
 
+#include <chrono>
+#include <cstdint>
+#include <optional>
+#include <unordered_map>
+#include <vector>
+
 #include "sol/sol.hpp"
 
-class TimerManager;
+class TimerManager {
+public:
+  using TimerId = std::uint32_t;
 
-namespace lua {
-namespace bindings {
-void BindFunctions(sol::state&, TimerManager&);
-}
-}  // namespace lua
+  TimerManager();
+
+  TimerId CreateTimer(sol::protected_function callback, std::chrono::milliseconds interval, std::uint32_t execute_times,
+                      std::vector<sol::object> arguments);
+
+  void KillTimer(TimerId id);
+
+  std::optional<std::chrono::milliseconds> GetInterval(TimerId id) const;
+  void SetInterval(TimerId id, std::chrono::milliseconds interval);
+
+  std::optional<std::uint32_t> GetExecuteTimes(TimerId id) const;
+  void SetExecuteTimes(TimerId id, std::uint32_t execute_times);
+
+  void ProcessTimers();
+  void Clear();
+
+private:
+  struct Timer {
+    TimerId id;
+    sol::protected_function callback;
+    std::vector<sol::object> arguments;
+    std::chrono::milliseconds interval;
+    std::uint32_t remaining_executions;
+    bool infinite;
+    std::chrono::steady_clock::time_point next_call;
+  };
+
+  TimerId next_id_;
+  std::unordered_map<TimerId, Timer> timers_;
+};

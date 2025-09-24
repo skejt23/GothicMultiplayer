@@ -227,6 +227,10 @@ void GameServer::Run() {
   g_net_server->Pulse();
   clock_->RunClock();
 
+  if (script) {
+    script->ProcessTimers();
+  }
+
   ProcessRespawns();
 
   // Send updates to all players.

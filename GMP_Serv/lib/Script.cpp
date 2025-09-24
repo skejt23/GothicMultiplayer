@@ -39,6 +39,7 @@ Script::Script(vector<string> scripts) {
 }
 
 Script::~Script() {
+  timer_manager_.Clear();
 }
 
 void Script::Init() {
@@ -51,7 +52,7 @@ void Script::Init() {
 void Script::BindFunctionsAndVariables() {
   lua::bindings::Bind_spdlog(lua);
   lua::bindings::BindEvents(lua);
-  lua::bindings::BindFunctions(lua);
+  lua::bindings::BindFunctions(lua, timer_manager_);
 }
 
 void Script::LoadScripts(vector<string> scripts) {
@@ -65,4 +66,12 @@ void Script::LoadScript(string script) {
   } catch (const sol::error& e) {
     SPDLOG_ERROR("Lua script {} cannot be loaded: {}", script, e.what());
   }
+}
+
+void Script::ProcessTimers() {
+  timer_manager_.ProcessTimers();
+}
+
+TimerManager& Script::GetTimerManager() {
+  return timer_manager_;
 }

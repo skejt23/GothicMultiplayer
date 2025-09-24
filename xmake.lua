@@ -55,7 +55,8 @@ add_requires("fmt 11.0.2",
              "sol2 3.3.*",
              "pugixml 1.15",
              "cpp-httplib 0.21.0",
-             "zlib 1.3.1")
+             "zlib 1.3.1",
+             "openssl 1.1.1-w")
 
 includes("common", "Shared", "GMP_Serv", "thirdparty", "tests")
 

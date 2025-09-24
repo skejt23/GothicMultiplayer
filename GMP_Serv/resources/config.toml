@@ -34,7 +34,7 @@ log_to_stdout = true
 log_level = "info"
 
 # --- Scripts -----------------------------------------------------------------
-scripts = ["main.lua", "discord.lua", "events.lua", "functions.lua"]
+scripts = ["main.lua", "discord.lua", "events.lua", "functions.lua", "utility.lua", "timer.lua", "hash.lua"]
 character_definitions_file = "class.json"
 
 # --- Performance -------------------------------------------------------------
