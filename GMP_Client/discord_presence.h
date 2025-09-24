@@ -43,7 +43,7 @@ public:
   DiscordRichPresence();
   ~DiscordRichPresence();
 
-  bool Init();
+  void Init();
 
   void UpdateActivity(const std::string& state, const std::string& details, int64_t startTimestamp = 0, int64_t endTimestamp = 0,
                       const std::string& largeImageKey = "", const std::string& largeImageText = "", const std::string& smallImageKey = "",
@@ -84,11 +84,4 @@ public:
   }
 };
 
-#endif
-
-inline constexpr bool kIsDiscordEnabled =
-#ifdef DISCORD_APPLICATION_ID
-    true;
-#else
-    false;
 #endif
