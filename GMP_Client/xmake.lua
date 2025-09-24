@@ -58,7 +58,7 @@ target("ClientMain")
               "patch.cpp",
               "Table.cpp",
               "config.cpp",
-              "DiscordPresence.cpp",
+              "discord_presence.cpp",
               "WorldBuilder/CBuilder.cpp",
               "WorldBuilder/load.cpp",
               "WorldBuilder/save.cpp")
@@ -81,10 +81,7 @@ target("ClientMain")
             raise("discord_app_id must contain only digits")
         end
         add_packages("discord")
-        add_defines("DISCORD_RICH_PRESENCE_ENABLED=1")
         add_defines(string.format("DISCORD_APPLICATION_ID=%sLL", discord_app_id))
-    else
-        add_defines("DISCORD_RICH_PRESENCE_ENABLED=0")
     end
 
     -- Resource file handling (Windows specific)

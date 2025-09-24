@@ -31,58 +31,22 @@ SOFTWARE.
 #include <iostream>
 #include <string>
 
+#include "discord_presence.h"
 #include "HooksManager.h"
-#include "external_console_window.hpp"
 #include "Mod.h"
 #include "Network.h"
 #include "ZenGin/zGothicAPI.h"
 #include "common.h"
 #include "config.h"
+#include "external_console_window.hpp"
 #include "patch.h"
 #include "patch_install.hpp"
-
-#include "DiscordPresence.h"
 
 SDL_Window* g_pSdlWindow;
 
 #define hInstApp *(HINSTANCE*)(0x008D4220)
 #define VideoH *(int*)(0x008D2BE0)
 #define VideoW *(int*)(0x008D2BE4)
-
-namespace {
-constexpr long long kDiscordClientId = 1012538600493170798LL;
-bool g_discordPresenceInitialized = false;
-bool g_discordPresencePumpHookRegistered = false;
-
-void InitializeDiscordPresence() {
-  if (!DiscordGMP::Initialize(kDiscordClientId)) {
-    SPDLOG_WARN("Discord Rich Presence initialization failed");
-    return;
-  }
-
-  DiscordGMP::UpdateActivity("", "Playing Gothic Multiplayer");
-  HooksManager::GetInstance()->AddHook(HT_RENDER, (DWORD)&DiscordGMP::PumpCallbacks, false);
-  g_discordPresencePumpHookRegistered = true;
-  g_discordPresenceInitialized = true;
-  SPDLOG_INFO("Discord Rich Presence set to 'Playing Gothic Multiplayer'");
-}
-
-void ShutdownDiscordPresence() {
-  if (!g_discordPresenceInitialized) {
-    return;
-  }
-
-  if (g_discordPresencePumpHookRegistered) {
-    HooksManager::GetInstance()->RemoveHook(HT_RENDER, (DWORD)&DiscordGMP::PumpCallbacks);
-    g_discordPresencePumpHookRegistered = false;
-  }
-
-  DiscordGMP::ClearActivity();
-  DiscordGMP::Shutdown();
-  g_discordPresenceInitialized = false;
-  SPDLOG_INFO("Discord Rich Presence shut down");
-}
-}  // namespace
 
 void HookwinResizeMainWindow() {
   SDL_SetWindowSize(g_pSdlWindow, VideoW, VideoH);
@@ -174,8 +138,8 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
       HooksManager* hm = HooksManager::GetInstance();
       hm->AddHook(HT_AIMOVING, (DWORD)Initialize, false);
       Patch::ChangeDefaultIni();
+      DiscordRichPresence::Instance().Init();
       SPDLOG_INFO("GMP.dll initialized successfully");
-        InitializeDiscordPresence();
     } catch (const std::exception& e) {
       SPDLOG_ERROR("GMP.dll initialization failed: {}", e.what());
       return FALSE;
@@ -183,8 +147,6 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
       SPDLOG_ERROR("GMP.dll initialization failed with unknown exception");
       return FALSE;
     }
-  } else if (fdwReason == DLL_PROCESS_DETACH) {
-    ShutdownDiscordPresence();
   }
   return TRUE;
 }

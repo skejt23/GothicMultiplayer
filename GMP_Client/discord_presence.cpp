@@ -22,68 +22,76 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
-#include "DiscordPresence.h"
 
-#if DISCORD_RICH_PRESENCE_ENABLED
+#include "discord_presence.h"
+
+#if DISCORD_APPLICATION_ID
 
 #include <spdlog/spdlog.h>
 
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <memory>
 #include <mutex>
 
 #include "discord.h"
 
-namespace {
-std::unique_ptr<discord::Core> g_core;
-std::mutex g_coreMutex;
+DiscordRichPresence::DiscordRichPresence() {
+}
 
-void RunCallbacksLocked() {
-  if (!g_core) {
+DiscordRichPresence::~DiscordRichPresence() {
+  should_stop_ = true;
+  cv_.notify_all();
+
+  if (activity_thread_.joinable()) {
+    activity_thread_.join();
+  }
+
+  std::lock_guard<std::mutex> lock(core_mutex_);
+  core_.reset();
+}
+
+void DiscordRichPresence::Init() {
+  std::lock_guard<std::mutex> lock(core_mutex_);
+  if (core_) {
     return;
   }
 
-  auto result = g_core->RunCallbacks();
-  if (result != discord::Result::Ok) {
-    spdlog::warn("Discord Rich Presence callbacks returned {}", static_cast<int>(result));
-  }
-}
-}  // namespace
-
-namespace DiscordGMP {
-bool Initialize(long long clientId) {
-  std::lock_guard<std::mutex> lock(g_coreMutex);
-  if (g_core) {
-    return true;
-  }
-
   discord::Core* coreInstance = nullptr;
-  auto result = discord::Core::Create(clientId, DiscordCreateFlags_Default, &coreInstance);
+  auto result = discord::Core::Create(DISCORD_APPLICATION_ID, DiscordCreateFlags_Default, &coreInstance);
   if (result != discord::Result::Ok || coreInstance == nullptr) {
     spdlog::error("Failed to initialize Discord Rich Presence: {}", static_cast<int>(result));
-    return false;
+    return;
   }
 
-  g_core.reset(coreInstance);
+  core_.reset(coreInstance);
+  should_stop_ = false;
+  activity_thread_ = std::thread(&DiscordRichPresence::ActivityThreadLoop, this);
   spdlog::info("Discord Rich Presence initialized");
-  return true;
 }
 
-void Shutdown() {
-  std::lock_guard<std::mutex> lock(g_coreMutex);
-  g_core.reset();
-  spdlog::info("Discord Rich Presence shut down");
+void DiscordRichPresence::ActivityThreadLoop() {
+  std::unique_lock<std::mutex> lock(core_mutex_);
+
+  while (!should_stop_) {
+    if (core_) {
+      auto result = core_->RunCallbacks();
+      if (result != discord::Result::Ok) {
+        spdlog::warn("Discord Rich Presence callbacks returned {}", static_cast<int>(result));
+      }
+    }
+
+    // Wait for 16ms (roughly 60 FPS) or until shutdown
+    cv_.wait_for(lock, std::chrono::milliseconds(16), [this] { return should_stop_.load(); });
+  }
 }
 
-void PumpCallbacks() {
-  std::lock_guard<std::mutex> lock(g_coreMutex);
-  RunCallbacksLocked();
-}
-
-void UpdateActivity(const std::string& state, const std::string& details, int64_t startTimestamp, int64_t endTimestamp,
-                    const std::string& largeImageKey, const std::string& largeImageText, const std::string& smallImageKey,
-                    const std::string& smallImageText) {
-  std::lock_guard<std::mutex> lock(g_coreMutex);
-  if (!g_core) {
+void DiscordRichPresence::UpdateActivity(const std::string& state, const std::string& details, int64_t startTimestamp, int64_t endTimestamp,
+                                         const std::string& largeImageKey, const std::string& largeImageText, const std::string& smallImageKey,
+                                         const std::string& smallImageText) {
+  std::lock_guard<std::mutex> lock(core_mutex_);
+  if (!core_) {
     spdlog::warn("Discord Rich Presence update requested before initialization");
     return;
   }
@@ -106,51 +114,24 @@ void UpdateActivity(const std::string& state, const std::string& details, int64_
   assets.SetSmallImage(smallImageKey.c_str());
   assets.SetSmallText(smallImageText.c_str());
 
-  g_core->ActivityManager().UpdateActivity(activity, [](discord::Result result) {
+  core_->ActivityManager().UpdateActivity(activity, [](discord::Result result) {
     if (result != discord::Result::Ok) {
       spdlog::error("Discord Rich Presence update failed: {}", static_cast<int>(result));
     }
   });
-
-  RunCallbacksLocked();
 }
 
-void ClearActivity() {
-  std::lock_guard<std::mutex> lock(g_coreMutex);
-  if (!g_core) {
+void DiscordRichPresence::ClearActivity() {
+  std::lock_guard<std::mutex> lock(core_mutex_);
+  if (!core_) {
     return;
   }
 
-  g_core->ActivityManager().ClearActivity([](discord::Result result) {
+  core_->ActivityManager().ClearActivity([](discord::Result result) {
     if (result != discord::Result::Ok) {
       spdlog::error("Discord Rich Presence clear failed: {}", static_cast<int>(result));
     }
   });
-
-  RunCallbacksLocked();
-}
-}  // namespace DiscordGMP
-
-#else  // DISCORD_RICH_PRESENCE_ENABLED
-
-namespace DiscordGMP {
-bool Initialize(long long) {
-  return false;
 }
 
-void Shutdown() {
-}
-
-void PumpCallbacks() {
-}
-
-void UpdateActivity(const std::string&, const std::string&, int64_t, int64_t,
-                    const std::string&, const std::string&, const std::string&,
-                    const std::string&){
-}
-
-void ClearActivity() {
-}
-}  // namespace DiscordGMP
-
-#endif  // DISCORD_RICH_PRESENCE_ENABLED
+#endif  // DISCORD_APPLICATION_ID
