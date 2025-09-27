@@ -34,10 +34,12 @@ SOFTWARE.
 
 #include "CChat.h"
 
-#include <algorithm>
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
+
 #include "CLanguage.h"
+#include "config.h"
 
 using namespace Gothic_II_Addon;
 namespace {
@@ -69,14 +71,13 @@ void UpdateMessageAlpha(MsgStruct& message, const std::chrono::steady_clock::tim
 }
 }  // namespace
 
-
 extern zCOLOR Normal;
 extern CLanguage* Lang;
 
 CChat::CChat() {
   PrintMsgType = NORMAL;
   tmpanimname = "NULL";
-  tmpnickname = CConfig::GetInstance()->Nickname;
+  tmpnickname = Config::Instance().Nickname;
   ShowHow = false;
   WriteMessage(WHISPER, false, zCOLOR(0, 255, 0), (*Lang)[CLanguage::CHAT_WHISPERTONOONE].ToChar());
 };
@@ -131,7 +132,7 @@ void CChat::WriteMessage(MsgType type, bool PrintTimed, const zCOLOR& rgb, const
       if (PrintTimed) {
         if (PrintMsgType != WHISPER) {
           tmp = text;
-          tmpnickname = CConfig::GetInstance()->Nickname;
+          tmpnickname = Config::Instance().Nickname;
           if (tmp.Search(tmpnickname) < 2) {
             ogame->array_view[oCGame::GAME_VIEW_SCREEN]->SetFont("FONT_DEFAULT.TGA");
             ogame->array_view[oCGame::GAME_VIEW_SCREEN]->PrintTimed(3700, 2800, (*Lang)[CLanguage::WHISPERSTOYOU], 3000.0f, 0);
@@ -148,7 +149,7 @@ void CChat::WriteMessage(MsgType type, bool PrintTimed, const zCOLOR& rgb, const
       AdminMessages.push_back(msg);
       break;
   };
-  if (CConfig::GetInstance()->logchat) {
+  if (Config::Instance().logchat) {
     SPDLOG_INFO("{}", text);
   }
 };
@@ -181,7 +182,7 @@ void CChat::WriteMessage(MsgType type, bool PrintTimed, const char* format, ...)
       if (PrintTimed) {
         if (PrintMsgType != WHISPER) {
           tmp = text;
-          tmpnickname = CConfig::GetInstance()->Nickname;
+          tmpnickname = Config::Instance().Nickname;
           if (tmp.Search(tmpnickname) < 2) {
             ogame->array_view[oCGame::GAME_VIEW_SCREEN]->SetFont("FONT_DEFAULT.TGA");
             ogame->array_view[oCGame::GAME_VIEW_SCREEN]->PrintTimed(3700, 2800, (*Lang)[CLanguage::WHISPERSTOYOU], 3000.0f, 0);
@@ -199,7 +200,7 @@ void CChat::WriteMessage(MsgType type, bool PrintTimed, const char* format, ...)
       AdminMessages.push_back(msg);
       break;
   };
-  if (CConfig::GetInstance()->logchat) {
+  if (Config::Instance().logchat) {
     SPDLOG_INFO("{}", text);
   }
 };
@@ -222,7 +223,7 @@ void CChat::PrintChat() {
     PrintMsgType = ADMIN;
   switch (PrintMsgType) {
     case NORMAL:
-      if (ChatMessages.size() > CConfig::GetInstance()->ChatLines)
+      if (ChatMessages.size() > Config::Instance().ChatLines)
         ChatMessages.erase(ChatMessages.begin());
       if (!ChatMessages.empty())
         for (size_t v = 0; v < ChatMessages.size(); v++) {
@@ -235,7 +236,7 @@ void CChat::PrintChat() {
         }
       break;
     case WHISPER:
-      if (WhisperMessages.size() > CConfig::GetInstance()->ChatLines + 1)
+      if (WhisperMessages.size() > Config::Instance().ChatLines + 1)
         WhisperMessages.erase(WhisperMessages.begin() + 1);
       if (!WhisperMessages.empty())
         for (size_t v = 0; v < WhisperMessages.size(); v++) {
@@ -248,7 +249,7 @@ void CChat::PrintChat() {
         }
       break;
     case ADMIN:
-      if (AdminMessages.size() > CConfig::GetInstance()->ChatLines)
+      if (AdminMessages.size() > Config::Instance().ChatLines)
         AdminMessages.erase(AdminMessages.begin());
       if (!AdminMessages.empty())
         for (size_t v = 0; v < AdminMessages.size(); v++) {

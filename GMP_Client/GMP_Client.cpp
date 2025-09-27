@@ -31,13 +31,13 @@ SOFTWARE.
 #include <iostream>
 #include <string>
 
-#include "discord_presence.h"
 #include "HooksManager.h"
 #include "Mod.h"
 #include "Network.h"
 #include "ZenGin/zGothicAPI.h"
 #include "common.h"
-#include "CConfig.h"
+#include "config.h"
+#include "discord_presence.h"
 #include "external_console_window.hpp"
 #include "patch.h"
 #include "patch_install.hpp"
@@ -65,9 +65,8 @@ void SetupWindowPositionTracking() {
             SDL_GetWindowPosition(g_pSdlWindow, &x, &y);
 
             // Save window position to config
-            auto* user_config = CConfig::GetInstance();
-            user_config->SetWindowPosition({x, y});
-            user_config->SaveConfigToFile();
+            Config::Instance().SetWindowPosition({x, y});
+            Config::Instance().SaveConfigToFile();
 
             SPDLOG_DEBUG("Window position changed, saved to config: x={}, y={}", x, y);
           }
@@ -90,12 +89,12 @@ HWND HookCreateWindowExA(DWORD dwExStyle, LPCSTR lpClassName, LPCSTR lpWindowNam
     return CreateWindowExA(dwExStyle, lpClassName, lpWindowName, dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu, hInstance, lpParam);
   }
 
-  const auto& window_pos = CConfig::GetInstance()->GetWindowPosition();
+  const auto& window_pos = Config::Instance().GetWindowPosition();
 
   uint32_t flags = 0;
   flags |= SDL_WINDOW_HIDDEN;
   flags |= SDL_WINDOW_RESIZABLE;
-  if (CConfig::GetInstance()->IsWindowAlwaysOnTop()) {
+  if (Config::Instance().IsWindowAlwaysOnTop()) {
     flags |= SDL_WINDOW_ALWAYS_ON_TOP;
   }
   g_pSdlWindow = SDL_CreateWindow(lpWindowName, nWidth, nHeight, flags);

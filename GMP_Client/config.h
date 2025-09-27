@@ -30,7 +30,6 @@ SOFTWARE.
 #include <optional>
 
 #include "ZenGin/zGothicAPI.h"
-#include "singleton.h"
 
 // KEYBOARD LAYOUTS
 #define LAYOUT_GERMAN 0x00000407
@@ -38,7 +37,7 @@ SOFTWARE.
 #define LAYOUT_POLISH 0x00000415
 #define LAYOUT_RUSSIAN 0x00000419
 
-class CConfig : public TSingleton<CConfig> {
+class Config {
 public:
   struct WindowPosition {
     std::int32_t x;
@@ -47,7 +46,7 @@ public:
 
   using ConsolePosition = WindowPosition;
 
-  bool IsDefault();
+  bool IsDefault() const;
 
   zSTRING Nickname;
   int skintexture;
@@ -57,19 +56,17 @@ public:
   int lang;
   bool logchat;
   bool watch;
-  bool antialiasing;
-  bool joystick;
-  bool potionkeys;
-  bool logovideos;
   enum KeyboardLayout { KEYBOARD_POLISH, KEYBOARD_GERMAN, KEYBOARD_CYRYLLIC };
   int keyboardlayout;
   int WatchPosX;
   int WatchPosY;
   int ChatLines;
-  CConfig();
-  ~CConfig();
+
+  Config();
+  ~Config();
+
   void DefaultSettings();
-  void SaveConfigToFile(bool sync_engine_settings = true);
+  void SaveConfigToFile();
 
   const std::optional<WindowPosition>& GetWindowPosition() const;
   void SetWindowPosition(WindowPosition window_position);
@@ -81,11 +78,15 @@ public:
     return window_always_on_top_;
   }
 
+  static Config& Instance() {
+    static Config instance;
+    return instance;
+  }
+
 private:
   void LoadConfigFromFile();
-  void ApplyEngineSettings() const;
 
-  bool d;
+  bool is_default_{true};
   std::filesystem::path config_file_path_;
   std::optional<WindowPosition> window_position_;
   std::optional<ConsolePosition> console_position_;

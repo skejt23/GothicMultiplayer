@@ -24,30 +24,25 @@ SOFTWARE.
 */
 
 /*****************************************************************************
-**																			**
-**	File name:		Interface/CWatch.h		   								**
-**																			**
-**	Created by:		01/07/11	-	skejt23									**
-**																			**
-**	Description:	Watch functionallity	 								**
-**																			**
+**	File name:		Interface/CWatch.h
+**	Created by:		01/07/11	-	skejt23
+**	Description:	Watch functionallity
+**
 *****************************************************************************/
 
 #pragma once
 
-#include "CConfig.h"
 #include "CLanguage.h"
 #include "ZenGin/zGothicAPI.h"
+#include "singleton.h"
 
 class CWatch : public TSingleton<CWatch> {
 private:
-  CConfig* Con;
   Gothic_II_Addon::zSTRING tmp;
   time_t currtime;
   char TimePrint[64];
   int H, M;
 
 public:
-  CWatch();
   void PrintWatch();
 };

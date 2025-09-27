@@ -5,6 +5,7 @@
 #define __ZOPTION_H__VER3__
 
 #define zOPT_SEC_VIDEO *(zSTRING*)(0x008CD474)
+#define zOPT_SEC_GAME *(zSTRING*)(0x008CD5F0)
 
 namespace Gothic_II_Addon {
 

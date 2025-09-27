@@ -4,6 +4,8 @@
 #ifndef __ZSTRING_H__VER3__
 #define __ZSTRING_H__VER3__
 
+#include <string>
+
 namespace Gothic_II_Addon {
 
   enum zTSTR_KIND {
@@ -96,6 +98,10 @@ namespace Gothic_II_Addon {
     long ToInt() const                                                            zCall( 0x0059D0F0 );
     int Search( char const*, unsigned int = 1) const                              zCall( 0x0059D110 );
     void Init()                                                                   zCall( 0x006D9B80 );
+
+    inline std::string string() const {
+      return IsEmpty() ? std::string{} : std::string(ToChar());
+    }
   };
 
   inline zSTRING operator + ( const zSTRING& s1, const zSTRING& s2 ) {

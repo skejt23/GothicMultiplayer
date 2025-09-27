@@ -37,8 +37,8 @@ SOFTWARE.
 
 #include <chrono>
 #include <vector>
+#include "singleton.h"
 #include "ZenGin/zGothicAPI.h"
-#include "CConfig.h"
 
 struct MsgStruct {
   Gothic_II_Addon::zSTRING Message;

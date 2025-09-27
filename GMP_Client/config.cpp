@@ -24,40 +24,36 @@ SOFTWARE.
 */
 
 #pragma warning(disable : 4996 4800)
-#include "CConfig.h"
+#include "config.h"
+
 #include <spdlog/spdlog.h>
 
 #include <exception>
 #include <filesystem>
 #include <map>
-#include <unordered_map>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 
 #include "shared/toml_wrapper.h"
-
 
 using namespace Gothic_II_Addon;
 
 namespace {
 constexpr std::string_view kConfigFileName = "GMP_Config.toml";
 
-std::string ToStdString(const zSTRING& value) {
-  return value.IsEmpty() ? std::string{} : std::string(value.ToChar());
-}
-
 }  // namespace
 
-CConfig::CConfig() : d(true) {
+Config::Config() {
   config_file_path_ = std::filesystem::current_path() / kConfigFileName;
   LoadConfigFromFile();
 }
 
-CConfig::~CConfig() {
+Config::~Config() {
   SaveConfigToFile();
 };
 
-void CConfig::LoadConfigFromFile() {
+void Config::LoadConfigFromFile() {
   DefaultSettings();
 
   if (!std::filesystem::exists(config_file_path_)) {
@@ -69,10 +65,9 @@ void CConfig::LoadConfigFromFile() {
   TomlWrapper toml;
   try {
     toml = TomlWrapper::CreateFromFile(config_file_path_.string());
-    d = false;
+    is_default_ = false;
   } catch (const std::exception& ex) {
     SPDLOG_INFO("Using default GMP configuration: {}", ex.what());
-    ApplyEngineSettings();
     return;
   }
 
@@ -127,22 +122,6 @@ void CConfig::LoadConfigFromFile() {
     keyboardlayout = *keyboard_opt;
   }
 
-  if (auto aa_opt = toml.GetValue<bool>("antialiasing"); aa_opt) {
-    antialiasing = *aa_opt;
-  }
-
-  if (auto joystick_opt = toml.GetValue<bool>("joystick"); joystick_opt) {
-    joystick = *joystick_opt;
-  }
-
-  if (auto potion_opt = toml.GetValue<bool>("potion_keys"); potion_opt) {
-    potionkeys = *potion_opt;
-  }
-
-  if (auto logo_opt = toml.GetValue<bool>("logo_videos"); logo_opt) {
-    logovideos = *logo_opt;
-  }
-
   if (std::optional<std::map<std::string, std::int32_t>> window_position = toml.GetValue<std::map<std::string, int>>("window_position")) {
     std::int32_t x = 0;
     std::int32_t y = 0;
@@ -173,12 +152,11 @@ void CConfig::LoadConfigFromFile() {
 
   window_always_on_top_ = toml.GetValue<bool>("window_always_on_top", window_always_on_top_);
 
-  d = Nickname.IsEmpty();
-
-  ApplyEngineSettings();
+  // If nickname is empty, the user didn't set up the config yet.
+  is_default_ = Nickname.IsEmpty();
 }
 
-void CConfig::DefaultSettings() {
+void Config::DefaultSettings() {
   Nickname.Clear();
   skintexture = 9;
   facetexture = 18;
@@ -188,23 +166,19 @@ void CConfig::DefaultSettings() {
   lang = 0;
   logchat = false;
   watch = false;
-  logovideos = true;
-  antialiasing = false;
-  joystick = false;
-  potionkeys = false;
   keyboardlayout = 0;
   WatchPosX = 7000;
   WatchPosY = 2500;
   ChatLines = 6;
   window_position_.reset();
   console_position_.reset();
-  d = true;
+  is_default_ = true;
 };
 
-void CConfig::SaveConfigToFile(bool sync_engine_settings) {
+void Config::SaveConfigToFile() {
   TomlWrapper toml;
 
-  toml["nickname"] = ToStdString(Nickname);
+  toml["nickname"] = Nickname.string();
   toml["skin_texture"] = skintexture;
   toml["face_texture"] = facetexture;
   toml["head_model"] = headmodel;
@@ -220,10 +194,6 @@ void CConfig::SaveConfigToFile(bool sync_engine_settings) {
 
   toml["chat_lines"] = ChatLines;
   toml["keyboard_layout"] = keyboardlayout;
-  toml["antialiasing"] = antialiasing;
-  toml["joystick"] = joystick;
-  toml["potion_keys"] = potionkeys;
-  toml["logo_videos"] = logovideos;
 
   if (window_position_) {
     std::unordered_map<std::string, toml::value> window_position_map;
@@ -242,58 +212,25 @@ void CConfig::SaveConfigToFile(bool sync_engine_settings) {
   toml["window_always_on_top"] = toml::value(window_always_on_top_);
 
   toml.Serialize(config_file_path_.string());
-  d = Nickname.IsEmpty();
-  ApplyEngineSettings();
+  is_default_ = Nickname.IsEmpty();
 }
 
-const std::optional<CConfig::WindowPosition>& CConfig::GetWindowPosition() const {
+const std::optional<Config::WindowPosition>& Config::GetWindowPosition() const {
   return window_position_;
 }
 
-void CConfig::SetWindowPosition(WindowPosition window_position) {
+void Config::SetWindowPosition(WindowPosition window_position) {
   window_position_ = window_position;
 }
 
-const std::optional<CConfig::ConsolePosition>& CConfig::GetConsolePosition() const {
+const std::optional<Config::ConsolePosition>& Config::GetConsolePosition() const {
   return console_position_;
 }
 
-void CConfig::SetConsolePosition(ConsolePosition console_position) {
+void Config::SetConsolePosition(ConsolePosition console_position) {
   console_position_ = console_position;
 }
 
-bool CConfig::IsDefault() {
-  return d;
-}
-
-void CConfig::ApplyEngineSettings() const {
-  if (!zoptions) {
-    SPDLOG_DEBUG("Skipping engine config sync because zoptions is not available");
-    return;
-  }
-
-  zSTRING Multiplayer = "MULTIPLAYER";
-  zSTRING Engine = "ENGINE";
-  zSTRING Game = "GAME";
-
-  // [MULTIPLAYER] Ini Section
-  zoptions->WriteString(Multiplayer, "Nickname", Nickname);
-  zoptions->WriteInt(Multiplayer, "Skintexture", skintexture);
-  zoptions->WriteInt(Multiplayer, "Facetexture", facetexture);
-  zoptions->WriteInt(Multiplayer, "Headmodel", headmodel);
-  zoptions->WriteInt(Multiplayer, "Walkstyle", walkstyle);
-  zoptions->WriteInt(Multiplayer, "Lang", lang);
-  zoptions->WriteBool(Multiplayer, "Logchat", logchat);
-  zoptions->WriteBool(Multiplayer, "Watch", watch);
-  zoptions->WriteInt(Multiplayer, "WatchPosX", WatchPosX);
-  zoptions->WriteInt(Multiplayer, "WatchPosY", WatchPosY);
-  zoptions->WriteInt(Multiplayer, "ChatLines", ChatLines);
-  zoptions->WriteInt(Multiplayer, "KeyboardLayout", keyboardlayout);
-  // Other Sections
-  zoptions->WriteBool(Engine, "zVidEnableAntiAliasing", antialiasing);
-  zoptions->WriteBool(Game, "enableJoystick", joystick);
-  zoptions->WriteBool(Game, "usePotionKeys", potionkeys);
-  zoptions->WriteBool(Game, "playLogoVideos", logovideos);
-  // Apply changes
-  gameMan->ApplySomeSettings();
+bool Config::IsDefault() const {
+  return is_default_;
 }

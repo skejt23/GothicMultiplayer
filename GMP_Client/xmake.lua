@@ -22,7 +22,7 @@ target("ClientMain")
               "CActiveAniID.cpp",
               "CAnimMenu.cpp", 
               "CChat.cpp",
-              "CConfig.cpp",
+              "config.cpp",
               "game_client.cpp",
               "CHeroClass.cpp",
               "CIngame.cpp",

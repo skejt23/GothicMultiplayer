@@ -25,7 +25,7 @@ SOFTWARE.
 
 #include "CMap.h"
 
-#include "CConfig.h"
+#include "config.h"
 #include "game_client.h"
 
 extern GameClient* client;
@@ -43,20 +43,20 @@ CMap::~CMap() {
 };
 
 void CMap::Open() {
-  if (CConfig::GetInstance()->watch)
-    CConfig::GetInstance()->watch = false;
+  if (Config::Instance().watch)
+    Config::Instance().watch = false;
   screen->InsertItem(PlayerMap);
   Opened = true;
 };
 void CMap::Close() {
   if (watchwastrue)
-    CConfig::GetInstance()->watch = true;
+    Config::Instance().watch = true;
   screen->RemoveItem(PlayerMap);
   Opened = false;
 };
 
 bool CMap::CheckMap() {
-  if (CConfig::GetInstance()->watch)
+  if (Config::Instance().watch)
     watchwastrue = true;
   else
     watchwastrue = false;
