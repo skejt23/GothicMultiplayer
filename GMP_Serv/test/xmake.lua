@@ -20,27 +20,13 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 -- SOFTWARE.
 
-includes("lib/znet", "lib/znet_rak")
-
-target("Server")
-    set_kind("static")
-    add_files("lib/*.cpp")
-    add_files("lib/Lua/*.cpp")
-    add_includedirs("$(builddir)/config")
-    add_includedirs("lib", {public = true})
-    add_deps("common", "SharedLib", "znet_server")
-    add_defines("SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE")
-    add_packages("spdlog", "fmt", "toml11", "nlohmann_json", "bitsery", "glm", "sol2", "pugixml", "cpp-httplib", "dylib", "openssl", {public = true})
-    set_default(false) -- So it's not installed by default
-
-target("ServerApp")
-    set_basename("GMP_Server")
+target("BanListTest")
     set_kind("binary")
-    add_files("app/main.cpp")
-    add_deps("Server")
-    add_packages("spdlog")
-    set_prefixdir("GMP_Server", { bindir = "." })
-    add_installfiles("resources/*")
-    add_installfiles("resources/scripts/*", {prefixdir = "scripts"})
-
-includes("test")
+    add_files("ban_list_test.cpp")
+    add_deps("Server", "zNetInterface")
+    add_packages("spdlog", "dylib", "bitsery")
+    add_packages("gtest")
+    add_tests("default")
+    set_rundir(os.projectdir())
+    -- disable the build by default
+    set_default(false)

@@ -77,6 +77,7 @@ public:
 
   virtual void AddPacketHandler(PacketHandler& packetHandler) = 0;
   virtual void RemovePacketHandler(PacketHandler& packetHandler) = 0;
+  virtual std::uint32_t GetPort() const = 0;
 };
 
 }  // namespace Net

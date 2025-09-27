@@ -40,6 +40,7 @@ SOFTWARE.
 #include <vector>
 
 #include "Script.h"
+#include "ban_manager.h"
 #include "character_definition.h"
 #include "common_structs.h"
 #include "config.h"
@@ -86,12 +87,7 @@ public:
     std::string small_image_text;
   };
 
-  struct BanEntry {
-    std::string nickname;
-    std::string ip;
-    std::string date;
-    std::string reason;
-  };
+  using BanEntry = BanManager::BanEntry;
 
   GameServer();
   ~GameServer() override;
@@ -101,7 +97,6 @@ public:
   bool HandlePacket(Net::PlayerId playerId, unsigned char* data, std::uint32_t size);
   void Run();
   bool Init();
-  void SaveBanList(void);
   bool IsPublic(void);
   void SendServerMessage(const std::string& message);
 
@@ -110,9 +105,10 @@ public:
   void UpdateDiscordActivity(const DiscordActivityState& activity);
   const DiscordActivityState& GetDiscordActivity() const;
 
+  std::uint32_t GetPort() const;
+
 private:
   void DeleteFromPlayerList(Net::PlayerId guid);
-  void LoadBanList(void);
   void HandleCastSpell(Packet p, bool target);
   void HandleDropItem(Packet p);
   void HandleTakeItem(Packet p);
@@ -133,7 +129,7 @@ private:
   void SendGameInfo(Net::PlayerId guid);
   void SendDiscordActivity(Net::PlayerId guid);
 
-  std::vector<BanEntry> ban_list;
+  std::unique_ptr<BanManager> ban_manager_;
   std::unique_ptr<CharacterDefinitionManager> character_definition_manager_;
   std::unique_ptr<Script> script;
   time_t last_stand_timer;

@@ -56,6 +56,7 @@ public:
   bool IsBanned(const char* IP) override;
 
   const char* GetPlayerIp(PlayerId id) override;
+  std::uint32_t GetPort() const override;
 
 private:
   RakNet::RakPeerInterface* peer_{nullptr};

@@ -67,8 +67,8 @@ TEST_F(ConnectionTest, MultipleClientsJoin_VerifyPacketsTellingAboutPlayers) {
     client2_existing_players_promise.set_value();
   });
 
-  ASSERT_TRUE(client1.Connect("127.0.0.1"));
-  ASSERT_TRUE(client2.Connect("127.0.0.1"));
+  ASSERT_TRUE(client1.Connect("127.0.0.1", server.GetPort()));
+  ASSERT_TRUE(client2.Connect("127.0.0.1", server.GetPort()));
   ASSERT_TRUE(client1_joined_future.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
   ASSERT_TRUE(client2_existing_players_future.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
 }
