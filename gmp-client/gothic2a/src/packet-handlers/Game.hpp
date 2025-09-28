@@ -41,6 +41,67 @@ SOFTWARE.
 extern zCOLOR COLOR_RED;
 namespace Game {
 
+inline void UnlockLockable(oCMobLockable* lockable) {
+  if (!lockable) {
+    return;
+  }
+
+  lockable->SetLocked(false);
+  lockable->pickLockNr = 0;
+  lockable->keyInstance.Clear();
+  lockable->pickLockStr.Clear();
+}
+
+inline void EmptyContainer(oCMobContainer* container) {
+  if (!container) {
+    return;
+  }
+
+  for (zCListSort<oCItem>* entry = &container->containList; entry; entry = entry->next) {
+    if (auto* item = entry->data) {
+      item->RemoveVobFromWorld();
+    }
+  }
+
+  container->containList.DeleteListDatas();
+  container->containList.data = nullptr;
+
+  if (container->items) {
+    container->items->DeleteContents();
+  }
+
+  container->contains.Clear();
+
+  UnlockLockable(container);
+}
+
+inline void DestroyWorldVobs(oCWorld* world) {
+  if (!world) {
+    return;
+  }
+
+  for (zCTree<zCVob>* node = world->globalVobTree.firstChild; node; node = node->next) {
+    if (!node->data) {
+      continue;
+    }
+
+    if (auto* item = zDYNAMIC_CAST<oCItem>(node->data)) {
+      item->RemoveVobFromWorld();
+      continue;
+    }
+
+    if (auto* container = zDYNAMIC_CAST<oCMobContainer>(node->data)) {
+      EmptyContainer(container);
+      continue;
+    }
+
+    if (auto* door = zDYNAMIC_CAST<oCMobDoor>(node->data)) {
+      UnlockLockable(door);
+    }
+  }
+}
+
+
 void SetAngleFromRightVector(oCNpc* npc, float right_x, float right_y, float right_z) {
   // Map current right vector components to legacy nrot indices
   float legacy_nx = right_z;  // m[2][0]
@@ -72,6 +133,7 @@ void OnInitialInfo(GameClient* client, Packet p) {
     client->map.Clear();
   }
 
+  DestroyWorldVobs(ogame->GetGameWorld());
   client->network->UpdateMyId(packet.player_id);
 }
 

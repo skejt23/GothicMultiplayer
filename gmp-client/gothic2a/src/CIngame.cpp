@@ -179,14 +179,6 @@ void CIngame::Loop() {
     // CHECK FOR SWAMP LIGHTS STATE
     if (global_ingame->RecognizedMap == MAP_COLONY)
       global_ingame->CheckSwampLights();
-    // ALL LOCKABLES OPEN
-    // if (player->GetFocusVob()) {
-    //   if (GetPointerType((DWORD)player->GetFocusVob()) == VOB_TYPE_VT_OCMOBCONTAINER ||
-    //       GetPointerType((DWORD)player->GetFocusVob()) == VOB_TYPE_VT_OCMOBDOOR) {
-    //     oCMobLockable* Locked = static_cast<oCMobLockable*>(player->GetFocusVob());
-    //     Locked->SetLocked(0);
-    //   }
-    // }
     // MUTE
     if (MuteCountdown) {
       long secs_to_unmute = (MuteTimer - clock()) / 1000;
