@@ -633,7 +633,7 @@ void CBuilder::CheckMsgSize() {
 
 // Fills mob names
 void CBuilder::FillMobNames() {
-  ifstream g2names(".\\Multiplayer\\WorldBuilder\\g2mobs.wb");
+  ifstream g2names(".\\Multiplayer\\world-builder\\g2mobs.wb");
   char _buff[1024];
   if (g2names.good()) {
     while (!g2names.eof()) {
@@ -645,7 +645,7 @@ void CBuilder::FillMobNames() {
 };
 
 void CBuilder::FillParticleNames() {
-  ifstream g2particles(".\\Multiplayer\\WorldBuilder\\g2particles.wb");
+  ifstream g2particles(".\\Multiplayer\\world-builder\\g2particles.wb");
   char _buff[1024];
   if (g2particles.good()) {
     while (!g2particles.eof()) {

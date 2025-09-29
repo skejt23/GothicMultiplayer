@@ -31,8 +31,8 @@ SOFTWARE.
 #include <dylib.hpp>
 #include <exception>
 
-#include "PacketHandlers/Connection.hpp"
-#include "PacketHandlers/Game.hpp"
+#include "packet-handlers/Connection.hpp"
+#include "packet-handlers/Game.hpp"
 #include "znet_client.h"
 
 static Net::NetClient* g_netclient = nullptr;

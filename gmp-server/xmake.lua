@@ -34,12 +34,12 @@ target("Server")
     set_default(false) -- So it's not installed by default
 
 target("ServerApp")
-    set_basename("GMP_Server")
+    set_basename("gmp-server")
     set_kind("binary")
     add_files("app/main.cpp")
     add_deps("Server")
     add_packages("spdlog")
-    set_prefixdir("GMP_Server", { bindir = "." })
+    set_prefixdir("gmp-server", { bindir = "." })
     add_installfiles("resources/*")
     add_installfiles("resources/scripts/*", {prefixdir = "scripts"})
 

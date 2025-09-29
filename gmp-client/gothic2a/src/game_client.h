@@ -36,7 +36,7 @@ SOFTWARE.
 #include "Network.h"
 #include "VoiceCapture.h"
 #include "VoicePlayback.h"
-#include "WorldBuilder\load.h"
+#include "world-builder\load.h"
 #include "ZenGin/zGothicAPI.h"
 
 enum FILE_REQ { CLASS_FILE = 1, SPAWN_FILE = 2, WB_FILE = 3, NULL_SIZE = 255 };

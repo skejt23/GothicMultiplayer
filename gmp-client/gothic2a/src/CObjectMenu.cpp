@@ -25,7 +25,7 @@ SOFTWARE.
 
 #include "CObjectMenu.h"
 
-#include "WorldBuilder\CBuilder.h"
+#include "world-builder\CBuilder.h"
 
 extern zCOLOR Highlighted;
 extern zCOLOR Normal;

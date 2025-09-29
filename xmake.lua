@@ -58,9 +58,9 @@ add_requires("fmt 11.0.2",
              "zlib 1.3.1",
              "openssl 1.1.1-w")
 
-includes("common", "Shared", "GMP_Serv", "thirdparty", "tests")
+includes("common", "shared", "gmp-server", "thirdparty", "tests")
 
 if is_plat("windows") then
     add_requires("discord")
-    includes("GMP_Client", "InjectMage")
+    includes("gmp-client", "InjectMage")
 end

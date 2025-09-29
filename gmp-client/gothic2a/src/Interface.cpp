@@ -37,7 +37,7 @@ SOFTWARE.
 #include "CMainMenu.h"
 #include "CMenu.h"
 #include "HooksManager.h"
-#include "WorldBuilder\CBuilder.h"
+#include "world-builder\CBuilder.h"
 #include "game_client.h"
 #include "keyboard.h"
 #include "mod.h"

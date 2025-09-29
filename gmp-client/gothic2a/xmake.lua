@@ -1,69 +1,9 @@
--- zNetInterface header-only library
-target("zNetInterface")
-    set_kind("headeronly")
-    add_includedirs("zNet", {public = true})
-    add_deps("common")
-
--- znet shared library
-target("ClientNet")
-    set_kind("shared")
-    add_files("znet_rak/client.cpp")
-    add_deps("zNetInterface", "RakNet")
-    add_packages("spdlog")
-    set_basename("znet")
-
-    on_install("install_to_system_dir")
-    
 -- Main GMP shared library (DLL)
 target("ClientMain")
     set_kind("shared")
     add_includedirs("$(builddir)/config")
-    add_files("Button.cpp",
-              "CActiveAniID.cpp",
-              "CAnimMenu.cpp", 
-              "CChat.cpp",
-              "config.cpp",
-              "game_client.cpp",
-              "CHeroClass.cpp",
-              "CIngame.cpp",
-              "CInterpolatePos.cpp",
-              "CInventory.cpp",
-              "CLanguage.cpp",
-              "CLocalPlayer.cpp",
-              "CMainMenu.cpp",
-              "CMap.cpp",
-              "CMenu.cpp",
-              "CObjectMenu.cpp",
-              "CObservation.cpp",
-              "CPlayer.cpp",
-              "CPlayerList.cpp",
-              "CSelectClass.cpp",
-              "CServerList.cpp",
-              "CShrinker.cpp",
-              "CSpawnPoint.cpp",
-              "CSyncFuncs.cpp",
-              "CWatch.cpp",
-              "ExceptionHandler.cpp",
-              "ExtendedServerList.cpp",
-              "Font.cpp",
-              "GMPSplash.cpp",
-              "GMP_Client.cpp",
-              "HooksManager.cpp",
-              "Interface.cpp",
-              "keyboard.cpp",
-              "Mod.cpp",
-              "Network.cpp",
-              "HTTPDownloader.cpp",
-              "external_console_window.cpp",
-              "patch.cpp",
-              "Table.cpp",
-              "discord_presence.cpp",
-              "WorldBuilder/CBuilder.cpp",
-              "WorldBuilder/load.cpp",
-              "WorldBuilder/save.cpp")
-    
-    add_files("gothic-patches/*.cpp")
-    add_includedirs("gothic-patches")
+    add_files("src/**.cpp")
+    add_includedirs("src/gothic-patches")
     
     add_deps("common", "SharedLib", "zNetInterface", "Client.Voice", "SDL3", "InjectMage", "BugTrap", "gothic_api")
     add_packages("spdlog", "fmt", "cpp-httplib", "dylib", "pugixml", "glm", "bitsery", "nlohmann_json")
@@ -146,4 +86,4 @@ target("ClientMain")
     end)
 
 -- Include subdirectories
-includes("Voice", "Launcher", "gothic-api")
+includes("launcher", "lib")

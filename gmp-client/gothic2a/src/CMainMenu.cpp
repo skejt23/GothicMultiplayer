@@ -42,7 +42,7 @@ SOFTWARE.
 #include "CSyncFuncs.h"
 #include "CWatch.h"
 #include "ExtendedServerList.h"
-#include "WorldBuilder\CBuilder.h"
+#include "world-builder\CBuilder.h"
 #include "config.h"
 #include "game_client.h"
 #include "interface.h"
@@ -702,8 +702,8 @@ void CMainMenu::RenderMenu() {
       if (TitleWeapon)
         TitleWeapon->RotateWorldX(0.6f);
       if (zinput->KeyToggled(KEY_F1)) {
-        g2names.open(".\\Multiplayer\\WorldBuilder\\g2mobs.wb");
-        g2particles.open(".\\Multiplayer\\WorldBuilder\\g2particles.wb");
+        g2names.open(".\\Multiplayer\\world-builder\\g2mobs.wb");
+        g2particles.open(".\\Multiplayer\\world-builder\\g2particles.wb");
         if (g2names.good() && g2particles.good()) {
           ps = WORLDBUILDER_MENU;
           MState = MENU_WORLDBUILDER;
@@ -1101,7 +1101,7 @@ void CMainMenu::RenderMenu() {
         if (!strstr(WBMapName.ToChar(), ".WBM"))
           WBMapName += ".WBM";
         char buffer[64];
-        sprintf(buffer, ".\\Multiplayer\\WorldBuilder\\Maps\\%s", WBMapName.ToChar());
+        sprintf(buffer, ".\\Multiplayer\\world-builder\\Maps\\%s", WBMapName.ToChar());
         string Map = LoadWorld::GetZenName(buffer);
         if (Map.size() > 0) {
           CleanUpMainMenu();
