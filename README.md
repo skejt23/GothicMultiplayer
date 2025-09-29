@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="GMP_Client/resources/logo.png" alt="Gothic Multiplayer Logo" width="550"/>
+  <img src="gmp-client/gothic2a/resources/logo.png" alt="Gothic Multiplayer Logo" width="550"/>
   
   # Gothic Multiplayer
   
