@@ -34,8 +34,6 @@ SOFTWARE.
 #include <variant>
 #include <vector>
 
-#include "gothic_clock.h"
-
 class Config {
 public:
   Config();
@@ -54,7 +52,5 @@ protected:
   void ValidateAndFixValues();
   void Load();
 
-  std::unordered_map<std::string,
-                     std::variant<std::string, std::vector<std::string>, std::int32_t, bool, GothicClock::Time>>
-      values_;
+  std::unordered_map<std::string, std::variant<std::string, std::vector<std::string>, std::int32_t, bool>> values_;
 };

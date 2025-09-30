@@ -66,9 +66,7 @@ public:
   Gothic_II_Addon::oCNpc* npc;
   uint64_t id;
   short hp, enable, update_hp_packet;
-  unsigned char char_class;
   NpcType Type;
-  bool SameTeamAsLocalPlayer;
 
 public:
   CPlayer();
@@ -77,7 +75,6 @@ public:
   static void DeleteAllPlayers();
   void DisablePlayer();
   void GetAppearance(BYTE& head, BYTE& skin, BYTE& face);
-  Gothic_II_Addon::zSTRING& GetClassName();
   Gothic_II_Addon::zSTRING GetHeadModelName();
   static Gothic_II_Addon::zSTRING GetHeadModelNameFromByte(BYTE head);
   int GetHealth();

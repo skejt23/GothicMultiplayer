@@ -62,9 +62,9 @@ void Script::LoadScripts(vector<string> scripts) {
 void Script::LoadScript(string script) {
   try {
     auto result = lua.safe_script_file(directory + "/" + script);
-    SPDLOG_INFO("Lua script {} has been loaded!", script);
+    SPDLOG_INFO("{} has been loaded", script);
   } catch (const sol::error& e) {
-    SPDLOG_ERROR("Lua script {} cannot be loaded: {}", script, e.what());
+    SPDLOG_ERROR("{} cannot be loaded: {}", script, e.what());
   }
 }
 

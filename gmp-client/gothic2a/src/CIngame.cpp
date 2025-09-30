@@ -144,22 +144,19 @@ void CIngame::Loop() {
         client->SendVoice();
       }
     }
-    // OBSERVE MODE
-    if (LocalPlayer) {
-      if (LocalPlayer->IsInObserveMode()) {
-        LocalPlayer->GetObserve()->Loop();
-      }
-    }
     // SENDING MY ANIMATION
-    zCModelAni* AniUnusual = player->GetModel()->aniChannels[1]->protoAni;  // TALK, TURNR ETC
-    zCModelAni* Ani = player->GetModel()->aniChannels[0]->protoAni;         // ZWYKLE
-    if (Ani) {
-      if (Ani->GetAniName().Search(TURN) < 2) {
-        CActiveAniID::GetInstance()->AddAni(Ani->GetAniID());
-      }
-      if (AniUnusual && Ani->GetAniID() != AniUnusual->GetAniID()) {
-        if (AniUnusual->GetAniName().Search(TURN) < 2) {
-          CActiveAniID::GetInstance()->AddAni(AniUnusual->GetAniID());
+    zCModel* model = player->GetModel();
+    if (model) {
+      zCModelAni* AniUnusual = model->aniChannels[1] ? model->aniChannels[1]->protoAni : nullptr;  // TALK, TURNR ETC
+      zCModelAni* Ani = model->aniChannels[0] ? model->aniChannels[0]->protoAni : nullptr;         // ZWYKLE
+      if (Ani) {
+        if (Ani->GetAniName().Search(TURN) < 2) {
+          CActiveAniID::GetInstance()->AddAni(Ani->GetAniID());
+        }
+        if (AniUnusual && Ani->GetAniID() != AniUnusual->GetAniID()) {
+          if (AniUnusual->GetAniName().Search(TURN) < 2) {
+            CActiveAniID::GetInstance()->AddAni(AniUnusual->GetAniID());
+          }
         }
       }
     }

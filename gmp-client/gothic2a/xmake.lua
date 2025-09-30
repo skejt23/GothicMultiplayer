@@ -6,7 +6,7 @@ target("ClientMain")
     add_includedirs("src/gothic-patches")
     
     add_deps("common", "SharedLib", "zNetInterface", "Client.Voice", "SDL3", "InjectMage", "BugTrap", "gothic_api")
-    add_packages("spdlog", "fmt", "cpp-httplib", "dylib", "pugixml", "glm", "bitsery", "nlohmann_json")
+    add_packages("spdlog", "fmt", "cpp-httplib", "dylib", "glm", "bitsery", "nlohmann_json")
     add_syslinks("wsock32", "ws2_32", "Iphlpapi", "user32", "gdi32", "kernel32")
 
     add_defines("SPDLOG_FMT_EXTERNAL")
@@ -22,6 +22,12 @@ target("ClientMain")
         add_packages("discord")
         add_defines(string.format("DISCORD_APPLICATION_ID=%sLL", discord_app_id))
     end
+
+    local master_endpoint = get_config("master_server_endpoint")
+    if master_endpoint and #master_endpoint > 0 then
+        add_defines(string.format("MASTER_SERVER_ENDPOINT=\"%s\"", master_endpoint))
+    end
+
 
     -- Resource file handling (Windows specific)
     if is_plat("windows") then

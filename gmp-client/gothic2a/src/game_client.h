@@ -26,11 +26,8 @@ SOFTWARE.
 
 #include <string>
 
-#include "CHeroClass.h"
 #include "CLanguage.h"
-#include "CObservation.h"
 #include "CPlayer.h"
-#include "CSpawnPoint.h"
 #include "CSyncFuncs.h"
 #include "HooksManager.h"
 #include "Network.h"
@@ -39,7 +36,7 @@ SOFTWARE.
 #include "world-builder\load.h"
 #include "ZenGin/zGothicAPI.h"
 
-enum FILE_REQ { CLASS_FILE = 1, SPAWN_FILE = 2, WB_FILE = 3, NULL_SIZE = 255 };
+enum FILE_REQ { WB_FILE = 1, NULL_SIZE = 255 };
 
 struct MD5Sum {
   BYTE data[16];
@@ -61,7 +58,7 @@ public:
   void HandleNetwork(void);
   bool IsConnected(void);
   bool Connect(void);
-  void JoinGame(BYTE selected_class);
+  void JoinGame();
   zSTRING& GetLastError(void);
   void SendDropItem(short Instance, short amount);
   void SendTakeItem(short Instance);
@@ -75,12 +72,8 @@ public:
   void SyncGameTime(void);
   void Disconnect(void);
   void DownloadWBFile(void);
-  void DownloadClassFile(void);
-  void DownloadSpawnpointsFile(void);
   void RestoreHealth(void);
 
-  CHeroClass* classmgr;
-  CSpawnPoint* spawnpoint;
   VoiceCapture* voiceCapture;
   VoicePlayback* voicePlayback;
   std::vector<CPlayer*> players;
@@ -90,11 +83,9 @@ public:
   bool IsAdminOrModerator;
   bool IgnoreFirstTimeMessage;
   bool IsInGame;
-  unsigned char game_mode;
   short mp_restore;
   int DropItemsAllowed;
   int ForceHideMap;
-  CObservation::ObseravtionMode ObserveMode;
   CLanguage* lang;
   Network* network;
   bool IsReadyToJoin;

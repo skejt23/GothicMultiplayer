@@ -31,7 +31,6 @@ PlayerManager::PlayerId PlayerManager::AddPlayer(Net::ConnectionHandle connectio
   player.player_id = player_id;
   player.connection = connection;
   player.name = name;
-  player.char_class = 0;
   player.head = 0;
   player.skin = 0;
   player.body = 0;

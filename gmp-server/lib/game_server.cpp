@@ -28,15 +28,22 @@ SOFTWARE.
 #include <bitsery/traits/vector.h>
 #include <httplib.h>
 #include <spdlog/sinks/basic_file_sink.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 #include <version.h>
 
+#include <charconv>
+#include <chrono>
 #include <dylib.hpp>
 #include <future>
 #include <iterator>
+#include <memory>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <stack>
 #include <string>
+#include <string_view>
+#include <system_error>
 
 #include "HTTPServer.h"
 #include "gothic_clock.h"
@@ -49,9 +56,6 @@ SOFTWARE.
 #include "znet_server.h"
 
 Net::NetServer* g_net_server = nullptr;
-
-const char* lobbyAddress = "http://lobby.your-site.com";
-const char* lobbyFile = "add.php";
 
 const char* WTF = "Dude, I dont understand you.";
 const char* OK = "OK!";
@@ -68,6 +72,134 @@ void (*g_destroy_net_server_func)(Net::NetServer*) = nullptr;
 using namespace Net;
 
 namespace {
+
+constexpr const char* kBanListFileName = "bans.json";
+constexpr std::string_view kFrame = "-========================================-";
+
+#ifdef MASTER_SERVER_ENDPOINT
+constexpr std::string_view kMasterServerEndpoint = MASTER_SERVER_ENDPOINT;
+#else
+constexpr std::string_view kMasterServerEndpoint{};
+#endif
+
+struct MasterServerEndpointInfo {
+  std::string host;
+  std::string path{"/"};
+  int port{80};
+  bool use_https{false};
+};
+
+std::optional<MasterServerEndpointInfo> ParseMasterServerEndpoint(std::string_view endpoint) {
+  if (endpoint.empty()) {
+    return std::nullopt;
+  }
+
+  MasterServerEndpointInfo info;
+  std::string_view remainder = endpoint;
+  auto scheme_pos = remainder.find("://");
+  if (scheme_pos != std::string_view::npos) {
+    auto scheme = remainder.substr(0, scheme_pos);
+    if (scheme == "http") {
+      info.use_https = false;
+    } else if (scheme == "https") {
+      info.use_https = true;
+      info.port = 443;
+    } else {
+      return std::nullopt;
+    }
+    remainder.remove_prefix(scheme_pos + 3);
+  }
+
+  if (remainder.empty()) {
+    return std::nullopt;
+  }
+
+  auto path_pos = remainder.find('/');
+  std::string_view host_port = remainder;
+  if (path_pos != std::string_view::npos) {
+    host_port = remainder.substr(0, path_pos);
+    auto path = remainder.substr(path_pos);
+    info.path.assign(path.begin(), path.end());
+    if (info.path.empty()) {
+      info.path = "/";
+    }
+  }
+
+  if (host_port.empty()) {
+    return std::nullopt;
+  }
+
+  auto port_pos = host_port.rfind(':');
+  if (port_pos != std::string_view::npos) {
+    auto port_view = host_port.substr(port_pos + 1);
+    int port_value = 0;
+    auto result = std::from_chars(port_view.data(), port_view.data() + port_view.size(), port_value);
+    if (result.ec != std::errc{}) {
+      return std::nullopt;
+    }
+    info.port = port_value;
+    host_port.remove_suffix(host_port.size() - port_pos);
+  } else if (!info.use_https) {
+    info.port = 80;
+  }
+
+  info.host.assign(host_port.begin(), host_port.end());
+
+  if (info.host.empty()) {
+    return std::nullopt;
+  }
+
+  return info;
+}
+
+std::unique_ptr<httplib::Client> CreateMasterServerClient(const MasterServerEndpointInfo& info) {
+#ifdef CPPHTTPLIB_OPENSSL_SUPPORT
+  if (info.use_https) {
+    auto client = std::make_unique<httplib::SSLClient>(info.host, info.port);
+    client->enable_server_certificate_verification(true);
+    return client;
+  }
+#else
+  if (info.use_https) {
+    SPDLOG_ERROR("Master server endpoint '{}' requires HTTPS support, but the build lacks OpenSSL support.", info.host);
+    return nullptr;
+  }
+#endif
+
+  return std::make_unique<httplib::Client>(info.host, info.port);
+}
+
+std::string SanitizeServerText(std::string text) {
+  for (std::size_t i = 0; i < text.size(); ++i) {
+    unsigned char ch = static_cast<unsigned char>(text[i]);
+    if (ch < 0x20 && ch != 0x07) {
+      text.resize(i);
+      break;
+    }
+  }
+  return text;
+}
+
+void LogServerBanner() {
+  SPDLOG_INFO(kFrame);
+  SPDLOG_INFO("-= Gothic Multiplayer Dedicated Server");
+  SPDLOG_INFO(kFrame);
+
+  constexpr std::string_view git_tag_long = GIT_TAG_LONG;
+  if (!git_tag_long.empty()) {
+    SPDLOG_INFO("-= Version: {}", git_tag_long);
+  } else {
+    SPDLOG_INFO("-= Version: Development build");
+  }
+
+  constexpr std::string_view git_commit = GIT_COMMIT_LONG;
+  if (!git_commit.empty()) {
+    SPDLOG_INFO("-= Commit: {}", git_commit);
+  }
+
+  SPDLOG_INFO("-= Build date: {} {}", __DATE__, __TIME__);
+  SPDLOG_INFO("-= GMP Team 2011-2025");
+}
 
 template <typename Packet, typename TContainer = std::vector<std::uint8_t>>
 void SerializeAndSend(const Packet& packet, Net::PacketPriority priority, Net::PacketReliability reliable, Net::ConnectionHandle id,
@@ -102,12 +234,19 @@ void LoadNetworkLibrary() {
 }
 
 void InitializeLogger(const Config& config) {
-  if (!config.Get<bool>("log_to_stdout")) {
-    spdlog::default_logger()->sinks().clear();
+  auto logger = spdlog::default_logger();
+  logger->sinks().clear();
+
+  if (config.Get<bool>("log_to_stdout")) {
+    auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+    console_sink->set_pattern("[%^%l%$] %v");
+    logger->sinks().push_back(std::move(console_sink));
   }
 
   auto log_file = config.Get<std::string>("log_file");
-  spdlog::default_logger()->sinks().push_back(std::make_shared<spdlog::sinks::basic_file_sink_mt>(std::move(log_file), false));
+  auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(std::move(log_file), false);
+  file_sink->set_pattern("[%Y-%m-%d %H:%M:%S] [%l] %v");
+  logger->sinks().push_back(std::move(file_sink));
 
   auto log_level = config.Get<std::string>("log_level");
   spdlog::set_level(spdlog::level::from_str(log_level));
@@ -116,18 +255,9 @@ void InitializeLogger(const Config& config) {
 }  // namespace
 
 GameServer::GameServer() {
-  spdlog::set_pattern("[%T %^%l%$] %v");
   InitializeLogger(config_);
-  SPDLOG_INFO("|-----------------------------------|");
-  constexpr std::string_view git_tag_long = GIT_TAG_LONG;
-  if (!git_tag_long.empty()) {
-    SPDLOG_INFO("Gothic Multiplayer {}", git_tag_long);
-  } else {
-    SPDLOG_INFO("Gothic Multiplayer");
-  }
-  SPDLOG_INFO("|-----------------------------------|");
+  LogServerBanner();
   config_.LogConfigValues();
-  SPDLOG_INFO("|-----------------------------------|");
   g_server = this;
 
   // Register server-side events.
@@ -136,7 +266,6 @@ GameServer::GameServer() {
   EventManager::Instance().RegisterEvent(kEventOnPlayerMessageName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerCommandName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerWhisperName);
-  EventManager::Instance().RegisterEvent(kEventOnPlayerChangeClassName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerKillName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerDeathName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerDropItemName);
@@ -156,6 +285,10 @@ GameServer::~GameServer() {
 
   script.reset();
 
+  if (public_list_http_thread_future_.valid()) {
+    public_list_http_thread_future_.wait();
+  }
+
   if (g_net_server != nullptr) {
     g_net_server->RemovePacketHandler(*this);
     g_destroy_net_server_func(g_net_server);
@@ -172,14 +305,6 @@ bool GameServer::Init() {
     System::MakeMeDaemon(false);
   }
 #endif
-  character_definition_manager_ = std::make_unique<CharacterDefinitionManager>();
-  auto character_definitions_file = config_.Get<std::string>("character_definitions_file");
-  if (!character_definitions_file.empty()) {
-    character_definition_manager_->Load(character_definitions_file);
-  } else {
-    SPDLOG_WARN("Character definitions file not specified. No character definitions will be loaded.");
-  }
-
   auto slots = config_.Get<std::int32_t>("slots");
   allow_modification = config_.Get<bool>("allow_modification");
 
@@ -194,15 +319,20 @@ bool GameServer::Init() {
   ban_manager_->Load();
   g_is_server_running = true;
 
-  clock_ = std::make_unique<GothicClock>(config_.Get<GothicClock::Time>("game_time"));
-  if (IsPublic()) {
+  clock_ = std::make_unique<GothicClock>(GothicClock::Time{});
+  if (IsPublic() && !kMasterServerEndpoint.empty()) {
     public_list_http_thread_future_ = std::async(&GameServer::AddToPublicListHTTP, this);
+    SPDLOG_INFO("Master Server connection successful!");
+  } else if (IsPublic()) {
+    SPDLOG_WARN("Server marked as public, but no Master Server endpoint is configured. Skipping registration.");
+  } else if (!IsPublic()) {
+    SPDLOG_WARN("Server marked as private, skipping connection to Master Server..");
   }
   http_server_ = std::make_unique<HTTPServer>();
   http_server_->Start(port);
   this->last_stand_timer = 0;
 
-  SPDLOG_INFO("");
+  SPDLOG_INFO(kFrame);
   script = std::make_unique<Script>(config_.Get<std::vector<std::string>>("scripts"));
   last_update_time_ = std::chrono::steady_clock::now();
 
@@ -213,8 +343,10 @@ bool GameServer::Init() {
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
   });
-  SPDLOG_INFO("|-----------------------------------|");
-  SPDLOG_INFO("GMP Classic Server initialized successfully!");
+  SPDLOG_INFO("");
+  SPDLOG_INFO(kFrame);
+  SPDLOG_INFO("Gothic Multiplayer Server initialized successfully!");
+  SPDLOG_INFO(kFrame);
   return true;
 }
 
@@ -330,12 +462,7 @@ void GameServer::ProcessRespawns() {
     if (respawn_time == 0 || player.tod + respawn_time <= now) {
       player.flags = 0;
       player.tod = 0;
-
-      if (!character_definition_manager_->IsEmpty()) {
-        player.health = character_definition_manager_->GetCharacterDefinition(player.char_class).abilities[HP];
-      } else {
-        player.health = 100;
-      }
+      player.health = 100;
 
       SendRespawnInfo(player.player_id);
     }
@@ -496,18 +623,8 @@ void GameServer::SomeoneJoinGame(Packet p) {
 
   bool was_dead = player.tod != 0;
   player.tod = 0;
-  auto previous_class = player.char_class;
-  player.char_class = packet.selected_class;
-  if (!character_definition_manager_->IsEmpty()) {
-    player.health = character_definition_manager_->GetCharacterDefinition(packet.selected_class).abilities[HP];
-  } else {
-    player.health = 100;
-  }
+  player.health = 100;
   player.state.health_points = player.health;
-
-  if (!player.is_ingame || previous_class != player.char_class) {
-    EventManager::Instance().TriggerEvent(kEventOnPlayerChangeClassName, OnPlayerChangeClassEvent{player.player_id, player.char_class});
-  }
 
   player.state.position = packet.position;
   player.state.nrot = packet.normal;
@@ -536,7 +653,6 @@ void GameServer::SomeoneJoinGame(Packet p) {
 
       ExistingPlayerInfo player_packet;
       player_packet.player_id = existing_player.player_id;
-      player_packet.selected_class = existing_player.char_class;
       player_packet.position = existing_player.state.position;
       player_packet.left_hand_item_instance = existing_player.state.left_hand_item_instance;
       player_packet.right_hand_item_instance = existing_player.state.right_hand_item_instance;
@@ -564,11 +680,10 @@ void GameServer::SomeoneJoinGame(Packet p) {
 
   // spawn
   if (was_dead) {
-    EventManager::Instance().TriggerEvent(kEventOnPlayerRespawnName,
-                                          OnPlayerRespawnEvent{player.player_id, player.char_class, player.state.position});
+    EventManager::Instance().TriggerEvent(kEventOnPlayerRespawnName, OnPlayerRespawnEvent{player.player_id, player.state.position});
   }
 
-  EventManager::Instance().TriggerEvent(kEventOnPlayerSpawnName, OnPlayerSpawnEvent{player.player_id, player.char_class, player.state.position});
+  EventManager::Instance().TriggerEvent(kEventOnPlayerSpawnName, OnPlayerSpawnEvent{player.player_id, player.state.position});
 
   // join
   EventManager::Instance().TriggerEvent(kEventOnPlayerConnectName, player.player_id);
@@ -623,31 +738,6 @@ void GameServer::MakeHPDiff(Packet p) {
       if (victim.health) {
         victim.health += diffed_hp;
       }
-    } else if (config_.Get<bool>("be_unconcious_before_dead")) {
-      switch (attacker.fight_pos) {
-        case 1:
-        case 3:
-        case 4:
-          if (victim.flags & PlayerManager::PL_UNCONCIOUS) {
-            victim.flags &= ~PlayerManager::PL_UNCONCIOUS;
-            HandlePlayerDeath(victim, killer_id);
-          } else {
-            victim.health += diffed_hp;
-            if (victim.health <= 1) {
-              victim.health = 1;
-              victim.flags |= PlayerManager::PL_UNCONCIOUS;
-            }
-          }
-          break;
-        default:
-          if (victim.health > 0) {
-            victim.health += diffed_hp;
-            if (victim.health < 0) {
-              victim.health = 0;
-            }
-          }
-          break;
-      }
     } else {
       victim.health += diffed_hp;
       if (victim.health == 1) {
@@ -664,11 +754,8 @@ void GameServer::MakeHPDiff(Packet p) {
 
     if (victim.health <= 0) {
       HandlePlayerDeath(victim, killer_id);
-    } else if (victim_player_id == attacker.player_id || !config_.Get<bool>("be_unconcious_before_dead")) {
-      auto max_health = character_definition_manager_->GetCharacterDefinition(victim.char_class).abilities[HP];
-      if (victim.health > max_health) {
-        victim.health = max_health;
-      }
+    } else if (victim.health > 100) {
+      victim.health = 100;
     }
 
     victim.state.health_points = victim.health;
@@ -803,9 +890,6 @@ void GameServer::HandleDropItem(Packet p) {
 }
 
 void GameServer::HandleTakeItem(Packet p) {
-  if (!config_.Get<bool>("allow_dropitems"))
-    return;
-
   auto player_opt = player_manager_.GetPlayerByConnection(p.id);
   if (!player_opt.has_value() || !player_opt.value().get().is_ingame)
     return;
@@ -831,27 +915,63 @@ void GameServer::HandleRMConsole(Packet p) {
   // Intentionally left blank. This can be implemented in the scripts.
 }
 
-void MakeHTTPReq(const std::string& file) {
-  httplib::Client cli(lobbyAddress);
-  cli.Get(file);
-}
-
 void GameServer::AddToPublicListHTTP() {
   using namespace std::chrono_literals;
 
-  auto last_update = std::chrono::system_clock::now();
+  auto endpoint_info_opt = ParseMasterServerEndpoint(kMasterServerEndpoint);
+  if (!endpoint_info_opt) {
+    SPDLOG_WARN("Master server endpoint is not configured. Skipping public list updates.");
+    return;
+  }
+
+  const auto endpoint_info = *endpoint_info_opt;
+
+  auto client = CreateMasterServerClient(endpoint_info);
+  if (!client) {
+    SPDLOG_ERROR("Unable to create HTTP client for master server endpoint '{}'.", kMasterServerEndpoint);
+    return;
+  }
+
+  client->set_connection_timeout(5, 0);
+  client->set_read_timeout(5, 0);
+  client->set_write_timeout(5, 0);
+
+  auto server_name = SanitizeServerText(g_server->config_.Get<std::string>("name"));
+  auto server_auth_key = SanitizeServerText(g_server->config_.Get<std::string>("auth_key"));
+  const auto make_server_key = [](std::string address, std::uint32_t port) {
+    if (address == "0.0.0.0" || address == "::" || address.empty()) {
+      address = "0.0.0.0";
+    }
+
+    return address + ":" + std::to_string(port);
+  };
+
+  auto server_address = g_net_server->GetAddress();
+  auto server_port = static_cast<std::uint32_t>(g_net_server->GetPort());
+  auto server_key = make_server_key(server_address, server_port);
+  auto last_update = std::chrono::system_clock::now() - 15s;
+
   while (g_is_server_running) {
-    if (g_server->IsPublic()) {
-      if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - last_update).count() >= 5) {
-        last_update = std::chrono::system_clock::now();
-        auto server_name = g_server->config_.Get<std::string>("name");
-        for (size_t i = 0; i <= strlen(server_name.c_str()); i++)
-          if ((*((unsigned char*)server_name.c_str() + i) < 0x20) && (*((unsigned char*)server_name.c_str() + i) != 0x07))
-            *((unsigned char*)server_name.data() + i) = 0;
-        std::string buffer = fmt::format("{}?sn={}&port={}&crt={}&mx={}&map={}", lobbyFile, server_name, g_server->config_.Get<std::int32_t>("port"),
-                                         static_cast<unsigned int>(g_server->player_manager_.GetPlayerCount()),
-                                         g_server->config_.Get<std::int32_t>("slots"), g_server->config_.Get<std::string>("map"));
-        MakeHTTPReq(buffer);
+    auto now = std::chrono::system_clock::now();
+    if (now - last_update >= 15s) {
+      last_update = now;
+      nlohmann::json server_info{{"servername", server_name},
+                                 {"players", static_cast<std::int32_t>(player_manager_.GetPlayerCount())},
+                                 {"maxslots", g_server->config_.Get<std::int32_t>("slots")}};
+
+      if (!server_auth_key.empty()) {
+        server_info["auth_key"] = server_auth_key;
+      }
+
+      nlohmann::json payload = nlohmann::json::object();
+      payload[server_key] = std::move(server_info);
+
+      auto response = client->Post(endpoint_info.path.c_str(), payload.dump(), "application/json");
+      if (!response) {
+        SPDLOG_WARN("Failed to update master server at {}:{}{}", endpoint_info.host, endpoint_info.port, endpoint_info.path);
+      } else if (response->status >= 400) {
+        SPDLOG_WARN("Master server responded with status {} when updating {}:{}{}", response->status, endpoint_info.host, endpoint_info.port,
+                    endpoint_info.path);
       }
     }
     std::this_thread::sleep_for(100ms);
@@ -869,13 +989,6 @@ void GameServer::SendGameInfo(Net::ConnectionHandle who) {
   GothicClock::TimeUnion game_time = clock_->GetTime();
   packet.raw_game_time = game_time.raw;
 
-  packet.game_mode = config_.Get<std::int32_t>("game_mode");
-  if (config_.Get<bool>("quick_pots")) {
-    packet.flags |= QUICK_POTS;
-  }
-  if (config_.Get<bool>("allow_dropitems")) {
-    packet.flags |= DROP_ITEMS;
-  }
   if (config_.Get<bool>("hide_map")) {
     packet.flags |= HIDE_MAP;
   }

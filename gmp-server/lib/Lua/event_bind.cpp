@@ -45,9 +45,11 @@ struct LuaProxyArgs {
 static std::map<std::string, std::function<void(LuaProxyArgs)>> kLuaEventProxies;
 
 void RegisterProxies() {
-  kLuaEventProxies[kEventOnClockUpdateName] = {[](LuaProxyArgs args) {
-    OnClockUpdateEvent clock_update_event = std::any_cast<OnClockUpdateEvent>(args.event);
-    args.callback(clock_update_event.day, clock_update_event.hour, clock_update_event.min);
+  kLuaEventProxies[kEventOnInitName] = {[](LuaProxyArgs args) { args.callback(); }};
+  kLuaEventProxies[kEventOnExitName] = {[](LuaProxyArgs args) { args.callback(); }};
+  kLuaEventProxies[kEventOnGameTimeName] = {[](LuaProxyArgs args) {
+    OnGameTimeEvent gametime_event = std::any_cast<OnGameTimeEvent>(args.event);
+    args.callback(gametime_event.day, gametime_event.hour, gametime_event.min);
   }};
   kLuaEventProxies[kEventOnPlayerConnectName] = {[](LuaProxyArgs args) {
     std::uint32_t player_id = std::any_cast<std::uint32_t>(args.event);
@@ -68,10 +70,6 @@ void RegisterProxies() {
   kLuaEventProxies[kEventOnPlayerWhisperName] = {[](LuaProxyArgs args) {
     OnPlayerWhisperEvent player_whisper_event = std::any_cast<OnPlayerWhisperEvent>(args.event);
     args.callback(player_whisper_event.from_id, player_whisper_event.to_id, player_whisper_event.text);
-  }};
-  kLuaEventProxies[kEventOnPlayerChangeClassName] = {[](LuaProxyArgs args) {
-    OnPlayerChangeClassEvent player_changeclass_event = std::any_cast<OnPlayerChangeClassEvent>(args.event);
-    args.callback(player_changeclass_event.pid, player_changeclass_event.cid);
   }};
   kLuaEventProxies[kEventOnPlayerKillName] = {[](LuaProxyArgs args) {
     OnPlayerKillEvent player_kill_event = std::any_cast<OnPlayerKillEvent>(args.event);
@@ -99,13 +97,11 @@ void RegisterProxies() {
   }};
   kLuaEventProxies[kEventOnPlayerSpawnName] = {[](LuaProxyArgs args) {
     OnPlayerSpawnEvent player_spawn_event = std::any_cast<OnPlayerSpawnEvent>(args.event);
-    args.callback(player_spawn_event.player_id, player_spawn_event.class_id, player_spawn_event.position.x, player_spawn_event.position.y,
-                  player_spawn_event.position.z);
+    args.callback(player_spawn_event.player_id, player_spawn_event.position.x, player_spawn_event.position.y, player_spawn_event.position.z);
   }};
   kLuaEventProxies[kEventOnPlayerRespawnName] = {[](LuaProxyArgs args) {
     OnPlayerRespawnEvent player_respawn_event = std::any_cast<OnPlayerRespawnEvent>(args.event);
-    args.callback(player_respawn_event.player_id, player_respawn_event.class_id, player_respawn_event.position.x, player_respawn_event.position.y,
-                  player_respawn_event.position.z);
+    args.callback(player_respawn_event.player_id, player_respawn_event.position.x, player_respawn_event.position.y, player_respawn_event.position.z);
   }};
   kLuaEventProxies[kEventOnPlayerHitName] = {[](LuaProxyArgs args) {
     OnPlayerHitEvent player_hit_event = std::any_cast<OnPlayerHitEvent>(args.event);

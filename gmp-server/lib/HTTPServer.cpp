@@ -27,28 +27,6 @@ void HTTPServer::Start(int port) {
     res.set_content(buffer.str(), "text/plain");
   });
 
-  server.Get("/class", [](const Request& req, Response& res) {
-    ifstream file("class.xml");
-    if (!file.is_open()) {
-      res.set_content("EMPTY", "text/plain");
-      return;
-    }
-    stringstream buffer;
-    buffer << file.rdbuf();
-    res.set_content(buffer.str(), "text/plain");
-  });
-
-  server.Get("/spawnpoint", [](const Request& req, Response& res) {
-    ifstream file("spawnpoint");
-    if (!file.is_open()) {
-      res.set_content("EMPTY", "text/plain");
-      return;
-    }
-    stringstream buffer;
-    buffer << file.rdbuf();
-    res.set_content(buffer.str(), "text/plain");
-  });
-
   http_thread_future_ = std::async([this, port] {
     bool result = server.listen("0.0.0.0", port + 1);
     if (!result) {

@@ -25,23 +25,74 @@ SOFTWARE.
 
 #include <spdlog/spdlog.h>
 
+#include <atomic>
 #include <chrono>
+#include <csignal>
 #include <cstdlib>
 #include <ctime>
 #include <sstream>
+#include <thread>
+
+#ifdef _WIN32
+#include <Windows.h>
+#endif
 
 #include "game_server.h"
 
+namespace {
+
+std::atomic<bool> g_should_exit{false};
+
+#ifdef _WIN32
+BOOL WINAPI HandlerRoutine(DWORD dwCtrlType) {
+  switch (dwCtrlType) {
+    case CTRL_CLOSE_EVENT:
+      SPDLOG_WARN("Warning! Please use CTRL + C instead of the close button to properly close the application.");
+      std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+      [[fallthrough]];
+    case CTRL_C_EVENT:
+    case CTRL_BREAK_EVENT:
+      g_should_exit.store(true, std::memory_order_release);
+      return TRUE;
+    default:
+      return FALSE;
+  }
+}
+
+void RegisterSignalHandlers() {
+  if (!SetConsoleCtrlHandler(HandlerRoutine, TRUE)) {
+    SPDLOG_ERROR("Failed to register console control handler.");
+  }
+}
+#else
+void HandlerRoutine(int /*signal*/) {
+  g_should_exit.store(true, std::memory_order_release);
+}
+
+void RegisterSignalHandlers() {
+  std::signal(SIGINT, HandlerRoutine);
+  std::signal(SIGTERM, HandlerRoutine);
+}
+#endif
+
+}  // namespace
+
+
 int main(int argc, char **argv) {
   srand(static_cast<unsigned int>(time(NULL)));
+
+  RegisterSignalHandlers();
 
   GameServer serv;
   if (!serv.Init()) {
     SPDLOG_ERROR("Server initialization failed!");
     return 1;
   }
-  while (true) {
+
+  while (!g_should_exit.load(std::memory_order_acquire)) {
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
+
+  SPDLOG_INFO("Shutting down server...");
   return 0;
 }

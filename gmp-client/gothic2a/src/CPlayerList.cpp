@@ -153,10 +153,7 @@ void CPlayerList::UpdatePlayerList() {
     // PRINT
     zCView* Screen = screen;
     Screen->SetFontColor(Normal);
-    if (client->game_mode == 0)
-      Screen->Print(x + 400, y, (*Lang)[CLanguage::DEATHMATCH]);
-    else
-      Screen->Print(x + 400, y, (*Lang)[CLanguage::TEAM_DEATHMATCH]);
+    Screen->Print(x + 400, y, (*Lang)[CLanguage::SRV_PLAYERS]);
     char buffer[128];
     sprintf(buffer, "%d", client->players.size());
     zSTRING NoOfPlayers = buffer;
@@ -178,10 +175,10 @@ void CPlayerList::UpdatePlayerList() {
           FColors1 = (MenuPos == i) ? Highlighted : Normal;
           Screen->SetFontColor(FColors1);
           ZeroMemory(buffer, 128);
-          temp = client->players[i]->GetClassName().ToChar();
-          if (temp.length() > 20)
-            temp.resize(20);
-          sprintf(buffer, "%s, %s", client->players[i]->GetName(), temp.c_str());
+          std::string display_name = client->players[i]->GetName();
+          if (display_name.length() > 20)
+            display_name.resize(20);
+          sprintf(buffer, "%s", display_name.c_str());
           NoOfPlayers = buffer;
           Screen->Print(x + 400, Size, NoOfPlayers);
           Size += 200;

@@ -28,6 +28,7 @@ SOFTWARE.
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <string>
 #include <string_view>
 
 constexpr std::string_view kServerPassword = "YOUR_PASS";
@@ -143,6 +144,20 @@ void RakNetServer::AddToBanList(ConnectionHandle id, std::uint32_t milliseconds)
 std::uint32_t RakNetServer::GetPort() const {
   RakNet::SystemAddress addr = peer_->GetInternalID(RakNet::UNASSIGNED_SYSTEM_ADDRESS, 0);
   return addr.GetPort();
+}
+
+std::string RakNetServer::GetAddress() const {
+  if (peer_ == nullptr) {
+    return {};
+  }
+
+  RakNet::SystemAddress addr = peer_->GetInternalID(RakNet::UNASSIGNED_SYSTEM_ADDRESS, 0);
+  if (addr == RakNet::UNASSIGNED_SYSTEM_ADDRESS) {
+    return {};
+  }
+
+  const char* address_str = addr.ToString(false);
+  return address_str != nullptr ? std::string(address_str) : std::string{};
 }
 
 }  // namespace Net

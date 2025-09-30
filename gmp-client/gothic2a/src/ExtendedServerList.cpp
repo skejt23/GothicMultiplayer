@@ -44,21 +44,40 @@ SOFTWARE.
 #include <Iphlpapi.h>
 #include <Icmpapi.h>
 #include <winsock2.h>
+#include <algorithm>
+#include <filesystem>
+#include <fstream>
+
+#include <nlohmann/json.hpp>
 
 #pragma warning (disable : 4101)
 
 #include "StandardFonts.h"
 #include "InjectMage.h"
 #include <stdio.h>
+#include <spdlog/spdlog.h>
 #include "CLanguage.h"
+
+namespace {
+constexpr char kDefaultFavoritesFile[] = "Multiplayer/Favorites.json";
+
+std::filesystem::path ResolveFavoritesPath(const char* file) {
+  if (file && *file) {
+    return std::filesystem::path(file);
+  }
+  return std::filesystem::path("Multiplayer") / "Favorites.json";
+}
+}  // namespace
+
 
 using namespace std;
 using namespace G2W;
 
 extern CLanguage* Lang;
 
-ExtendedServerList::ExtendedServerList()
+ExtendedServerList::ExtendedServerList(CServerList* server_list)
 {
+	server_list_ = server_list;
 
 	tab_all = new Button(0,0);
 	tab_all->setHighlightTexture("LOG_PAPER.TGA");
@@ -67,6 +86,7 @@ ExtendedServerList::ExtendedServerList()
 	tab_all->setFont(FNT_WHITE_10);
 	tab_all->setHighlightFont(FNT_GREEN_10);
 	tab_all->highlight = true;
+
 	tab_fav = new Button(1000,0);
 	tab_fav->setHighlightTexture("LOG_PAPER.TGA");
 	tab_fav->setTexture("INV_BACK_PLUNDER.TGA");
@@ -97,47 +117,135 @@ ExtendedServerList::ExtendedServerList()
 	SelectedServer = 0;
 	srvList_access = CreateMutex(NULL, FALSE, NULL);    
 
+	LangSetting = Lang;
+    loadFav(kDefaultFavoritesFile);
 }
 
 
 
-void ExtendedServerList::loadFav(const char * file){
-	/*FILE * f = fopen(file, "a+");
-	if(f){
-		int ret;
-		do {
-			ServerInfo si;
-			ret = fscanf(f,"%s%s%s%hu%hu",&si.name, &si.map, &si.ip, &si.num_of_players, &si.max_players);
-			favList.push_back(si);
-		}while(ret != EOF);
+void ExtendedServerList::loadFav(const char* file) {
+    favorite_servers_.clear();
 
-	}*/
+    const std::filesystem::path favorites_path = ResolveFavoritesPath(file);
+
+    std::ifstream favorites_file(favorites_path);
+    if (!favorites_file.good()) {
+    return;
+    }
+
+    try {
+    nlohmann::json favorites_json;
+    favorites_file >> favorites_json;
+
+    if (!favorites_json.is_array()) {
+      SPDLOG_WARN("Favorites file '{}' is not a JSON array. Ignoring its contents.", favorites_path.string());
+      return;
+    }
+
+    for (const auto& entry : favorites_json) {
+      const std::string ip = entry.value("ip", std::string{});
+      const int port_value = entry.value("port", 0);
+
+      if (ip.empty()) {
+        SPDLOG_WARN("Encountered favorite entry without an IP address in '{}'.", favorites_path.string());
+        continue;
+      }
+
+      if (port_value <= 0 || port_value > std::numeric_limits<std::uint16_t>::max()) {
+        SPDLOG_WARN("Encountered favorite entry with invalid port '{}' for IP '{}' in '{}'.", port_value, ip, favorites_path.string());
+        continue;
+      }
+
+      favorite_servers_.push_back({ip, static_cast<std::uint16_t>(port_value)});
+    }
+    } catch (const std::exception& ex) {
+    SPDLOG_WARN("Failed to parse favorites file '{}': {}", favorites_path.string(), ex.what());
+    favorite_servers_.clear();
+    }
 }
 
 
 bool ExtendedServerList::getSelectedServer(void * buffer, int size){
-
 	ServerInfo & si = srvList.at(SelectedServer);
 	int ret =_snprintf((char *)buffer, size, "%s:%hu\0", si.ip.c_str(), si.port);
 	if(ret > 0) return true;
 	else return false;
 }
+
 void ExtendedServerList::addSelectedToFav(){
-	for(unsigned int i=0; i<favList.size(); i++){
-		if(favList[i] == SelectedServer) return;
+	DWORD wait_result = WaitForSingleObject(srvList_access, INFINITE);
+	if (wait_result != WAIT_OBJECT_0) {
+	        return;
 	}
-	favList.push_back(SelectedServer);
+
+	if (SelectedServer < 0 || static_cast<size_t>(SelectedServer) >= srvList.size()) {
+	        ReleaseMutex(srvList_access);
+	        return;
+	}
+
+	const ServerInfo selected_server = srvList[SelectedServer];
+	ReleaseMutex(srvList_access);
+
+	if (selected_server.port <= 0 || selected_server.port > static_cast<int>(std::numeric_limits<std::uint16_t>::max())) {
+	        SPDLOG_WARN("Selected server '{}' has an invalid port '{}'.", selected_server.ip, selected_server.port);
+	        return;
+	}
+
+	loadFav(kDefaultFavoritesFile);
+
+	const auto already_favorited = std::any_of(
+	        favorite_servers_.begin(), favorite_servers_.end(),
+	        [&selected_server](const FavoriteServerEndpoint& favorite) {
+	                return favorite.ip == selected_server.ip &&
+	                       favorite.port == static_cast<std::uint16_t>(selected_server.port);
+	        });
+
+	if (already_favorited) {
+        favorite_servers_.erase(
+            std::remove_if(favorite_servers_.begin(), favorite_servers_.end(),
+                           [&](const FavoriteServerEndpoint& f) {
+                               return f.ip == selected_server.ip &&
+                                      f.port == static_cast<std::uint16_t>(selected_server.port);
+                           }),
+            favorite_servers_.end());
+	} else {
+		favorite_servers_.push_back({selected_server.ip, static_cast<std::uint16_t>(selected_server.port)});
+	}
+
+	saveFav(kDefaultFavoritesFile);
+
+	wait_result = WaitForSingleObject(srvList_access, INFINITE);
+	if (wait_result == WAIT_OBJECT_0) {
+	        fillTables();
+	        ReleaseMutex(srvList_access);
+	}
 }
 
-
 void ExtendedServerList::saveFav(const char * file){
-	//FILE * f = fopen(file, "w");
-	//if(f){
-	//	for(int i=0; i<favList.size(); i++){
-	//		ServerInfo & si = favList[i];
-	//		fprintf(f, "%s%s%s%hu%hu", si.name, si.map, si.ip, si.num_of_players, si.max_players);
-	//	}
-	//}
+	const std::filesystem::path favorites_path = ResolveFavoritesPath(file);
+	const std::filesystem::path parent_path = favorites_path.parent_path();
+
+	if (!parent_path.empty()) {
+		std::error_code ec;
+		std::filesystem::create_directories(parent_path, ec);
+		if (ec) {
+			SPDLOG_ERROR("Failed to create directory '{}' for favorites: {}", parent_path.string(), ec.message());
+			return;
+		}
+	}
+
+	nlohmann::json favorites_json = nlohmann::json::array();
+	for (const auto& favorite : favorite_servers_) {
+		favorites_json.push_back({{"ip", favorite.ip}, {"port", favorite.port}});
+	}
+
+	std::ofstream favorites_file(favorites_path, std::ios::trunc);
+	if (!favorites_file.is_open()) {
+		SPDLOG_ERROR("Failed to open favorites file '{}' for writing.", favorites_path.string());
+		return;
+	}
+
+	favorites_file << favorites_json.dump(2);
 }
 
 void ExtendedServerList::HandleInput(){
@@ -167,94 +275,110 @@ void ExtendedServerList::HandleInput(){
 	}
 }
 
-bool ExtendedServerList::RefreshList()
-{  // Potem bedzie tutaj polaczenie z master serwerem
-  std::string data;
-  const char* HTTP_DOMAIN = "127.0.0.1";
-  const char* HTTP_LIST_FILE = "/ls2.php";
-  const char* LIST_CONST_PREFIX = "gmp_list";
-#define PREFIX_SIZE 8
-  httplib::Client cli(HTTP_DOMAIN);
-  auto res = cli.Get(HTTP_LIST_FILE);
-  if (!res)
-  {
+bool ExtendedServerList::RefreshList(){
+  if (!server_list_) {
+    SPDLOG_ERROR("Failed to refresh server list: CServerList instance is null.");
     return false;
   }
-  data = res.value().body;
-
-  char work_buff[256];
-  int count = 0;
-  size_t pos = 0;
-
-  sscanf(data.c_str(), "%s%d", work_buff, &count);
-  if (memcmp(work_buff, LIST_CONST_PREFIX, strlen(LIST_CONST_PREFIX)) || (count == 0))
-  {
-    data.clear();
-    return false;
-  }
-  pos = data.find_first_of(' ', PREFIX_SIZE + 1) + 1;
-  ServerInfo si;
-  srvList.clear();
-  char chBuffer[3][128];
-  do
-  {
-    memset(chBuffer[0], 0, 3 * 128);
-
-    sscanf(data.c_str() + pos, "%s%s%hu%hu%s%hu", chBuffer[0], chBuffer[1], &si.num_of_players, &si.max_players,
-           chBuffer[2], &si.port);
-    for (int i = 0; i < 128; i++)
-    {
-      if (chBuffer[0][i] == 7)
-        chBuffer[0][i] = 0x20;
-      if (chBuffer[1][i] == 7)
-        chBuffer[1][i] = 0x20;
-      if (chBuffer[2][i] == 7)
-        chBuffer[2][i] = 0x20;
+  if (!server_list_->ReceiveListHttp()) {
+    if (const char* error_message = server_list_->GetLastError()) {
+                        SPDLOG_ERROR("Failed to refresh server list: {}", error_message);
     }
-    si.ip = chBuffer[0];
-    si.name = chBuffer[1];
-    si.map = chBuffer[2];
-    addServer(si);
-    for (int i = 0; i < 6; i++) pos = data.find_first_of(' ', pos) + 1;
-  } while (--count);
+    DWORD wait_result = WaitForSingleObject(srvList_access, INFINITE);
+    if (wait_result == WAIT_OBJECT_0) {
+                        srvList.clear();
+                        SelectedServer = 0;
+                        fillTables();
+                        ReleaseMutex(srvList_access);
+    }
+    return false;
+  }
+
+  DWORD wait_result = WaitForSingleObject(srvList_access, INFINITE);
+  if (wait_result != WAIT_OBJECT_0) {
+    return false;
+  }
+
+  srvList.clear();
+  const size_t server_count = server_list_->GetListSize();
+  srvList.reserve(server_count);
+
+  for (size_t index = 0; index < server_count; ++index) {
+    if (auto server_info = server_list_->At(index)) {
+                        ServerInfo server{};
+                        server.name = server_info->name.ToChar();
+                        server.map = server_info->map.ToChar();
+                        server.ip = server_info->ip.ToChar();
+                        server.num_of_players = server_info->num_of_players;
+                        server.max_players = server_info->max_players;
+                        server.port = server_info->port;
+                        server.ping = server_info->ping;
+                        srvList.push_back(server);
+    }
+  }
+
+  if (SelectedServer >= static_cast<int>(srvList.size())) {
+    SelectedServer = srvList.empty() ? 0 : static_cast<int>(srvList.size()) - 1;
+  }
 
   fillTables();
+  ReleaseMutex(srvList_access);
   return true;
 }
 
-ExtendedServerList::~ExtendedServerList(void)
-{
+ExtendedServerList::~ExtendedServerList(void){
 	delete tab_all;
 	delete tab_fav;
 	delete list_all;
-	
 }
 
-void ExtendedServerList::fillTables(){
-	list_all->clear();
-	for(size_t i=0; i<srvList.size(); i++){
-		std::vector<std::string> row;
-		row.push_back(srvList[i].name);
-		row.push_back(srvList[i].map);
-		char buff[128];
-		sprintf(buff, "%hu/%hu", srvList[i].num_of_players, srvList[i].max_players);
-		row.push_back(buff);
-		
-		if(srvList[i].ping == 0)row.push_back("?");
-		else {
-			
-			sprintf(buff, "%hu", srvList[i].ping);
-			row.push_back(buff);
-		}
-		TableRow tr = {row, false};
+void ExtendedServerList::fillTables() {
+    list_all->clear();
+	list_fav->clear();
 
-		list_all->addRow(tr);
+	const auto build_row = [](const ServerInfo& server) {
+	        std::vector<std::string> row;
+	        row.push_back(server.name);
+	        row.push_back(server.map);
+	        char buff[128];
+	        sprintf(buff, "%hu/%hu", server.num_of_players, server.max_players);
+	        row.push_back(buff);
+
+	        if(server.ping >= 0){
+	                sprintf(buff, "%hu", server.ping);
+	                row.push_back(buff);
+            } else {
+                    row.push_back("?");
+			}
+
+	        return row;
+	};
+
+	for (const auto& server : srvList) {
+	        TableRow tr = {build_row(server), false};
+	        list_all->addRow(tr);
+	}
+
+	for (const auto& server : srvList) {
+	        const bool is_favorite = std::any_of(
+	                favorite_servers_.begin(), favorite_servers_.end(),
+	                [&server](const FavoriteServerEndpoint& favorite) {
+	                        return favorite.ip == server.ip &&
+	                               favorite.port == static_cast<std::uint16_t>(server.port);
+	                });
+
+	        if (!is_favorite) {
+	                continue;
+	        }
+
+	        TableRow tr = {build_row(server), false};
+	        list_fav->addRow(tr);
 	}
 }
+
 void ExtendedServerList::SelectServer(int index){
 	this->SelectedServer = index;	
 }
-
 
 void ExtendedServerList::setLanguage(CLanguage * lang){
 	this->LangSetting = lang;
@@ -291,7 +415,6 @@ void ExtendedServerList::addServer(ServerInfo & si){
 void ExtendedServerList::clearList(){
 	srvList.clear();
 }
-
 
 
 void ExtendedServerList::Draw(){

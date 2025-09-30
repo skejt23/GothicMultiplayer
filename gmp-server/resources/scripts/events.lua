@@ -10,7 +10,11 @@ local function optionalIdToString(id)
     return tostring(id)
 end
 
-addEventHandler('onClockUpdate', function(day, hour, minute)
+addEventHandler('onInit', function()
+    print('Hello GMP')
+end)
+
+addEventHandler('onGameTime', function(day, hour, minute)
     LOG_INFO("Clock update: Day {} Time {:02d}:{:02d}", day, hour, minute)
 end)
 
@@ -34,10 +38,6 @@ addEventHandler('onPlayerWhisper', function(fromId, toId, text)
     LOG_INFO("{} whispers to {}: {}", fromId, toId, text)
 end)
 
-addEventHandler('onPlayerChangeClass', function(id, classId)
-    LOG_INFO("Player {} changed to class {}", id, classId)
-end)
-
 addEventHandler('onPlayerKill', function(killerId, victimId)
     LOG_INFO("Player {} killed {}", killerId, victimId)
 end)
@@ -58,12 +58,12 @@ addEventHandler('onPlayerCastSpell', function(casterId, spellId, targetId)
     LOG_INFO("Player {} cast spell {} on {}", casterId, spellId, optionalIdToString(targetId))
 end)
 
-addEventHandler('onPlayerSpawn', function(playerId, classId, posX, posY, posZ)
-    LOG_INFO("Player {} spawned as class {} at {}", playerId, classId, vectorToString(posX, posY, posZ))
+addEventHandler('onPlayerSpawn', function(playerId, posX, posY, posZ)
+    LOG_INFO("Player {} spawned at {}", playerId, vectorToString(posX, posY, posZ))
 end)
 
-addEventHandler('onPlayerRespawn', function(playerId, classId, posX, posY, posZ)
-    LOG_INFO("Player {} respawned as class {} at {}", playerId, classId, vectorToString(posX, posY, posZ))
+addEventHandler('onPlayerRespawn', function(playerId, posX, posY, posZ)
+    LOG_INFO("Player {} respawned at {}", playerId, vectorToString(posX, posY, posZ))
 end)
 
 addEventHandler('onPlayerHit', function(attackerId, victimId, damage)

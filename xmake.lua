@@ -40,6 +40,13 @@ option("discord_app_id")
     set_default("")
 option_end()
 
+option("master_server_endpoint")
+    set_showmenu(true)
+    set_description("HTTP endpoint used to register this server in the master server list")
+    set_default("")
+option_end()
+
+
 add_rules("mode.debug", "mode.release", "mode.releasedbg")
 
 add_requires("spdlog 1.15.1", {configs = {fmt_external = true}})
@@ -53,7 +60,6 @@ add_requires("fmt 11.0.2",
              "bitsery 5.2.*",
              "glm 1.0.*",
              "sol2 3.3.*",
-             "pugixml 1.15",
              "cpp-httplib 0.21.0",
              "zlib 1.3.1",
              "openssl 1.1.1-w")

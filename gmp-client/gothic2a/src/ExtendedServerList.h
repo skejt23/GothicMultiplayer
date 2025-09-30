@@ -41,10 +41,14 @@ public:
 	void updatePing();
 };
 
+struct FavoriteServerEndpoint {
+        std::string ip;
+        std::uint16_t port;
+};
 
 class ExtendedServerList{
 public:
-	ExtendedServerList();
+	ExtendedServerList(CServerList* server_list);
 	~ExtendedServerList(void);
 	void SelectServer(int index);
 	void Draw();
@@ -69,9 +73,10 @@ private:
 	
 	G2W::Button * tab_all, * tab_fav;
 	G2W::Table * list_all, * list_fav;
-	std::vector<unsigned int> favList;
+    std::vector<FavoriteServerEndpoint> favorite_servers_;
 	std::vector<ServerInfo> srvList;
 	int SelectedTab;
 	int SelectedServer;
 	CLanguage* LangSetting;
+    CServerList* server_list_;
 };

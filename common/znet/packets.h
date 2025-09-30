@@ -429,7 +429,6 @@ struct fmt::formatter<InitialInfoPacket> : ostream_formatter {};
 struct GameInfoPacket {
   std::uint8_t packet_type;
   std::uint32_t raw_game_time{0};
-  std::uint8_t game_mode{0};
   std::uint8_t flags{0};
 };
 
@@ -437,14 +436,13 @@ template <typename S>
 void serialize(S& s, GameInfoPacket& packet) {
   s.value1b(packet.packet_type);
   s.value4b(packet.raw_game_time);
-  s.value1b(packet.game_mode);
   s.value1b(packet.flags);
 }
 
 inline std::ostream& operator<<(std::ostream& os, const GameInfoPacket& packet) {
   os << "GameInfoPacket {"
      << " packet_type: " << static_cast<int>(packet.packet_type) << ", game_time: " << packet.raw_game_time
-     << ", game_mode: " << static_cast<int>(packet.game_mode) << ", flags: " << static_cast<int>(packet.flags) << " }";
+     << ", flags: " << static_cast<int>(packet.flags) << " }";
   return os;
 }
 

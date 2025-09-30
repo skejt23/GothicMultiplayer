@@ -38,8 +38,6 @@ public:
     std::uint16_t day_ = 1;
     std::uint8_t hour_ = 8;
     std::uint8_t min_ = 0;
-
-    void from_toml(const toml::value& v);
   };
 
   union TimeUnion {

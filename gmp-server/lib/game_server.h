@@ -41,7 +41,6 @@ SOFTWARE.
 
 #include "Script.h"
 #include "ban_manager.h"
-#include "character_definition.h"
 #include "common_structs.h"
 #include "config.h"
 #include "player_manager.h"
@@ -53,7 +52,7 @@ class CLog;
 class GothicClock;
 class HTTPServer;
 
-enum CONFIG_FLAGS { QUICK_POTS = 0x01, DROP_ITEMS = 0x02, HIDE_MAP = 0x04 };
+enum CONFIG_FLAGS { HIDE_MAP = 0x04 };
 
 struct Packet {
   // Not owning.
@@ -67,7 +66,7 @@ public:
   using PlayerId = PlayerManager::PlayerId;
   using Player = PlayerManager::Player;
   
-  enum FILE_REQ { CLASS_FILE = 1, SPAWN_FILE = 2, WB_FILE = 3, NULL_SIZE = 255 };
+  enum FILE_REQ { WB_FILE = 1, NULL_SIZE = 255 };
 
   struct DiscordActivityState {
     std::string state;
@@ -122,7 +121,6 @@ private:
   void SendDiscordActivity(Net::ConnectionHandle connection);
 
   std::unique_ptr<BanManager> ban_manager_;
-  std::unique_ptr<CharacterDefinitionManager> character_definition_manager_;
   std::unique_ptr<Script> script;
   time_t last_stand_timer;
   time_t regen_time;

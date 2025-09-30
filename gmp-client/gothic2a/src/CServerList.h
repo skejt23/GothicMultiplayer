@@ -31,24 +31,36 @@ SOFTWARE.
 
 struct SServerInfo {
   Gothic_II_Addon::zSTRING name, ip, map, server_website;
-  unsigned short num_of_players, max_players, hour, minute, port;
+  unsigned short num_of_players, max_players, port, ping;
   void Clear();
 };
 
 class CServerList {
 private:
-  unsigned char list_type;
-  unsigned char error_code;
-  std::string data;
-
-  std::vector<SServerInfo> server_vector;
-
-  enum {
+  enum ListType : unsigned char {
     HTTP_LIST = 0,
     UDP_LIST = 1,  // lista z master serwera
   };
 
+  enum class ErrorCode : unsigned char {
+    kNone = 0,
+    kNotConfigured,
+    kInvalidEndpoint,
+    kConnectionFailed,
+    kBadResponse,
+    kParseError,
+  };
+
+  ListType list_type{HTTP_LIST};
+  ErrorCode error_code{ErrorCode::kNone};
+  std::string data;
+  std::string error_message_;
+
+  std::vector<SServerInfo> server_vector;
+
   void Parse();
+
+  void SetError(ErrorCode code, std::string message);
 
 public:
   ~CServerList(void);

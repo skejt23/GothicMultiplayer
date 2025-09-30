@@ -53,6 +53,7 @@ public:
   MOCK_METHOD(void, AddPacketHandler, (Net::PacketHandler&), (override));
   MOCK_METHOD(void, RemovePacketHandler, (Net::PacketHandler&), (override));
   MOCK_METHOD(std::uint32_t, GetPort, (), (const override));
+  MOCK_METHOD(std::string, GetAddress, (), (const override));
 };
 
 class BanListTest : public ::testing::Test {

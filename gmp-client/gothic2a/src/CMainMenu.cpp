@@ -127,9 +127,7 @@ CMainMenu::CMainMenu() {
   ogame->GetWorldTimer()->GetTime(Hour, Minute);
   HooksManager* hm = HooksManager::GetInstance();
   hm->AddHook(HT_RENDER, (DWORD)MainMenuLoop, false);
-  hm->AddHook(HT_RENDER, (DWORD)CSelectClass::Loop, false);
   hm->RemoveHook(HT_AIMOVING, (DWORD)Initialize);
-  ClassSelect = NULL;
   HeroPos = player->GetPositionWorld();
   Angle = player->trafoObjToWorld.GetAtVector();
   NAngle = player->trafoObjToWorld.GetRightVector();
@@ -184,7 +182,6 @@ static void ReLaunchPart2() {
   ReMenu->AppCamCreated = false;
   ReMenu->WritingNickname = false;
   ReMenu->LaunchMenuScene();
-  HooksManager::GetInstance()->AddHook(HT_RENDER, (DWORD)CSelectClass::Loop, false);
 };
 
 void CMainMenu::ReLaunchMainMenu() {
@@ -466,11 +463,9 @@ void CMainMenu::ApplyLanguage(int newLangIndex, bool persist) {
   if (esl) {
     delete esl;
   }
-  esl = new ExtendedServerList();
+  esl = new ExtendedServerList(ServerList);
   SelectedServer = 0;
 
-  if (ClassSelect)
-    ClassSelect->lang = LangSetting;
   if (client)
     client->lang = LangSetting;
 
@@ -758,7 +753,6 @@ void CMainMenu::RenderMenu() {
         if (client->IsConnected()) {
           client->HandleNetwork();
           client->SyncGameTime();
-          ClassSelect = new CSelectClass(LangSetting, client);
           zVEC3 SpawnpointPos = player->GetPositionWorld();
           CleanUpMainMenu();
           Patch::PlayerInterfaceEnabled(true);
@@ -770,9 +764,9 @@ void CMainMenu::RenderMenu() {
           }
           DeleteAllNpcsBesidesHero();
           player->trafoObjToWorld.SetTranslation(SpawnpointPos);
-          string WordBuilderMapFileName = ".\\Multiplayer\\Data\\";
+          std::string WordBuilderMapFileName = ".\\Multiplayer\\Data\\";
           WordBuilderMapFileName += client->network->GetServerIp() + "_" + std::to_string(client->network->GetServerPort());
-          ifstream WbMap(WordBuilderMapFileName.c_str());
+          std::ifstream WbMap(WordBuilderMapFileName.c_str());
           if (WbMap.good()) {
             WbMap.close();
             LoadWorld::LoadWorld(WordBuilderMapFileName.c_str(), client->VobsWorldBuilderMap);
@@ -786,6 +780,7 @@ void CMainMenu::RenderMenu() {
                 client->VobsWorldBuilderMap[i].Vob->SetCollDet(1);
             }
           }
+          client->JoinGame();
         } else {
           SPDLOG_ERROR("ERROR: {}", client->GetLastError().ToChar());
         }
@@ -1102,7 +1097,7 @@ void CMainMenu::RenderMenu() {
           WBMapName += ".WBM";
         char buffer[64];
         sprintf(buffer, ".\\Multiplayer\\world-builder\\Maps\\%s", WBMapName.ToChar());
-        string Map = LoadWorld::GetZenName(buffer);
+        std::string Map = LoadWorld::GetZenName(buffer);
         if (Map.size() > 0) {
           CleanUpMainMenu();
           HooksManager::GetInstance()->RemoveHook(HT_RENDER, (DWORD)MainMenuLoop);
