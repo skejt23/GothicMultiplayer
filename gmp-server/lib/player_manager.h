@@ -70,7 +70,7 @@ public:
     // Character state
     std::uint8_t flags;
     std::uint8_t walkstyle;
-    std::uint8_t figth_pos;
+    std::uint8_t fight_pos;
     std::uint8_t spellhand;
     std::uint8_t headstate;
     
