@@ -36,22 +36,18 @@ SOFTWARE.
 
 /**
  * @brief Manages all player-related data and operations.
- * 
+ *
  * PlayerManager maintains the mapping between network connections and game-level
  * player IDs, and handles player lifecycle (join, leave, state management).
  */
 class PlayerManager {
 public:
   using PlayerId = std::uint32_t;
-  static constexpr PlayerId INVALID_PLAYER_ID = 0;
 
   /**
    * @brief Player flags for various states
    */
-  enum PlayerFlags : std::uint8_t {
-    PL_UNCONCIOUS = 0x01,  // 00000001
-    PL_BURN = 0x02,        // 00000010
-  };
+  enum PlayerFlags : std::uint8_t { PL_UNCONCIOUS = 0x01 };
 
   /**
    * @brief Represents a player in the game
@@ -60,28 +56,28 @@ public:
     PlayerId player_id;
     Net::ConnectionHandle connection;
     std::string name;
-    
+
     // Character appearance
     std::uint8_t char_class;
     std::uint8_t head;
     std::uint8_t skin;
     std::uint8_t body;
-    
+
     // Character state
     std::uint8_t flags;
     std::uint8_t walkstyle;
     std::uint8_t fight_pos;
     std::uint8_t spellhand;
     std::uint8_t headstate;
-    
+
     // Game state
     std::uint8_t is_ingame;
     std::uint8_t passed_crc_test;
     std::uint8_t mute;
-    
+
     std::int16_t health;
     std::int16_t mana;
-    
+
     std::time_t tod;  // time of death
     PlayerState state;
   };
@@ -195,7 +191,7 @@ public:
    * @brief Iterates over all players
    * @param func Function to call for each player (receives Player&)
    */
-  template<typename Func>
+  template <typename Func>
   void ForEachPlayer(Func&& func) {
     for (auto& [id, player] : players_) {
       func(player);
@@ -206,7 +202,7 @@ public:
    * @brief Iterates over all players (const version)
    * @param func Function to call for each player (receives const Player&)
    */
-  template<typename Func>
+  template <typename Func>
   void ForEachPlayer(Func&& func) const {
     for (const auto& [id, player] : players_) {
       func(player);
@@ -217,7 +213,7 @@ public:
    * @brief Iterates over all in-game players
    * @param func Function to call for each in-game player (receives Player&)
    */
-  template<typename Func>
+  template <typename Func>
   void ForEachIngamePlayer(Func&& func) {
     for (auto& [id, player] : players_) {
       if (player.is_ingame) {
@@ -230,7 +226,7 @@ public:
    * @brief Iterates over all in-game players (const version)
    * @param func Function to call for each in-game player (receives const Player&)
    */
-  template<typename Func>
+  template <typename Func>
   void ForEachIngamePlayer(Func&& func) const {
     for (const auto& [id, player] : players_) {
       if (player.is_ingame) {

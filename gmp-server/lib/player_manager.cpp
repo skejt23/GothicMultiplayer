@@ -26,7 +26,7 @@ SOFTWARE.
 
 PlayerManager::PlayerId PlayerManager::AddPlayer(Net::ConnectionHandle connection, const std::string& name) {
   PlayerId player_id = next_player_id_++;
-  
+
   Player player{};
   player.player_id = player_id;
   player.connection = connection;
@@ -37,7 +37,7 @@ PlayerManager::PlayerId PlayerManager::AddPlayer(Net::ConnectionHandle connectio
   player.body = 0;
   player.flags = 0;
   player.walkstyle = 0;
-  player.figth_pos = 0;
+  player.fight_pos = 0;
   player.spellhand = 0;
   player.headstate = 0;
   player.is_ingame = 0;
@@ -46,11 +46,11 @@ PlayerManager::PlayerId PlayerManager::AddPlayer(Net::ConnectionHandle connectio
   player.health = 0;
   player.mana = 0;
   player.tod = 0;
-  
+
   players_[player_id] = std::move(player);
   player_to_connection_[player_id] = connection;
   connection_to_player_[connection] = player_id;
-  
+
   return player_id;
 }
 
@@ -59,13 +59,13 @@ bool PlayerManager::RemovePlayer(PlayerId player_id) {
   if (it == players_.end()) {
     return false;
   }
-  
+
   Net::ConnectionHandle connection = it->second.connection;
-  
+
   players_.erase(it);
   player_to_connection_.erase(player_id);
   connection_to_player_.erase(connection);
-  
+
   return true;
 }
 
@@ -74,7 +74,7 @@ bool PlayerManager::RemovePlayerByConnection(Net::ConnectionHandle connection) {
   if (it == connection_to_player_.end()) {
     return false;
   }
-  
+
   PlayerId player_id = it->second;
   return RemovePlayer(player_id);
 }
