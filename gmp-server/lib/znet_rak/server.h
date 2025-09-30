@@ -45,17 +45,17 @@ public:
   void RemovePacketHandler(PacketHandler& packetHandler) override;
 
   bool Send(unsigned char* data, std::uint32_t size, PacketPriority packetPriority, PacketReliability packetReliability,
-            std::uint32_t channel, PlayerId id) override;
+            std::uint32_t channel, ConnectionHandle id) override;
 
   bool Send(const char* data, std::uint32_t size, PacketPriority packetPriority, PacketReliability packetReliability,
-            std::uint32_t channel, PlayerId id) override;
+            std::uint32_t channel, ConnectionHandle id) override;
 
   void AddToBanList(const char* IP, std::uint32_t milliseconds) override;
-  void AddToBanList(PlayerId id, std::uint32_t milliseconds) override;
+  void AddToBanList(ConnectionHandle id, std::uint32_t milliseconds) override;
   void RemoveFromBanList(const char* IP) override;
   bool IsBanned(const char* IP) override;
 
-  const char* GetPlayerIp(PlayerId id) override;
+  const char* GetPlayerIp(ConnectionHandle id) override;
   std::uint32_t GetPort() const override;
 
 private:

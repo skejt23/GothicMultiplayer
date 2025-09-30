@@ -50,12 +50,12 @@ void RegisterProxies() {
     args.callback(clock_update_event.day, clock_update_event.hour, clock_update_event.min);
   }};
   kLuaEventProxies[kEventOnPlayerConnectName] = {[](LuaProxyArgs args) {
-    std::uint64_t player_guid = std::any_cast<std::uint64_t>(args.event);
-    args.callback(player_guid);
+    std::uint32_t player_id = std::any_cast<std::uint32_t>(args.event);
+    args.callback(player_id);
   }};
   kLuaEventProxies[kEventOnPlayerDisconnectName] = {[](LuaProxyArgs args) {
-    std::uint64_t player_guid = std::any_cast<std::uint64_t>(args.event);
-    args.callback(player_guid);
+    std::uint32_t player_id = std::any_cast<std::uint32_t>(args.event);
+    args.callback(player_id);
   }};
   kLuaEventProxies[kEventOnPlayerMessageName] = {[](LuaProxyArgs args) {
     OnPlayerMessageEvent player_message_event = std::any_cast<OnPlayerMessageEvent>(args.event);

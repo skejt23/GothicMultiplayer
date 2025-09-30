@@ -88,20 +88,20 @@ bool RakNetServer::Start(std::uint32_t port, std::uint32_t slots) {
 void RakNetServer::Pulse() {
   for (RakNet::Packet* packet = peer_->Receive(); packet; peer_->DeallocatePacket(packet), packet = peer_->Receive()) {
     std::for_each(packetHandlers_.begin(), packetHandlers_.end(),
-                  [packet](auto& handler) { handler->HandlePacket(PlayerId{packet->guid.g}, packet->data, packet->length); });
+                  [packet](auto& handler) { handler->HandlePacket(ConnectionHandle{packet->guid.g}, packet->data, packet->length); });
   }
 }
 
 bool RakNetServer::Send(unsigned char* data, std::uint32_t size, PacketPriority packetPriority, PacketReliability packetReliability,
-                        std::uint32_t channel, PlayerId id) {
+                        std::uint32_t channel, ConnectionHandle id) {
   peer_->Send(reinterpret_cast<const char*>(data), size, ToRakNetPacketPriority(packetPriority), ToRakNetPacketReliability(packetReliability), 0,
-              RakNet::RakNetGUID(id.guid), false);
+              RakNet::RakNetGUID(id), false);
   return true;
 }
 bool RakNetServer::Send(const char* data, std::uint32_t size, PacketPriority packetPriority, PacketReliability packetReliability,
-                        std::uint32_t channel, PlayerId id) {
+                        std::uint32_t channel, ConnectionHandle id) {
   peer_->Send(reinterpret_cast<const char*>(data), size, ToRakNetPacketPriority(packetPriority), ToRakNetPacketReliability(packetReliability), 0,
-              RakNet::RakNetGUID(id.guid), false);
+              RakNet::RakNetGUID(id), false);
   return true;
 }
 
@@ -125,18 +125,18 @@ bool RakNetServer::IsBanned(const char* IP) {
   return peer_->IsBanned(IP);
 }
 
-const char* RakNetServer::GetPlayerIp(PlayerId id) {
-  auto address = peer_->GetSystemAddressFromGuid(RakNet::RakNetGUID(id.guid));
+const char* RakNetServer::GetPlayerIp(ConnectionHandle id) {
+  auto address = peer_->GetSystemAddressFromGuid(RakNet::RakNetGUID(id));
   // This is safe because RakNet::SystemAddress::ToString() returns a pointer to a static buffer
   return address.ToString(false);
 }
 
-void RakNetServer::AddToBanList(PlayerId id, std::uint32_t milliseconds) {
-  auto address = peer_->GetSystemAddressFromGuid(RakNet::RakNetGUID(id.guid));
+void RakNetServer::AddToBanList(ConnectionHandle id, std::uint32_t milliseconds) {
+  auto address = peer_->GetSystemAddressFromGuid(RakNet::RakNetGUID(id));
   if (address != RakNet::UNASSIGNED_SYSTEM_ADDRESS) {
     peer_->AddToBanList(address.ToString(false), milliseconds);
   } else {
-    SPDLOG_ERROR("AddToBanList: unrecognized player id {}", id.guid);
+    SPDLOG_ERROR("AddToBanList: unrecognized player id {}", id);
   }
 }
 

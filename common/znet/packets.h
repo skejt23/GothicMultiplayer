@@ -50,7 +50,7 @@ void serialize(S& s, glm::vec3& vec) {
 
 struct ExistingPlayerInfo {
   std::uint8_t packet_type{0};
-  std::uint64_t player_id{0};
+  std::uint32_t player_id{0};
   std::uint8_t selected_class{0};
   glm::vec3 position{0.0f};
   std::int16_t left_hand_item_instance{0};
@@ -65,7 +65,7 @@ struct ExistingPlayerInfo {
 
 template <typename S>
 void serialize(S& s, ExistingPlayerInfo& info) {
-  s.value8b(info.player_id);
+  s.value4b(info.player_id);
   s.value1b(info.selected_class);
   s.object(info.position);
   s.value2b(info.left_hand_item_instance);
@@ -119,7 +119,7 @@ struct JoinGamePacket {
   std::uint8_t walk_style{0};
   std::string player_name;
   // May be used to identify the player (e.g. when relaying the information about the player to other players)
-  std::optional<std::uint64_t> player_id;
+  std::optional<std::uint32_t> player_id;
 };
 
 template <typename S>
@@ -137,7 +137,7 @@ void serialize(S& s, JoinGamePacket& packet) {
   s.value1b(packet.face_texture);
   s.value1b(packet.walk_style);
   s.text1b(packet.player_name, 255);
-  s.ext8b(packet.player_id, bitsery::ext::StdOptional{});
+  s.ext4b(packet.player_id, bitsery::ext::StdOptional{});
 }
 
 inline std::ostream& operator<<(std::ostream& os, const JoinGamePacket& packet) {
@@ -165,16 +165,16 @@ struct fmt::formatter<JoinGamePacket> : ostream_formatter {};
 struct MessagePacket {
   std::uint8_t packet_type;
   std::string message;
-  std::optional<std::uint64_t> sender;
-  std::optional<std::uint64_t> recipient;
+  std::optional<std::uint32_t> sender;
+  std::optional<std::uint32_t> recipient;
 };
 
 template <typename S>
 void serialize(S& s, MessagePacket& packet) {
   s.value1b(packet.packet_type);
   s.text1b(packet.message, 1024);
-  s.ext8b(packet.sender, bitsery::ext::StdOptional{});
-  s.ext8b(packet.recipient, bitsery::ext::StdOptional{});
+  s.ext4b(packet.sender, bitsery::ext::StdOptional{});
+  s.ext4b(packet.recipient, bitsery::ext::StdOptional{});
 }
 
 inline std::ostream& operator<<(std::ostream& os, const MessagePacket& packet) {
@@ -196,16 +196,16 @@ struct fmt::formatter<MessagePacket> : ostream_formatter {};
 struct CastSpellPacket {
   std::uint8_t packet_type;
   std::uint16_t spell_id;
-  std::optional<std::uint64_t> target_id;
-  std::optional<std::uint64_t> caster_id;
+  std::optional<std::uint32_t> target_id;
+  std::optional<std::uint32_t> caster_id;
 };
 
 template <typename S>
 void serialize(S& s, CastSpellPacket& packet) {
   s.value1b(packet.packet_type);
   s.value2b(packet.spell_id);
-  s.ext8b(packet.target_id, bitsery::ext::StdOptional{});
-  s.ext8b(packet.caster_id, bitsery::ext::StdOptional{});
+  s.ext4b(packet.target_id, bitsery::ext::StdOptional{});
+  s.ext4b(packet.caster_id, bitsery::ext::StdOptional{});
 }
 
 inline std::ostream& operator<<(std::ostream& os, const CastSpellPacket& packet) {
@@ -222,7 +222,7 @@ struct DropItemPacket {
   std::uint8_t packet_type;
   std::int16_t item_instance;
   std::int16_t item_amount;
-  std::optional<std::uint64_t> player_id;
+  std::optional<std::uint32_t> player_id;
 };
 
 template <typename S>
@@ -230,7 +230,7 @@ void serialize(S& s, DropItemPacket& packet) {
   s.value1b(packet.packet_type);
   s.value2b(packet.item_instance);
   s.value2b(packet.item_amount);
-  s.ext8b(packet.player_id, bitsery::ext::StdOptional{});
+  s.ext4b(packet.player_id, bitsery::ext::StdOptional{});
 }
 
 inline std::ostream& operator<<(std::ostream& os, const DropItemPacket& packet) {
@@ -247,14 +247,14 @@ inline std::ostream& operator<<(std::ostream& os, const DropItemPacket& packet) 
 struct TakeItemPacket {
   std::uint8_t packet_type;
   std::int16_t item_instance;
-  std::optional<std::uint64_t> player_id;
+  std::optional<std::uint32_t> player_id;
 };
 
 template <typename S>
 void serialize(S& s, TakeItemPacket& packet) {
   s.value1b(packet.packet_type);
   s.value2b(packet.item_instance);
-  s.ext8b(packet.player_id, bitsery::ext::StdOptional{});
+  s.ext4b(packet.player_id, bitsery::ext::StdOptional{});
 }
 
 inline std::ostream& operator<<(std::ostream& os, const TakeItemPacket& packet) {
@@ -271,14 +271,14 @@ struct PlayerStateUpdatePacket {
   std::uint8_t packet_type;
   PlayerState state;
   // May be used to identify the player (e.g. when relaying the information about the player to other players)
-  std::optional<std::uint64_t> player_id;
+  std::optional<std::uint32_t> player_id;
 };
 
 template <typename S>
 void serialize(S& s, PlayerStateUpdatePacket& packet) {
   s.value1b(packet.packet_type);
   s.object(packet.state);
-  s.ext8b(packet.player_id, bitsery::ext::StdOptional{});
+  s.ext4b(packet.player_id, bitsery::ext::StdOptional{});
 }
 
 inline std::ostream& operator<<(std::ostream& os, const PlayerStateUpdatePacket& packet) {
@@ -298,14 +298,14 @@ struct PlayerPositionUpdatePacket {
   std::uint8_t packet_type;
   glm::vec3 position;
   // May be used to identify the player (e.g. when relaying the information about the player to other players)
-  std::optional<std::uint64_t> player_id;
+  std::optional<std::uint32_t> player_id;
 };
 
 template <typename S>
 void serialize(S& s, PlayerPositionUpdatePacket& packet) {
   s.value1b(packet.packet_type);
   s.object(packet.position);
-  s.ext8b(packet.player_id, bitsery::ext::StdOptional{});
+  s.ext4b(packet.player_id, bitsery::ext::StdOptional{});
 }
 
 inline std::ostream& operator<<(std::ostream& os, const PlayerPositionUpdatePacket& packet) {
@@ -321,14 +321,14 @@ inline std::ostream& operator<<(std::ostream& os, const PlayerPositionUpdatePack
 
 struct HPDiffPacket {
   std::uint8_t packet_type;
-  std::uint64_t player_id;
+  std::uint32_t player_id;
   std::int16_t hp_difference;
 };
 
 template <typename S>
 void serialize(S& s, HPDiffPacket& packet) {
   s.value1b(packet.packet_type);
-  s.value8b(packet.player_id);
+  s.value4b(packet.player_id);
   s.value2b(packet.hp_difference);
 }
 
@@ -354,13 +354,13 @@ void serialize(S& s, VoicePacket& packet) {
 
 struct DisconnectionInfoPacket {
   std::uint8_t packet_type;
-  std::uint64_t disconnected_id;
+  std::uint32_t disconnected_id;
 };
 
 template <typename S>
 void serialize(S& s, DisconnectionInfoPacket& packet) {
   s.value1b(packet.packet_type);
-  s.value8b(packet.disconnected_id);
+  s.value4b(packet.disconnected_id);
 }
 
 inline std::ostream& operator<<(std::ostream& os, const DisconnectionInfoPacket& info) {
@@ -371,13 +371,13 @@ inline std::ostream& operator<<(std::ostream& os, const DisconnectionInfoPacket&
 
 struct PlayerDeathInfoPacket {
   std::uint8_t packet_type;
-  std::uint64_t player_id;
+  std::uint32_t player_id;
 };
 
 template <typename S>
 void serialize(S& s, PlayerDeathInfoPacket& packet) {
   s.value1b(packet.packet_type);
-  s.value8b(packet.player_id);
+  s.value4b(packet.player_id);
 }
 
 inline std::ostream& operator<<(std::ostream& os, const PlayerDeathInfoPacket& info) {
@@ -388,13 +388,13 @@ inline std::ostream& operator<<(std::ostream& os, const PlayerDeathInfoPacket& i
 
 struct PlayerRespawnInfoPacket {
   std::uint8_t packet_type;
-  std::uint64_t player_id;
+  std::uint32_t player_id;
 };
 
 template <typename S>
 void serialize(S& s, PlayerRespawnInfoPacket& packet) {
   s.value1b(packet.packet_type);
-  s.value8b(packet.player_id);
+  s.value4b(packet.player_id);
 }
 
 inline std::ostream& operator<<(std::ostream& os, const PlayerRespawnInfoPacket& info) {
@@ -407,14 +407,14 @@ inline std::ostream& operator<<(std::ostream& os, const PlayerRespawnInfoPacket&
 struct InitialInfoPacket {
   std::uint8_t packet_type;
   std::string map_name;
-  std::uint64_t player_id;
+  std::uint32_t player_id;
 };
 
 template <typename S>
 void serialize(S& s, InitialInfoPacket& packet) {
   s.value1b(packet.packet_type);
   s.text1b(packet.map_name, 64);
-  s.value8b(packet.player_id);
+  s.value4b(packet.player_id);
 }
 
 inline std::ostream& operator<<(std::ostream& os, const InitialInfoPacket& packet) {
