@@ -32,22 +32,12 @@ SOFTWARE.
 
 namespace Net {
 
-struct PlayerId {
-  std::uint64_t guid;
-
-  bool operator==(const PlayerId& other) const {
-    return guid == other.guid;
-  }
-
-  bool operator!=(const PlayerId& other) const {
-    return (*this == other) == false;
-  }
-};
+using ConnectionHandle = std::uint64_t;
 
 class PacketHandler {
 public:
   virtual ~PacketHandler() = default;
-  virtual bool HandlePacket(PlayerId playerId, unsigned char* data, std::uint32_t size) = 0;
+  virtual bool HandlePacket(ConnectionHandle connectionHandle, unsigned char* data, std::uint32_t size) = 0;
 };
 
 class NetServer {
@@ -59,21 +49,18 @@ public:
 
   virtual bool Start(std::uint32_t port, std::uint32_t slots) = 0;
 
-  // virtual void Disconnect() = 0;
-  // virtual bool IsConnected() const = 0;
-
   virtual bool Send(unsigned char* data, std::uint32_t size, PacketPriority packetPriority,
-                    PacketReliability packetReliability, std::uint32_t channel, PlayerId id) = 0;
+                    PacketReliability packetReliability, std::uint32_t channel, ConnectionHandle id) = 0;
 
   virtual bool Send(const char* data, std::uint32_t size, PacketPriority packetPriority,
-                    PacketReliability packetReliability, std::uint32_t channel, PlayerId id) = 0;
+                    PacketReliability packetReliability, std::uint32_t channel, ConnectionHandle id) = 0;
 
   virtual void AddToBanList(const char* IP, std::uint32_t milliseconds) = 0;
-  virtual void AddToBanList(PlayerId id, std::uint32_t milliseconds) = 0;
+  virtual void AddToBanList(ConnectionHandle id, std::uint32_t milliseconds) = 0;
   virtual void RemoveFromBanList(const char* IP) = 0;
   virtual bool IsBanned(const char* IP) = 0;
 
-  virtual const char* GetPlayerIp(PlayerId id) = 0;
+  virtual const char* GetPlayerIp(ConnectionHandle id) = 0;
 
   virtual void AddPacketHandler(PacketHandler& packetHandler) = 0;
   virtual void RemovePacketHandler(PacketHandler& packetHandler) = 0;

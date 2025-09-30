@@ -44,6 +44,7 @@ SOFTWARE.
 #include "character_definition.h"
 #include "common_structs.h"
 #include "config.h"
+#include "player_manager.h"
 #include "znet_server.h"
 
 #define DEFAULT_ADMIN_PORT 0x404
@@ -58,25 +59,15 @@ struct Packet {
   // Not owning.
   unsigned char* data = nullptr;
   std::uint32_t length = 0;
-  Net::PlayerId id;
+  Net::ConnectionHandle id;
 };
 
 class GameServer : public Net::PacketHandler {
 public:
-  enum PL_FLAGS {
-    PL_UNCONCIOUS = 0x01,  // 00000001
-    PL_BURN = 0x02,        // 00000010
-  };
+  using PlayerId = PlayerManager::PlayerId;
+  using Player = PlayerManager::Player;
+  
   enum FILE_REQ { CLASS_FILE = 1, SPAWN_FILE = 2, WB_FILE = 3, NULL_SIZE = 255 };
-  struct sPlayer {
-    Net::PlayerId id;
-    std::string name;
-    unsigned char char_class, flags, head, skin, body, walkstyle, figth_pos, spellhand, headstate, is_ingame, passed_crc_test, mute;
-    short health, mana;
-    // miejce na obrót głowy
-    time_t tod;  // time of death
-    PlayerState state;
-  };
 
   struct DiscordActivityState {
     std::string state;
@@ -94,13 +85,14 @@ public:
 
   void AddToPublicListHTTP();
   bool Receive();
-  bool HandlePacket(Net::PlayerId playerId, unsigned char* data, std::uint32_t size);
+  bool HandlePacket(Net::ConnectionHandle connectionHandle, unsigned char* data, std::uint32_t size);
   void Run();
   bool Init();
   bool IsPublic(void);
   void SendServerMessage(const std::string& message);
 
-  std::optional<std::reference_wrapper<sPlayer>> GetPlayerById(std::uint64_t id);
+  PlayerManager& GetPlayerManager() { return player_manager_; }
+  const PlayerManager& GetPlayerManager() const { return player_manager_; }
 
   void UpdateDiscordActivity(const DiscordActivityState& activity);
   const DiscordActivityState& GetDiscordActivity() const;
@@ -108,7 +100,7 @@ public:
   std::uint32_t GetPort() const;
 
 private:
-  void DeleteFromPlayerList(Net::PlayerId guid);
+  void DeleteFromPlayerList(PlayerId player_id);
   void HandleCastSpell(Packet p, bool target);
   void HandleDropItem(Packet p);
   void HandleTakeItem(Packet p);
@@ -116,18 +108,18 @@ private:
   void SomeoneJoinGame(Packet p);
   void HandlePlayerUpdate(Packet p);
   void MakeHPDiff(Packet p);
-  void HandlePlayerDisconnect(Net::PlayerId id);
-  void HandlePlayerDeath(sPlayer& victim, std::optional<std::uint64_t> killer_id);
+  void HandlePlayerDisconnect(Net::ConnectionHandle connection);
+  void HandlePlayerDeath(Player& victim, std::optional<PlayerId> killer_id);
   void HandleNormalMsg(Packet p);
   void HandleWhisp(Packet p);
   void HandleRMConsole(Packet p);
   void HandleGameInfo(Packet p);
   void HandleMapNameReq(Packet p);
-  void SendDisconnectionInfo(uint64_t disconnected_id);
-  void SendDeathInfo(uint64_t deadman);
-  void SendRespawnInfo(uint64_t luckyguy);
-  void SendGameInfo(Net::PlayerId guid);
-  void SendDiscordActivity(Net::PlayerId guid);
+  void SendDisconnectionInfo(PlayerId player_id);
+  void SendDeathInfo(PlayerId player_id);
+  void SendRespawnInfo(PlayerId player_id);
+  void SendGameInfo(Net::ConnectionHandle connection);
+  void SendDiscordActivity(Net::ConnectionHandle connection);
 
   std::unique_ptr<BanManager> ban_manager_;
   std::unique_ptr<CharacterDefinitionManager> character_definition_manager_;
@@ -140,7 +132,7 @@ private:
   unsigned char GetPacketIdentifier(const Packet& p);
   int serverPort;
   unsigned short maxConnections;
-  std::unordered_map<std::uint64_t, sPlayer> players_;
+  PlayerManager player_manager_;
   bool allow_modification = false;
   Config config_;
   std::unique_ptr<GothicClock> clock_;

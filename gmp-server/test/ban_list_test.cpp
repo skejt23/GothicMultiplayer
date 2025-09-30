@@ -43,13 +43,13 @@ class MockNetServer : public Net::NetServer {
 public:
   MOCK_METHOD(void, Pulse, (), (override));
   MOCK_METHOD(bool, Start, (std::uint32_t, std::uint32_t), (override));
-  MOCK_METHOD(bool, Send, (unsigned char*, std::uint32_t, Net::PacketPriority, Net::PacketReliability, std::uint32_t, Net::PlayerId), (override));
-  MOCK_METHOD(bool, Send, (const char*, std::uint32_t, Net::PacketPriority, Net::PacketReliability, std::uint32_t, Net::PlayerId), (override));
+  MOCK_METHOD(bool, Send, (unsigned char*, std::uint32_t, Net::PacketPriority, Net::PacketReliability, std::uint32_t, Net::ConnectionHandle), (override));
+  MOCK_METHOD(bool, Send, (const char*, std::uint32_t, Net::PacketPriority, Net::PacketReliability, std::uint32_t, Net::ConnectionHandle), (override));
   MOCK_METHOD(void, AddToBanList, (const char*, std::uint32_t), (override));
-  MOCK_METHOD(void, AddToBanList, (Net::PlayerId, std::uint32_t), (override));
+  MOCK_METHOD(void, AddToBanList, (Net::ConnectionHandle, std::uint32_t), (override));
   MOCK_METHOD(void, RemoveFromBanList, (const char*), (override));
   MOCK_METHOD(bool, IsBanned, (const char*), (override));
-  MOCK_METHOD(const char*, GetPlayerIp, (Net::PlayerId), (override));
+  MOCK_METHOD(const char*, GetPlayerIp, (Net::ConnectionHandle), (override));
   MOCK_METHOD(void, AddPacketHandler, (Net::PacketHandler&), (override));
   MOCK_METHOD(void, RemovePacketHandler, (Net::PacketHandler&), (override));
   MOCK_METHOD(std::uint32_t, GetPort, (), (const override));
