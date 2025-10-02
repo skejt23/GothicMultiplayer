@@ -72,7 +72,6 @@ void Network::AddPacketHandlers() {
   packetHandlers[PT_JOIN_GAME] = Game::OnJoinGame;
   packetHandlers[PT_GAME_INFO] = Game::OnGameInfo;
   packetHandlers[PT_LEFT_GAME] = Game::OnLeftGame;
-  packetHandlers[PT_VOICE] = Game::OnVoice;
   packetHandlers[PT_DISCORD_ACTIVITY] = Game::OnDiscordActivity;
   packetHandlers[Net::ID_DISCONNECTION_NOTIFICATION] = Connection::OnDisconnectOrLostConnection;
   packetHandlers[Net::ID_CONNECTION_LOST] = Connection::OnDisconnectOrLostConnection;

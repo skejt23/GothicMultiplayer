@@ -687,13 +687,6 @@ void OnLeftGame(GameClient* client, Packet packet) {
   }
 }
 
-void OnVoice(GameClient* client, Packet packet) {
-  int size;
-  memcpy(&size, packet.data + 1, 4);
-  char* buffer = new char[size];
-  memcpy(buffer, packet.data + 5, size);
-  client->voicePlayback->PlayVoice(buffer, size);
-}
 
 void OnDiscordActivity(GameClient* /*client*/, Packet packet) {
   DiscordActivityPacket activityPacket;

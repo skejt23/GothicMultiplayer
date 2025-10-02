@@ -75,9 +75,7 @@ void SerializeAndSend(Network *network, const Packet &packet, Net::PacketPriorit
 }
 
 GameClient::GameClient(const char *ip, CLanguage *langPtr)
-    : network(new Network(this)),
-      voiceCapture(nullptr),
-      voicePlayback(nullptr),
+  : network(new Network(this)),
       IsReadyToJoin(false),
       lang(langPtr),
       IsAdminOrModerator(false),
@@ -99,12 +97,6 @@ GameClient::GameClient(const char *ip, CLanguage *langPtr)
 }
 
 GameClient::~GameClient() {
-  delete voiceCapture;
-  voiceCapture = nullptr;
-
-  delete voicePlayback;
-  voicePlayback = nullptr;
-
   delete network;
   network = nullptr;
   IsInGame = false;
@@ -112,10 +104,6 @@ GameClient::~GameClient() {
 
 bool GameClient::Connect() {
   if (network->Connect(clientHost, clientPort)) {
-    this->voiceCapture = new VoiceCapture();
-    this->voiceCapture->StartCapture();
-    this->voicePlayback = new VoicePlayback();
-    this->voicePlayback->StartPlayback();
     return true;
   }
   return false;
@@ -359,22 +347,6 @@ void GameClient::SendHPDiff(size_t who, short diff) {
   }
 }
 
-void GameClient::SendVoice() {
-  int audioChannels = voiceCapture->GetNumberOfChannels();
-  char *voiceBuffer = new char[480 * sizeof(float) * audioChannels * 4096];  // TODO: correct size
-  ZeroMemory(voiceBuffer, 480 * sizeof(float) * audioChannels * 4096);
-  int size;
-  if (voiceCapture->GetAndFlushVoiceBuffer(voiceBuffer, size) && zinput->KeyPressed(KEY_K)) {
-    VoicePacket packet;
-    packet.packet_type = PT_VOICE;
-    packet.voice_data_size = static_cast<std::uint32_t>(size);
-    packet.voice_data.assign(voiceBuffer, voiceBuffer + size);
-
-    SerializeAndSend(network, packet, IMMEDIATE_PRIORITY, UNRELIABLE);
-  }
-  delete[] voiceBuffer;
-}
-
 void GameClient::SyncGameTime() {
   BYTE data[2] = {PT_GAME_INFO, 0};
   network->Send((char *)data, 1, IMMEDIATE_PRIORITY, RELIABLE);
@@ -398,13 +370,5 @@ void GameClient::Disconnect() {
     CChat::GetInstance()->ClearChat();
     global_ingame->WhisperingTo.clear();
     player->SetWeaponMode(NPC_WEAPON_NONE);
-  }
-  if (this->voiceCapture) {
-    delete this->voiceCapture;
-    this->voiceCapture = nullptr;
-  }
-  if (this->voicePlayback) {
-    delete this->voicePlayback;
-    this->voicePlayback = nullptr;
   }
 }

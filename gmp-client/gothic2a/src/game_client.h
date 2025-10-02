@@ -31,8 +31,6 @@ SOFTWARE.
 #include "CSyncFuncs.h"
 #include "HooksManager.h"
 #include "Network.h"
-#include "VoiceCapture.h"
-#include "VoicePlayback.h"
 #include "world-builder\load.h"
 #include "ZenGin/zGothicAPI.h"
 
@@ -66,16 +64,12 @@ public:
   void SendMessage(const char* msg);
   void SendWhisper(const char* player_name, const char* msg);
   void SendCommand(const char* msg);
-  void SendVoice();
   void UpdatePlayerStats(short anim);
   void SendHPDiff(size_t who, short diff);
   void SyncGameTime(void);
   void Disconnect(void);
   void DownloadWBFile(void);
   void RestoreHealth(void);
-
-  VoiceCapture* voiceCapture;
-  VoicePlayback* voicePlayback;
   std::vector<CPlayer*> players;
   std::vector<Info> VobsWorldBuilderMap;
   int HeroLastHp;

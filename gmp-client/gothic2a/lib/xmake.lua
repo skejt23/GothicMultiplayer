@@ -1,1 +1,1 @@
-includes("gothic-api", "voice")
+includes("gothic-api")

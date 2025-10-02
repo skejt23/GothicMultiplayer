@@ -30,12 +30,12 @@ SOFTWARE.
 #include <format>
 
 #include "CActiveAniID.h"
-#include "config.h"
 #include "CLocalPlayer.h"
 #include "CMainMenu.h"
 #include "CMenu.h"
 #include "CWatch.h"
 #include "HooksManager.h"
+#include "config.h"
 #include "game_client.h"
 #include "keyboard.h"
 #include "patch.h"
@@ -141,7 +141,6 @@ void CIngame::Loop() {
         client->RestoreHealth();
         global_ingame->CheckForUpdate();
         global_ingame->CheckForHPDiff();
-        client->SendVoice();
       }
     }
     // SENDING MY ANIMATION
