@@ -10,10 +10,6 @@ local function optionalIdToString(id)
     return tostring(id)
 end
 
-addEventHandler('onInit', function()
-    print('Hello GMP')
-end)
-
 addEventHandler('onGameTime', function(day, hour, minute)
     LOG_INFO("Clock update: Day {} Time {:02d}:{:02d}", day, hour, minute)
 end)

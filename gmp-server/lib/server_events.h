@@ -31,8 +31,6 @@ SOFTWARE.
 
 #include <glm/glm.hpp>
 
-inline const std::string kEventOnInitName = "onInit";
-inline const std::string kEventOnExitName = "onExit";
 inline const std::string kEventOnGameTimeName = "onGameTime";
 inline const std::string kEventOnPlayerConnectName = "onPlayerConnect";
 inline const std::string kEventOnPlayerDisconnectName = "onPlayerDisconnect";

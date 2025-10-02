@@ -111,7 +111,6 @@ void Config::ValidateAndFixValues() {
     SPDLOG_WARN("Truncated auth_key since it exceeded the maximum length limit({})", kMaxAuthKeyLength);
   }
 
-
   auto& log_level = std::get<std::string>(values_.at("log_level"));
   const std::set<spdlog::string_view_t> valid_log_levels = SPDLOG_LEVEL_NAMES;
   auto it_level = valid_log_levels.find(spdlog::string_view_t(log_level));

@@ -69,7 +69,6 @@ std::filesystem::path ResolveFavoritesPath(const char* file) {
 }
 }  // namespace
 
-
 using namespace std;
 using namespace G2W;
 

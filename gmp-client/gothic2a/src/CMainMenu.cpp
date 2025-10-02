@@ -51,6 +51,7 @@ SOFTWARE.
 #include "mod.h"
 #include "patch.h"
 #include "version.h"
+#include "world-utils.hpp"
 
 using namespace Gothic_II_Addon;
 
@@ -771,6 +772,7 @@ void CMainMenu::RenderMenu() {
             WbMap.close();
             LoadWorld::LoadWorld(WordBuilderMapFileName.c_str(), client->VobsWorldBuilderMap);
           }
+          CleanupWorldObjects(ogame->GetGameWorld());
           if (WbMap.is_open())
             WbMap.close();
           WordBuilderMapFileName.clear();
