@@ -128,7 +128,6 @@ bool FakeClient::HandlePacket(unsigned char* data, std::uint32_t size) {
 void FakeClient::SentJoinGamePacket() {
   JoinGamePacket packet;
   packet.packet_type = PT_JOIN_GAME;
-  packet.selected_class = 0;
   packet.player_name = username_;
   packet.position = position_;
   packet.normal = rotation_;

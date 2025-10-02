@@ -284,16 +284,6 @@ void CreateMainMenu(bool InWorldBuilder) {
     MainMenu->AddMenuItem((*Lang)[CLanguage::INGAMEM_BACKTOGAME], (DWORD)ExitMainMenu);
     MainMenu->AddMenuItem((*Lang)[CLanguage::INGAMEM_HELP], (DWORD)CreateHelpMenu);
     MainMenu->AddMenuItem((*Lang)[CLanguage::MMENU_OPTIONS], (DWORD)CreateOptionsMenu);
-    if (client && LocalPlayer) {
-      if (client->IsConnected()) {
-        if (client->ObserveMode > 1) {
-          if (LocalPlayer->IsInObserveMode())
-            MainMenu->AddMenuItem((*Lang)[CLanguage::END_OBSERVATION], (DWORD)CLocalPlayer::LeaveObserveMode);
-          else
-            MainMenu->AddMenuItem((*Lang)[CLanguage::START_OBSERVATION], (DWORD)CLocalPlayer::EnterObserveMode);
-        }
-      }
-    }
     MainMenu->AddMenuItem((*Lang)[CLanguage::EXITTOMAINMENU], (DWORD)ExitToBigMainMenu);
     MainMenu->AddMenuItem((*Lang)[CLanguage::MMENU_LEAVEGAME], (DWORD)ExitGameFromMainMenu);
   } else {

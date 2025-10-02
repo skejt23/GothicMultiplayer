@@ -26,8 +26,8 @@ SOFTWARE.
 #pragma once
 
 #include <vector>
+#include <singleton.h>
 
-#include "CSelectClass.h"
 #include "CServerList.h"
 #include "ExtendedServerList.h"
 #include "ZenGin/zGothicAPI.h"
@@ -93,7 +93,6 @@ public:
   Gothic_II_Addon::zSTRING headmodel_tmp;
   Gothic_II_Addon::zSTRING Walkstyle_tmp;
   CLanguage* LangSetting;
-  CSelectClass* ClassSelect;
   bool AppCamCreated;
   unsigned char ChoosingApperance;
   unsigned char LastApperance;

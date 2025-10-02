@@ -17,15 +17,3 @@ string HTTPDownloader::GetWBFile(string serverAddress)
 	static const string wbFilePath = "wb_file";
 	return GetContentOfHost(serverAddress, wbFilePath);
 }
-
-string HTTPDownloader::GetClassFile(string serverAddress)
-{
-	static const string classFilePath = "class";
-	return GetContentOfHost(serverAddress, classFilePath);
-}
-
-string HTTPDownloader::GetSpawnpointsFile(string serverAddress)
-{
-	static const string spawnpointFilePath = "spawnpoint";
-	return GetContentOfHost(serverAddress, spawnpointFilePath);
-}

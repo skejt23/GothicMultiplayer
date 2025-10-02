@@ -57,6 +57,7 @@ public:
 
   const char* GetPlayerIp(ConnectionHandle id) override;
   std::uint32_t GetPort() const override;
+  std::string GetAddress() const override;
 
 private:
   RakNet::RakPeerInterface* peer_{nullptr};

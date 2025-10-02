@@ -33,15 +33,8 @@ SOFTWARE.
 **																			**
 *****************************************************************************/
 #include "CLocalPlayer.h"
-#include "CObservation.h"
-#include "game_client.h"
-#include "CIngame.h"
 
 CLocalPlayer* LocalPlayer = NULL;
-
-// Externs
-extern GameClient* client;
-extern CIngame* global_ingame;
 
 CLocalPlayer::CLocalPlayer()
 {
@@ -49,36 +42,10 @@ CLocalPlayer::CLocalPlayer()
 		delete this;
 		return;
 	}
-	this->IsObserving = false;
-	this->Observe = NULL;
 	LocalPlayer = this;
 };
 
 CLocalPlayer::~CLocalPlayer()
 {
 	LocalPlayer = NULL;
-	this->IsObserving = false;
-	this->Observe = NULL;
-};
-
-void CLocalPlayer::EnterObserveMode()
-{
-	if(client->ObserveMode == CObservation::NO_OBSERVATION) return;
-	if(LocalPlayer->IsInObserveMode()) return;
-	if(client->players.size() < 2) return;
-	LocalPlayer->Observe = new CObservation();
-	LocalPlayer->IsObserving = true;
-};
-
-bool CLocalPlayer::IsInObserveMode()
-{
-	if(IsObserving == true && Observe) return true;
-	return false;
-};
-
-void CLocalPlayer::LeaveObserveMode()
-{
-	LocalPlayer->IsObserving = false;
-	delete LocalPlayer->Observe;
-	LocalPlayer->Observe = NULL;
 };

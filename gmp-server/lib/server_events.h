@@ -31,13 +31,12 @@ SOFTWARE.
 
 #include <glm/glm.hpp>
 
-inline const std::string kEventOnClockUpdateName = "onClockUpdate";
+inline const std::string kEventOnGameTimeName = "onGameTime";
 inline const std::string kEventOnPlayerConnectName = "onPlayerConnect";
 inline const std::string kEventOnPlayerDisconnectName = "onPlayerDisconnect";
 inline const std::string kEventOnPlayerMessageName = "onPlayerMessage";
 inline const std::string kEventOnPlayerCommandName = "onPlayerCommand";
 inline const std::string kEventOnPlayerWhisperName = "onPlayerWhisper";
-inline const std::string kEventOnPlayerChangeClassName = "onPlayerChangeClass";
 inline const std::string kEventOnPlayerKillName = "onPlayerKill";
 inline const std::string kEventOnPlayerDeathName = "onPlayerDeath";
 inline const std::string kEventOnPlayerDropItemName = "onPlayerDropItem";
@@ -47,7 +46,7 @@ inline const std::string kEventOnPlayerSpawnName = "onPlayerSpawn";
 inline const std::string kEventOnPlayerRespawnName = "onPlayerRespawn";
 inline const std::string kEventOnPlayerHitName = "onPlayerHit";
 
-struct OnClockUpdateEvent {
+struct OnGameTimeEvent {
   std::uint16_t day;
   std::uint8_t hour;
   std::uint8_t min;
@@ -67,11 +66,6 @@ struct OnPlayerWhisperEvent {
   std::uint64_t from_id;
   std::uint64_t to_id;
   std::string text;
-};
-
-struct OnPlayerChangeClassEvent {
-  std::uint64_t pid;
-  std::uint64_t cid;
 };
 
 struct OnPlayerKillEvent {
@@ -103,13 +97,11 @@ struct OnPlayerCastSpellEvent {
 
 struct OnPlayerSpawnEvent {
   std::uint64_t player_id;
-  std::uint8_t class_id;
   glm::vec3 position;
 };
 
 struct OnPlayerRespawnEvent {
   std::uint64_t player_id;
-  std::uint8_t class_id;
   glm::vec3 position;
 };
 

@@ -33,20 +33,8 @@ SOFTWARE.
 
 #include "CPlayer.h"
 
-class CObservation;
-
 class CLocalPlayer : public CPlayer {
-private:
-  CObservation* Observe;
-  bool IsObserving;
-
 public:
   CLocalPlayer();
   ~CLocalPlayer();
-  static void EnterObserveMode();
-  inline CObservation* GetObserve() {
-    return this->Observe;
-  };
-  bool IsInObserveMode();
-  static void LeaveObserveMode();
 };

@@ -2,7 +2,7 @@
 /*
 MIT License
 
-Copyright (c) 2022 Gothic Multiplayer Team (pampi, skejt23, mecio)
+Copyright (c) 2025 Gothic Multiplayer Team.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -25,19 +25,9 @@ SOFTWARE.
 
 #pragma once
 
-#include <vector>
-
 #include "ZenGin/zGothicAPI.h"
 
-using namespace std;
-
-class CSpawnPoint {
-public:
-  CSpawnPoint(const char* source);
-  ~CSpawnPoint(void);
-  DWORD GetSize(void);
-  zVEC3* operator[](size_t i);
-
-private:
-  vector<zVEC3*> data;
-};
+/*
+ * Removes all items from the world, cleans and unlocks all containers and doors.
+ */
+void CleanupWorldObjects(oCWorld* world);

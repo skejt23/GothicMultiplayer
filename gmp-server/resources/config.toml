@@ -6,27 +6,18 @@
 
 # --- Basic server information ------------------------------------------------
 name = "Gothic Multiplayer Server"
-public = false
-admin_passwd = ""
 port = 57005
+public = false
 slots = 12
-map = "NEWWORLD\\NEWWORLD.ZEN"
-map_md5 = ""
+admin_passwd = ""
+auth_key = ""
 
 # --- Gameplay ----------------------------------------------------------------
+map = "NEWWORLD\\NEWWORLD.ZEN"
+map_md5 = ""
 allow_modification = true
-allow_dropitems = true
-be_unconcious_before_dead = false
-observation = false
-quick_pots = false
 hide_map = false
 respawn_time_seconds = 5
-game_mode = 0
-
-# --- Game time ---------------------------------------------------------------
-game_time.day = 1
-game_time.hour = 8
-game_time.min = 0
 
 # --- Logging -----------------------------------------------------------------
 log_file = "log.txt"
@@ -35,7 +26,6 @@ log_level = "info"
 
 # --- Scripts -----------------------------------------------------------------
 scripts = ["main.lua", "discord.lua", "events.lua", "functions.lua", "utility.lua", "timer.lua", "hash.lua"]
-character_definitions_file = "class.json"
 
 # --- Performance -------------------------------------------------------------
 tick_rate_ms = 100

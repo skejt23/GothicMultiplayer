@@ -86,8 +86,6 @@ bool Network::Connect(std::string hostAddress, int hostPort) {
   serverIp_ = hostAddress;
   serverPort_ = hostPort;
   client_->DownloadWBFile();
-  client_->DownloadClassFile();
-  client_->DownloadSpawnpointsFile();
   client_->IsReadyToJoin = true;
   return true;
 }

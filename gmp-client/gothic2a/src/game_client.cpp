@@ -31,7 +31,6 @@ SOFTWARE.
 #include <bitsery/traits/array.h>
 #include <bitsery/traits/string.h>
 #include <bitsery/traits/vector.h>
-#include <spdlog/spdlog.h>
 #include <wincrypt.h>
 
 #include <array>
@@ -47,7 +46,6 @@ SOFTWARE.
 #include "CChat.h"
 #include "CIngame.h"
 #include "CLocalPlayer.h"
-#include "CSelectClass.h"
 #include "HTTPDownloader.h"
 #include "Interface.h"
 #include "ZenGin/zGothicAPI.h"
@@ -82,13 +80,10 @@ GameClient::GameClient(const char *ip, CLanguage *langPtr)
       voicePlayback(nullptr),
       IsReadyToJoin(false),
       lang(langPtr),
-      classmgr(nullptr),
-      spawnpoint(nullptr),
       IsAdminOrModerator(false),
       IgnoreFirstTimeMessage(true),
       DropItemsAllowed(false),
       IsInGame(false),
-      ObserveMode(CObservation::NO_OBSERVATION),
       clientPort(0xDEAD),
       clientHost(ip) {
   srand(static_cast<unsigned int>(time(NULL)));
@@ -104,12 +99,6 @@ GameClient::GameClient(const char *ip, CLanguage *langPtr)
 }
 
 GameClient::~GameClient() {
-  delete classmgr;
-  classmgr = nullptr;
-
-  delete spawnpoint;
-  spawnpoint = nullptr;
-
   delete voiceCapture;
   voiceCapture = nullptr;
 
@@ -154,24 +143,6 @@ void GameClient::DownloadWBFile() {
   }
 }
 
-void GameClient::DownloadClassFile() {
-  string content = HTTPDownloader::GetClassFile(GetServerAddresForHTTPDownloader());
-  if (content.compare("EMPTY") == 0) {
-    return;
-  }
-  this->classmgr = new CHeroClass(content.c_str(), content.length());
-}
-
-void GameClient::DownloadSpawnpointsFile() {
-  string content = HTTPDownloader::GetSpawnpointsFile(GetServerAddresForHTTPDownloader());
-  if (content.compare("EMPTY") == 0) {
-    return;
-  }
-  this->spawnpoint = new CSpawnPoint(content.c_str());
-  size_t randomSpawnpoint = rand() % spawnpoint->GetSize();
-  oCNpc::player->trafoObjToWorld.SetTranslation(*(*spawnpoint)[randomSpawnpoint]);
-}
-
 void GameClient::RestoreHealth() {
   if (!mp_restore || !IsInGame) {
     return;
@@ -214,17 +185,15 @@ zSTRING &GameClient::GetLastError() {
   }
 }
 
-void GameClient::JoinGame(BYTE selected_class) {
+void GameClient::JoinGame() {
   if (IsReadyToJoin) {
     HooksManager::GetInstance()->AddHook(HT_RENDER, (DWORD)InterfaceLoop, false);
-    HooksManager::GetInstance()->RemoveHook(HT_RENDER, (DWORD)CSelectClass::Loop);
 
     auto sanitized_name = SanitizePlayerName(Config::Instance().Nickname.ToChar());
     player->name[0] = sanitized_name.c_str();
 
     JoinGamePacket packet;
     packet.packet_type = PT_JOIN_GAME;
-    packet.selected_class = selected_class;
 
     auto pos = player->GetPositionWorld();
     packet.position.x = pos[VX];
@@ -266,7 +235,6 @@ void GameClient::JoinGame(BYTE selected_class) {
     LocalPlayer->hp = static_cast<short>(LocalPlayer->GetHealth());
     LocalPlayer->update_hp_packet = 0;
     LocalPlayer->npc->SetMovLock(0);
-    LocalPlayer->char_class = selected_class;
     this->players.push_back(LocalPlayer);
     this->HeroLastHp = player->attribute[NPC_ATR_HITPOINTS];
   }
@@ -430,14 +398,6 @@ void GameClient::Disconnect() {
     CChat::GetInstance()->ClearChat();
     global_ingame->WhisperingTo.clear();
     player->SetWeaponMode(NPC_WEAPON_NONE);
-  }
-  if (this->classmgr) {
-    delete this->classmgr;
-    this->classmgr = NULL;
-  }
-  if (this->spawnpoint) {
-    delete this->spawnpoint;
-    this->spawnpoint = NULL;
   }
   if (this->voiceCapture) {
     delete this->voiceCapture;

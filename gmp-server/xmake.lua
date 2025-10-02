@@ -30,7 +30,11 @@ target("Server")
     add_includedirs("lib", {public = true})
     add_deps("common", "SharedLib", "znet_server")
     add_defines("SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE")
-    add_packages("spdlog", "fmt", "toml11", "nlohmann_json", "bitsery", "glm", "sol2", "pugixml", "cpp-httplib", "dylib", "openssl", {public = true})
+    add_packages("spdlog", "fmt", "toml11", "nlohmann_json", "bitsery", "glm", "sol2", "cpp-httplib", "dylib", "openssl", {public = true})
+    local master_endpoint = get_config("master_server_endpoint")
+    if master_endpoint and #master_endpoint > 0 then
+        add_defines(string.format("MASTER_SERVER_ENDPOINT=\"%s\"", master_endpoint))
+    end
     set_default(false) -- So it's not installed by default
 
 target("ServerApp")
