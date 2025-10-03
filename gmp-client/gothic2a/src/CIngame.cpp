@@ -39,6 +39,7 @@ SOFTWARE.
 #include "game_client.h"
 #include "keyboard.h"
 #include "patch.h"
+#include "random_utils.h"
 
 CIngame* global_ingame = NULL;
 extern GameClient* client;
@@ -299,8 +300,8 @@ void CIngame::HandleInput() {
     if (!player->IsMovLock())
       player->SetMovLock(1);
     if (chat_interface->PrintMsgType == NORMAL) {
-      int RandomAnim = rand() % 10 + 1;
-      chat_interface->StartChatAnimation(RandomAnim);
+      const int random_anim = gmp::client::random::Int(1, 10);
+      chat_interface->StartChatAnimation(random_anim);
     }
     // INPUT
     if (zinput->KeyToggled(KEY_ESCAPE))

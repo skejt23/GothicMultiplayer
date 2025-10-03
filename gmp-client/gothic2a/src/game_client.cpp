@@ -34,7 +34,6 @@ SOFTWARE.
 #include <wincrypt.h>
 
 #include <array>
-#include <cstdlib>
 #include <ctime>
 #include <filesystem>
 #include <glm/glm.hpp>
@@ -81,11 +80,9 @@ GameClient::GameClient(const char *ip, CLanguage *langPtr)
       IsAdminOrModerator(false),
       IgnoreFirstTimeMessage(true),
       DropItemsAllowed(false),
-      IsInGame(false),
-      clientPort(0xDEAD),
-      clientHost(ip) {
-  srand(static_cast<unsigned int>(time(NULL)));
-
+    IsInGame(false),
+    clientPort(0xDEAD),
+    clientHost(ip) {
   // Extract port number from IP address if present
   size_t pos = clientHost.find_last_of(':');
   if (pos != std::string::npos) {

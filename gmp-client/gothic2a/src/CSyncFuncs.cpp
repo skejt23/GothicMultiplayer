@@ -37,6 +37,7 @@ SOFTWARE.
 #include "CSyncFuncs.h"
 
 #include "CIngame.h"
+#include "random_utils.h"
 
 // Externs
 extern CIngame* global_ingame;
@@ -128,7 +129,7 @@ void CSyncFuncs::PlayDrawSound(oCItem* Item, oCNpc* Npc, bool Draw) {
       break;
     case SND_MAT_METAL:
       if (Draw) {
-        RandomDraw = rand() % 2 + 1;
+        RandomDraw = gmp::client::random::Int(1, 2);
         if (RandomDraw == 1)
           zsound->PlaySound3D(DrawSoundMe, Npc, 2, nullptr);
         else

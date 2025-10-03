@@ -79,8 +79,6 @@ void RegisterSignalHandlers() {
 
 
 int main(int argc, char **argv) {
-  srand(static_cast<unsigned int>(time(NULL)));
-
   RegisterSignalHandlers();
 
   GameServer serv;
