@@ -72,7 +72,7 @@ private:
   void AddPacketHandlers();
   bool HandlePacket(unsigned char* data, std::uint32_t size) override;
 
-  GameClient* client_;  // swaghetti
+  GameClient* client_;
   uint64_t playerID;
   std::map<int, std::function<void(GameClient*, Packet packet)> > packetHandlers;
   std::string serverIp_;

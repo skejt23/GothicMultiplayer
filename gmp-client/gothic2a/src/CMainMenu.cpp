@@ -56,8 +56,8 @@ SOFTWARE.
 using namespace Gothic_II_Addon;
 
 extern GameClient* client;
-extern std::vector<zSTRING> vec_choose_lang;
-extern std::vector<std::string> vec_lang_files;
+std::vector<zSTRING> vec_choose_lang;
+std::vector<std::string> vec_lang_files;
 extern const char* LANG_DIR;
 extern float fWRatio, fHRatio;
 zCOLOR Normal = zCOLOR(255, 255, 255);

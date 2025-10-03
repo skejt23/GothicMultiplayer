@@ -55,14 +55,10 @@ SOFTWARE.
 #include "player_name_utils.hpp"
 
 const char *LANG_DIR = ".\\Multiplayer\\Localization\\";
-std::vector<zSTRING> vec_choose_lang;
-std::vector<std::string> vec_lang_files;
-const BYTE GDI_MD5[16] = {0x34, 0x16, 0x98, 0x62, 0x43, 0xB0, 0x3D, 0x36, 0xD6, 0xB0, 0x1A, 0x4D, 0x2B, 0xCB, 0xDB, 0x8B};
 
 float fWRatio, fHRatio;
 extern CIngame *global_ingame;
 extern CLocalPlayer *LocalPlayer;
-extern zCOLOR AQUA, RED;
 
 using namespace Net;
 

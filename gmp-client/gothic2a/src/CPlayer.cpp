@@ -87,11 +87,7 @@ CPlayer::CPlayer() {
   this->hp = NULL;
   this->ScriptInstance = NULL;
   this->update_hp_packet = NULL;
-  // Checking if CIngame exists therefore skipping add CLocalPlayer to inter list
-  if (global_ingame)
-    this->InterPos = new CInterpolatePos(this);
-  else
-    this->InterPos = NULL;
+  this->InterPos = new CInterpolatePos(this);
   this->Type = NPC_HUMAN;
 };
 
