@@ -32,13 +32,13 @@ SOFTWARE.
 #include "Interface.h"
 
 #include "CIngame.h"
-#include "CLanguage.h"
+#include "language.h"
 #include "CLocalPlayer.h"
 #include "CMainMenu.h"
 #include "CMenu.h"
 #include "HooksManager.h"
 #include "world-builder\CBuilder.h"
-#include "game_client.h"
+#include "net_game.h"
 #include "keyboard.h"
 #include "mod.h"
 
@@ -53,8 +53,7 @@ extern CBuilder* Builder;
 char TextFFS[2] = {0, 0};
 bool WritingMapSave = false;
 bool OrgOptionsOpened = false;
-extern CLanguage* Lang;
-extern GameClient* client;
+extern NetGame* client;
 extern zCOLOR Red;
 extern zCOLOR Normal;
 extern CLocalPlayer* LocalPlayer;
@@ -112,15 +111,15 @@ void InterfaceLoop(void) {
   if (InWorldBuilder)
     InWorldBuilder = false;
   if (HelpOpen) {
-    screen->Print(2500, 2000, (*Lang)[CLanguage::HCONTROLS]);
-    screen->Print(2500, 2200, (*Lang)[CLanguage::HCHAT]);
-    screen->Print(2500, 2400, (*Lang)[CLanguage::HCHATMAIN]);
-    screen->Print(2500, 2600, (*Lang)[CLanguage::HCHATWHISPER]);
-    screen->Print(2500, 2800, (*Lang)[CLanguage::HPLAYERLIST]);
-    screen->Print(2500, 3000, (*Lang)[CLanguage::HMAP]);
-    screen->Print(2500, 3200, (*Lang)[CLanguage::HANIMSMENU]);
+    screen->Print(2500, 2000, Language::Instance()[Language::HCONTROLS]);
+    screen->Print(2500, 2200, Language::Instance()[Language::HCHAT]);
+    screen->Print(2500, 2400, Language::Instance()[Language::HCHATMAIN]);
+    screen->Print(2500, 2600, Language::Instance()[Language::HCHATWHISPER]);
+    screen->Print(2500, 2800, Language::Instance()[Language::HPLAYERLIST]);
+    screen->Print(2500, 3000, Language::Instance()[Language::HMAP]);
+    screen->Print(2500, 3200, Language::Instance()[Language::HANIMSMENU]);
     screen->SetFontColor(Red);
-    screen->Print(2500, 3400, (*Lang)[CLanguage::SHOWHOW]);
+    screen->Print(2500, 3400, Language::Instance()[Language::SHOWHOW]);
     screen->SetFontColor(Normal);
   }
   if (OrgOptionsOpened) {
@@ -222,7 +221,7 @@ void WorldBuilderInterface(void) {
     }
   }
   if (HelpOpen) {
-    screen->Print(2500, 2000, (*Lang)[CLanguage::HCONTROLS]);
+    screen->Print(2500, 2000, Language::Instance()[Language::HCONTROLS]);
     screen->Print(2500, 2200, H_CHOBJECT);
     screen->Print(2500, 2400, H_UPDOWN);
     screen->Print(2500, 2600, H_ROTY);
@@ -281,18 +280,18 @@ void WorldBuilderInterface(void) {
 void CreateMainMenu(bool InWorldBuilder) {
   if (!InWorldBuilder) {
     MainMenu = new CMenu(GothicMP, zCOLOR(0, 128, 128), 3500, 4000);  // MAIN-MENU
-    MainMenu->AddMenuItem((*Lang)[CLanguage::INGAMEM_BACKTOGAME], (DWORD)ExitMainMenu);
-    MainMenu->AddMenuItem((*Lang)[CLanguage::INGAMEM_HELP], (DWORD)CreateHelpMenu);
-    MainMenu->AddMenuItem((*Lang)[CLanguage::MMENU_OPTIONS], (DWORD)CreateOptionsMenu);
-    MainMenu->AddMenuItem((*Lang)[CLanguage::EXITTOMAINMENU], (DWORD)ExitToBigMainMenu);
-    MainMenu->AddMenuItem((*Lang)[CLanguage::MMENU_LEAVEGAME], (DWORD)ExitGameFromMainMenu);
+    MainMenu->AddMenuItem(Language::Instance()[Language::INGAMEM_BACKTOGAME], (DWORD)ExitMainMenu);
+    MainMenu->AddMenuItem(Language::Instance()[Language::INGAMEM_HELP], (DWORD)CreateHelpMenu);
+    MainMenu->AddMenuItem(Language::Instance()[Language::MMENU_OPTIONS], (DWORD)CreateOptionsMenu);
+    MainMenu->AddMenuItem(Language::Instance()[Language::EXITTOMAINMENU], (DWORD)ExitToBigMainMenu);
+    MainMenu->AddMenuItem(Language::Instance()[Language::MMENU_LEAVEGAME], (DWORD)ExitGameFromMainMenu);
   } else {
     MainMenu = new CMenu(WorldBuilder, zCOLOR(0, 128, 128), 3500, 4000);  // MAIN-MENU
-    MainMenu->AddMenuItem((*Lang)[CLanguage::INGAMEM_BACKTOGAME], (DWORD)ExitMainMenu);
-    MainMenu->AddMenuItem((*Lang)[CLanguage::WB_SAVEMAP], (DWORD)SaveMap);
-    MainMenu->AddMenuItem((*Lang)[CLanguage::INGAMEM_HELP], (DWORD)CreateHelpMenu);
-    MainMenu->AddMenuItem((*Lang)[CLanguage::MMENU_OPTIONS], (DWORD)CreateOptionsMenu);
-    MainMenu->AddMenuItem((*Lang)[CLanguage::EXITTOMAINMENU], (DWORD)ExitToBigMainMenuFromWB);
-    MainMenu->AddMenuItem((*Lang)[CLanguage::MMENU_LEAVEGAME], (DWORD)ExitGameFromMainMenuWB);
+    MainMenu->AddMenuItem(Language::Instance()[Language::INGAMEM_BACKTOGAME], (DWORD)ExitMainMenu);
+    MainMenu->AddMenuItem(Language::Instance()[Language::WB_SAVEMAP], (DWORD)SaveMap);
+    MainMenu->AddMenuItem(Language::Instance()[Language::INGAMEM_HELP], (DWORD)CreateHelpMenu);
+    MainMenu->AddMenuItem(Language::Instance()[Language::MMENU_OPTIONS], (DWORD)CreateOptionsMenu);
+    MainMenu->AddMenuItem(Language::Instance()[Language::EXITTOMAINMENU], (DWORD)ExitToBigMainMenuFromWB);
+    MainMenu->AddMenuItem(Language::Instance()[Language::MMENU_LEAVEGAME], (DWORD)ExitGameFromMainMenuWB);
   }
 };

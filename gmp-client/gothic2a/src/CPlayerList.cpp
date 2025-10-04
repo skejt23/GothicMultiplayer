@@ -27,10 +27,9 @@ SOFTWARE.
 
 #include "CChat.h"
 #include "CIngame.h"
-#include "game_client.h"
+#include "net_game.h"
 
-extern GameClient* client;
-extern CLanguage* Lang;
+extern NetGame* client;
 extern zCOLOR Normal;
 extern zCOLOR Highlighted;
 extern CIngame* global_ingame;
@@ -153,7 +152,7 @@ void CPlayerList::UpdatePlayerList() {
     // PRINT
     zCView* Screen = screen;
     Screen->SetFontColor(Normal);
-    Screen->Print(x + 400, y, (*Lang)[CLanguage::SRV_PLAYERS]);
+    Screen->Print(x + 400, y, Language::Instance()[Language::SRV_PLAYERS]);
     char buffer[128];
     sprintf(buffer, "%d", client->players.size());
     zSTRING NoOfPlayers = buffer;
@@ -185,7 +184,7 @@ void CPlayerList::UpdatePlayerList() {
         }
       }
     } else
-      Screen->Print(x + 400, y + 200, (*Lang)[CLanguage::NOPLAYERS]);
+      Screen->Print(x + 400, y + 200, Language::Instance()[Language::NOPLAYERS]);
   } else {
     // INPUT
     if (zinput->KeyToggled(KEY_UP)) {
@@ -211,10 +210,10 @@ void CPlayerList::UpdatePlayerList() {
     Screen->Print(x + 400, y, ChosenPlayer);
     FColors1 = (MenuPos == 0) ? Highlighted : Normal;
     Screen->SetFontColor(FColors1);
-    Screen->Print(x + 400, y + 200, (*Lang)[CLanguage::MMENU_BACK]);
+    Screen->Print(x + 400, y + 200, Language::Instance()[Language::MMENU_BACK]);
     FColors1 = (MenuPos == 1) ? Highlighted : Normal;
     Screen->SetFontColor(FColors1);
-    Screen->Print(x + 400, y + 400, (*Lang)[CLanguage::PLIST_PM]);
+    Screen->Print(x + 400, y + 400, Language::Instance()[Language::PLIST_PM]);
     if (client->IsAdminOrModerator) {
       FColors1 = (MenuPos == 2) ? Highlighted : Normal;
       Screen->SetFontColor(FColors1);
@@ -224,10 +223,10 @@ void CPlayerList::UpdatePlayerList() {
       Screen->Print(x + 400, y + 1000, "Ban");
       FColors1 = (MenuPos == 4) ? Highlighted : Normal;
       Screen->SetFontColor(FColors1);
-      Screen->Print(x + 400, y + 1200, (*Lang)[CLanguage::KILL_PLAYER]);
+      Screen->Print(x + 400, y + 1200, Language::Instance()[Language::KILL_PLAYER]);
       FColors1 = (MenuPos == 5) ? Highlighted : Normal;
       Screen->SetFontColor(FColors1);
-      Screen->Print(x + 400, y + 1400, (*Lang)[CLanguage::GOTO_PLAYER]);
+      Screen->Print(x + 400, y + 1400, Language::Instance()[Language::GOTO_PLAYER]);
     }
   }
 };

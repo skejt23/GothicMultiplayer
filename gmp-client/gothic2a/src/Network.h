@@ -33,7 +33,7 @@ SOFTWARE.
 #include "net_enums.h"
 #include "znet_client.h"
 
-class GameClient;
+class NetGame;
 
 struct Packet {
   unsigned char* data = nullptr;
@@ -43,9 +43,8 @@ struct Packet {
 class Network : public Net::NetClient::PacketHandler {
 public:
   bool connection_lost_ = false;
-  std::uint8_t error;
 
-  Network(GameClient*);
+  Network(NetGame*);
   ~Network() override;
 
   bool Connect(std::string hostAddress, int hostPort);
@@ -72,9 +71,9 @@ private:
   void AddPacketHandlers();
   bool HandlePacket(unsigned char* data, std::uint32_t size) override;
 
-  GameClient* client_;
+  NetGame* client_;
   uint64_t playerID;
-  std::map<int, std::function<void(GameClient*, Packet packet)> > packetHandlers;
+  std::map<int, std::function<void(NetGame*, Packet packet)> > packetHandlers;
   std::string serverIp_;
   std::uint32_t serverPort_{0};
 };

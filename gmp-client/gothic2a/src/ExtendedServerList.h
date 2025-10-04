@@ -25,58 +25,57 @@ SOFTWARE.
 
 #pragma once
 
-#include "ZenGin/zGothicAPI.h"
 #include "CServerList.h"
-#include "CLanguage.h"
 #include "G2W.h"
+#include "ZenGin/zGothicAPI.h"
+#include "language.h"
 
 #define TAB_ALL 0
 #define TAB_FAV 1
 
-class ServerInfo{
+class ServerInfo {
 public:
-	std::string name, map, ip;
-	int max_players, num_of_players, port, ping;
-	ServerInfo();
-	void updatePing();
+  std::string name, map, ip;
+  int max_players, num_of_players, port, ping;
+  ServerInfo();
+  void updatePing();
 };
 
 struct FavoriteServerEndpoint {
-        std::string ip;
-        std::uint16_t port;
+  std::string ip;
+  std::uint16_t port;
 };
 
-class ExtendedServerList{
+class ExtendedServerList {
 public:
-	ExtendedServerList(CServerList* server_list);
-	~ExtendedServerList(void);
-	void SelectServer(int index);
-	void Draw();
-	void addServer(ServerInfo & si);
-	void clearList();
-	void setLanguage(CLanguage * lang);
-	void selectTab(int index);
-	void nextTab();
-	void prevTab();
-	void loadFav(const char * file);
-	void saveFav(const char * file);
-	void HandleInput();
-	void addSelectedToFav();
-	bool RefreshList();
-	bool getSelectedServer(void * buffer, int size);
-	void fillTables();
-	void updatePings();
-	
-	HANDLE srvList_access; 
+  ExtendedServerList(CServerList* server_list);
+  ~ExtendedServerList(void);
+  void SelectServer(int index);
+  void Draw();
+  void addServer(ServerInfo& si);
+  void clearList();
+  void selectTab(int index);
+  void nextTab();
+  void prevTab();
+  void loadFav(const char* file);
+  void saveFav(const char* file);
+  void HandleInput();
+  void addSelectedToFav();
+  bool RefreshList();
+  bool getSelectedServer(void* buffer, int size);
+  void fillTables();
+  void updatePings();
+
+  HANDLE srvList_access;
+
 private:
-	static DWORD WINAPI pingThreadProc(ExtendedServerList * esl);
-	
-	G2W::Button * tab_all, * tab_fav;
-	G2W::Table * list_all, * list_fav;
-    std::vector<FavoriteServerEndpoint> favorite_servers_;
-	std::vector<ServerInfo> srvList;
-	int SelectedTab;
-	int SelectedServer;
-	CLanguage* LangSetting;
-    CServerList* server_list_;
+  static DWORD WINAPI pingThreadProc(ExtendedServerList* esl);
+
+  G2W::Button *tab_all, *tab_fav;
+  G2W::Table *list_all, *list_fav;
+  std::vector<FavoriteServerEndpoint> favorite_servers_;
+  std::vector<ServerInfo> srvList;
+  int SelectedTab;
+  int SelectedServer;
+  CServerList* server_list_;
 };

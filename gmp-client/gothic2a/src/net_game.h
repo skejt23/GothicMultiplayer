@@ -26,7 +26,6 @@ SOFTWARE.
 
 #include <string>
 
-#include "CLanguage.h"
 #include "CPlayer.h"
 #include "CSyncFuncs.h"
 #include "HooksManager.h"
@@ -48,16 +47,15 @@ union STime {
   };
 };
 
-class GameClient : public CSyncFuncs {
+class NetGame : public CSyncFuncs {
 public:
-  GameClient(const char* ip, CLanguage* ptr);
-  ~GameClient(void);
+  NetGame(const char* ip);
+  ~NetGame();
 
   void HandleNetwork(void);
   bool IsConnected(void);
   bool Connect(void);
   void JoinGame();
-  zSTRING& GetLastError(void);
   void SendDropItem(short Instance, short amount);
   void SendTakeItem(short Instance);
   void SendCastSpell(oCNpc* Target, short SpellId);
@@ -70,17 +68,16 @@ public:
   void Disconnect(void);
   void DownloadWBFile(void);
   void RestoreHealth(void);
+
   std::vector<CPlayer*> players;
   std::vector<Info> VobsWorldBuilderMap;
   int HeroLastHp;
   zSTRING map;
   bool IsAdminOrModerator;
-  bool IgnoreFirstTimeMessage;
   bool IsInGame;
   short mp_restore;
   int DropItemsAllowed;
   int ForceHideMap;
-  CLanguage* lang;
   Network* network;
   bool IsReadyToJoin;
 

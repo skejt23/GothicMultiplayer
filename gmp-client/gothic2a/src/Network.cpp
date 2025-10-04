@@ -37,11 +37,10 @@ SOFTWARE.
 
 static Net::NetClient* g_netclient = nullptr;
 
-Network::Network(GameClient* client) {
+Network::Network(NetGame* client) {
   assert(g_netclient != nullptr);
   client_ = client;
   playerID = -1;
-  error = 0;
 
   AddPacketHandlers();
   g_netclient->AddPacketHandler(*this);
@@ -105,8 +104,8 @@ bool Network::HandlePacket(unsigned char* data, std::uint32_t size) {
   try {
     SPDLOG_TRACE("Received packet: {}", (int)data[0]);
     packetHandlers[(int)data[0]](client_, Packet{data, size});
-  } catch (std::exception&) {
-    error = data[0];
+  } catch (std::exception& ex) {
+    SPDLOG_ERROR("Error handling packet: {}", ex.what());
   }
   return true;
 }

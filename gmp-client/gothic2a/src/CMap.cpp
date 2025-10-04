@@ -26,9 +26,9 @@ SOFTWARE.
 #include "CMap.h"
 
 #include "config.h"
-#include "game_client.h"
+#include "net_game.h"
 
-extern GameClient* client;
+extern NetGame* client;
 
 CMap::CMap() {
   Opened = false;

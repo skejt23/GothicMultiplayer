@@ -31,7 +31,7 @@ SOFTWARE.
 #include "CChat.h"
 #include "CInterpolatePos.h"
 #include "CInventory.h"
-#include "CLanguage.h"
+#include "language.h"
 #include "CMap.h"
 #include "CPlayerList.h"
 #include "CShrinker.h"
@@ -40,7 +40,7 @@ enum CURRENT_MAP { MAP_UNKNOWN, MAP_COLONY, MAP_OLDWORLD, MAP_KHORINIS, MAP_JARK
 
 class CIngame {
 public:
-  CIngame(CLanguage* pLang);
+  CIngame();
   ~CIngame(void);
   static void Loop(void);
   void Draw(void);
@@ -74,7 +74,6 @@ private:
   void ClearAfterWrite();
   void PrepareForWrite();
   clock_t last_player_update;
-  CLanguage* lang;
   CPlayerList* PList;
   CChat* chat_interface;
   CAnimMenu* AMenu;

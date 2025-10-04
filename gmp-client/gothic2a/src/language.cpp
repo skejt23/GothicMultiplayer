@@ -23,9 +23,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#pragma warning(disable : 4172)
-
-#include "CLanguage.h"
+#include "language.h"
 
 #include <spdlog/spdlog.h>
 
@@ -35,10 +33,8 @@ SOFTWARE.
 
 #include "localization_utils.h"
 
-using namespace Gothic_II_Addon;
-
 namespace {
-constexpr std::size_t kStringCount = static_cast<std::size_t>(CLanguage::SRVLIST_PLAYERNUMBER) + 1;
+constexpr std::size_t kStringCount = static_cast<std::size_t>(Language::SRVLIST_PLAYERNUMBER) + 1;
 
 const std::array<const char*, kStringCount> kStringKeys = {"LANGUAGE",
                                                            "WRITE_NICKNAME",
@@ -134,21 +130,22 @@ const std::array<const char*, kStringCount> kStringKeys = {"LANGUAGE",
                                                            "SRVLIST_PLAYERNUMBER"};
 }  // namespace
 
-CLanguage::CLanguage(const char* file) {
+bool Language::LoadFromJsonFile(const std::filesystem::path& file) {
   std::ifstream ifs(file);
   if (!ifs.good()) {
-    MessageBoxA(NULL, file, "Can not open file!", MB_ICONERROR);
-    return;
+    SPDLOG_ERROR("Failed to open language file {}: {}", file.string(), strerror(errno));
+    return false;
   }
+
   nlohmann::json json_data;
   try {
     ifs >> json_data;
   } catch (const std::exception& ex) {
-    SPDLOG_ERROR("Failed to parse language file {}: {}", file, ex.what());
-    MessageBoxA(NULL, file, "Invalid language file!", MB_ICONERROR);
-    return;
+    SPDLOG_ERROR("Failed to parse language file {}: {}", file.string(), ex.what());
+    return false;
   }
 
+  data.clear();
   const std::string language_field = json_data.value("LANGUAGE", std::string{});
   const auto encoding = localization::DetectLanguageEncoding(language_field, file);
 
@@ -158,18 +155,20 @@ CLanguage::CLanguage(const char* file) {
     std::string value;
     try {
       if (!json_data.contains(key)) {
-        SPDLOG_WARN("Missing language key '{}' in file {}", key, file);
+        SPDLOG_WARN("Missing language key '{}' in file {}", key, file.string());
       }
       value = json_data.value(key, std::string{});
     } catch (const std::exception& ex) {
-      SPDLOG_WARN("Language key '{}' in file {} has incompatible type: {}", key, file, ex.what());
+      SPDLOG_WARN("Language key '{}' in file {} has incompatible type: {}", key, file.string(), ex.what());
     }
     value = localization::ConvertFromUtf8(value, encoding);
     data[i] = value.c_str();
   }
+
+  return true;
 }
 
-void CLanguage::RemovePolishCharactersFromWideString(std::wstring& txt) {
+void Language::RemovePolishCharactersFromWideString(std::wstring& txt) {
   wchar_t letter[1] = {0x22};
   size_t found;
   found = 0;
@@ -270,12 +269,7 @@ void CLanguage::RemovePolishCharactersFromWideString(std::wstring& txt) {
   }
 };
 
-CLanguage::~CLanguage(void) {
-  if (!data.empty())
-    data.clear();
-}
-
-zSTRING& CLanguage::operator[](unsigned long i) {
-  static zSTRING Empty = "EMPTY";
-  return (i < data.size()) ? data[i] : Empty;
+const zSTRING& Language::operator[](unsigned long i) const {
+  static zSTRING kUnknown = "UNKNOWN TRANSLATION STRING";
+  return (i < data.size()) ? data[i] : kUnknown;
 }

@@ -37,13 +37,12 @@ SOFTWARE.
 #include <spdlog/spdlog.h>
 
 #include "CChat.h"
-#include "CLanguage.h"
+#include "language.h"
 #include "patch.h"
 
 using namespace std;
 extern zCOLOR Highlighted;
 extern zCOLOR Normal;
-extern CLanguage* Lang;
 zCOLOR FColors;
 
 CAnimMenu::CAnimMenu() {
@@ -173,7 +172,7 @@ void CAnimMenu::PrintMenu() {
 
   // PRINT
   screen->SetFontColor(Normal);
-  screen->Print(6500, 3200, (*Lang)[CLanguage::ANIMS_MENU]);
+  screen->Print(6500, 3200, Language::Instance()[Language::ANIMS_MENU]);
   if ((int)AnimVector.size() > 9)
     PrintTo = 10;
   else

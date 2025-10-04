@@ -40,7 +40,7 @@ SOFTWARE.
 #include "CInterpolatePos.h"
 #include "CLocalPlayer.h"
 #include "config.h"
-#include "game_client.h"
+#include "net_game.h"
 
 // NEEDED FOR SETTING NPC TYPES
 #define B_SETVISUALS "B_SETVISUALS"
@@ -51,7 +51,7 @@ SOFTWARE.
 static int HeroInstance;
 
 // Externs
-extern GameClient* client;
+extern NetGame* client;
 extern CIngame* global_ingame;
 extern CLocalPlayer* LocalPlayer;
 

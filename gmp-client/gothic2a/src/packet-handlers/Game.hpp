@@ -35,7 +35,7 @@ SOFTWARE.
 
 #include "../CChat.h"
 #include "../discord_presence.h"
-#include "../game_client.h"
+#include "net_game.h"
 #include "packets.h"
 
 extern zCOLOR COLOR_RED;
@@ -59,7 +59,7 @@ void SetAngleFromRightVector(oCNpc* npc, float right_x, float right_y, float rig
   npc->trafoObjToWorld.v[1][0] = legacy_nz;  // nz
 }
 
-void OnInitialInfo(GameClient* client, Packet p) {
+void OnInitialInfo(NetGame* client, Packet p) {
   InitialInfoPacket packet;
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
@@ -75,11 +75,11 @@ void OnInitialInfo(GameClient* client, Packet p) {
   client->network->UpdateMyId(packet.player_id);
 }
 
-void OnInGame(GameClient* client, Packet packet) {
+void OnInGame(NetGame* client, Packet packet) {
   client->IsInGame = true;
 }
 
-void OnActualStatistics(GameClient* client, Packet p) {
+void OnActualStatistics(NetGame* client, Packet p) {
   static const zSTRING Door = "DOOR";
   static const zSTRING BowSound = "BOWSHOOT";
   static const zSTRING CrossbowSound = "CROSSBOWSHOOT";
@@ -376,7 +376,7 @@ void OnActualStatistics(GameClient* client, Packet p) {
   }
 }
 
-void OnMapOnly(GameClient* client, Packet p) {
+void OnMapOnly(NetGame* client, Packet p) {
   PlayerPositionUpdatePacket packet;
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
@@ -395,7 +395,7 @@ void OnMapOnly(GameClient* client, Packet p) {
   }
 }
 
-void OnDoDie(GameClient* client, Packet p) {
+void OnDoDie(NetGame* client, Packet p) {
   PlayerDeathInfoPacket packet;
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
@@ -409,7 +409,7 @@ void OnDoDie(GameClient* client, Packet p) {
   }
 }
 
-void OnRespawn(GameClient* client, Packet p) {
+void OnRespawn(NetGame* client, Packet p) {
   PlayerRespawnInfoPacket packet;
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
@@ -421,7 +421,7 @@ void OnRespawn(GameClient* client, Packet p) {
   }
 }
 
-void OnCastSpell(GameClient* client, Packet p) {
+void OnCastSpell(NetGame* client, Packet p) {
   CastSpellPacket packet;
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
@@ -445,7 +445,7 @@ void OnCastSpell(GameClient* client, Packet p) {
   }
 }
 
-void OnCastSpellOnTarget(GameClient* client, Packet p) {
+void OnCastSpellOnTarget(NetGame* client, Packet p) {
   CastSpellPacket packet;
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
@@ -483,7 +483,7 @@ void OnCastSpellOnTarget(GameClient* client, Packet p) {
   Spell->Cast();
 }
 
-void OnDropItem(GameClient* client, Packet packet) {
+void OnDropItem(NetGame* client, Packet packet) {
   DropItemPacket dropItemPacket;
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({packet.data, packet.length}, dropItemPacket);
@@ -509,7 +509,7 @@ void OnDropItem(GameClient* client, Packet packet) {
   }
 }
 
-void OnTakeItem(GameClient* client, Packet packet) {
+void OnTakeItem(NetGame* client, Packet packet) {
   TakeItemPacket takeItemPacket;
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({packet.data, packet.length}, takeItemPacket);
@@ -538,7 +538,7 @@ void OnTakeItem(GameClient* client, Packet packet) {
   }
 }
 
-void OnWhisper(GameClient* client, Packet packet) {
+void OnWhisper(NetGame* client, Packet packet) {
   MessagePacket messagePacket;
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({packet.data, packet.length}, messagePacket);
@@ -557,7 +557,7 @@ void OnWhisper(GameClient* client, Packet packet) {
   }
 }
 
-void OnMessage(GameClient* client, Packet packet) {
+void OnMessage(NetGame* client, Packet packet) {
   MessagePacket messagePacket;
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({packet.data, packet.length}, messagePacket);
@@ -576,21 +576,21 @@ void OnMessage(GameClient* client, Packet packet) {
   }
 }
 
-void OnServerMessage(GameClient* client, Packet packet) {
+void OnServerMessage(NetGame* client, Packet packet) {
   MessagePacket messagePacket;
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({packet.data, packet.length}, messagePacket);
   CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(255, 128, 0, 255), "(SERVER): %s", messagePacket.message.c_str());
 }
 
-void OnRcon(GameClient* client, Packet packet) {
+void OnRcon(NetGame* client, Packet packet) {
   if (packet.data[1] == 0x41) {
     client->IsAdminOrModerator = true;
   }
   CChat::GetInstance()->WriteMessage(ADMIN, false, RED, "%s", (char*)packet.data + 1);
 }
 
-void OnAllOthers(GameClient* client, Packet packet) {
+void OnAllOthers(NetGame* client, Packet packet) {
   ExistingPlayersPacket existing_players_packet;
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({packet.data, packet.length}, existing_players_packet);
@@ -619,7 +619,7 @@ void OnAllOthers(GameClient* client, Packet packet) {
   }
 }
 
-void OnJoinGame(GameClient* client, Packet packet) {
+void OnJoinGame(NetGame* client, Packet packet) {
   JoinGamePacket joinGamePacket;
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({packet.data, packet.length}, joinGamePacket);
@@ -645,14 +645,14 @@ void OnJoinGame(GameClient* client, Packet packet) {
   if (newhero->Type > CPlayer::NPC_DRACONIAN || newhero->Type == CPlayer::NPC_HUMAN)
     newhero->npc->ApplyOverlay(CPlayer::GetWalkStyleFromByte(joinGamePacket.walk_style));
   CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(0, 255, 0, 255), "%s%s", joinGamePacket.player_name.c_str(),
-                                     (*client->lang)[CLanguage::SOMEONE_JOIN_GAME].ToChar());
+                                     Language::Instance()[Language::SOMEONE_JOIN_GAME].ToChar());
   newhero->enable = FALSE;
   newhero->update_hp_packet = 0;
   // kod
   client->players.push_back(newhero);
 }
 
-void OnGameInfo(GameClient* client, Packet packet) {
+void OnGameInfo(NetGame* client, Packet packet) {
   GameInfoPacket gameInfoPacket;
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({packet.data, packet.length}, gameInfoPacket);
@@ -661,16 +661,12 @@ void OnGameInfo(GameClient* client, Packet packet) {
   t.time = static_cast<int>(gameInfoPacket.raw_game_time);
   ogame->SetTime(static_cast<int>(t.day), static_cast<int>(t.hour), static_cast<int>(t.min));
 
-  if (!client->IgnoreFirstTimeMessage) {
-    CChat::GetInstance()->WriteMessage(NORMAL, false, "Time set to: %d:%.2d", t.hour, t.min);
-  }
-  client->IgnoreFirstTimeMessage = false;
   oCGame::s_bUsePotionKeys = gameInfoPacket.flags & 0x01;
   client->DropItemsAllowed = gameInfoPacket.flags & 0x02;
   client->ForceHideMap = gameInfoPacket.flags & 0x04;
 }
 
-void OnLeftGame(GameClient* client, Packet packet) {
+void OnLeftGame(NetGame* client, Packet packet) {
   DisconnectionInfoPacket disconnectionInfoPacket;
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({packet.data, packet.length}, disconnectionInfoPacket);
@@ -678,7 +674,7 @@ void OnLeftGame(GameClient* client, Packet packet) {
   for (size_t i = 1; i < client->players.size(); i++) {
     if (client->players[i]->id == disconnectionInfoPacket.disconnected_id) {
       CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(255, 0, 0, 255), "%s%s", client->players[i]->GetName(),
-                                         (*client->lang)[CLanguage::SOMEONEDISCONNECT_FROM_SERVER].ToChar());
+                                         Language::Instance()[Language::SOMEONEDISCONNECT_FROM_SERVER].ToChar());
       client->players[i]->LeaveGame();
       delete client->players[i];
       client->players.erase(client->players.begin() + i);
@@ -687,8 +683,7 @@ void OnLeftGame(GameClient* client, Packet packet) {
   }
 }
 
-
-void OnDiscordActivity(GameClient* /*client*/, Packet packet) {
+void OnDiscordActivity(NetGame* /*client*/, Packet packet) {
   DiscordActivityPacket activityPacket;
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({packet.data, packet.length}, activityPacket);

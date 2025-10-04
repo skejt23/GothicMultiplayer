@@ -32,13 +32,13 @@ SOFTWARE.
 
 #pragma once
 
-#include "CLanguage.h"
 #include "ZenGin/zGothicAPI.h"
+#include "language.h"
 #include "singleton.h"
 
 class CWatch : public TSingleton<CWatch> {
 private:
-  Gothic_II_Addon::zSTRING tmp;
+  zSTRING tmp;
   time_t currtime;
   char TimePrint[64];
   int H, M;

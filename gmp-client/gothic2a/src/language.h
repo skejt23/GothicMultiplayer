@@ -25,12 +25,13 @@ SOFTWARE.
 
 #pragma once
 
+#include <filesystem>
 #include <string>
 #include <vector>
 
 #include "ZenGin/zGothicAPI.h"
 
-class CLanguage {
+class Language {
 public:
   enum STRING_ID {
     LANGUAGE = 0,
@@ -126,11 +127,22 @@ public:
     SRVLIST_MAP,
     SRVLIST_PLAYERNUMBER
   };
-  CLanguage(const char* file);
-  ~CLanguage(void);
-  Gothic_II_Addon::zSTRING& operator[](unsigned long);
+
+  bool LoadFromJsonFile(const std::filesystem::path& file);
+  bool IsLoaded() const {
+    return !data.empty();
+  }
+
+  const zSTRING& operator[](unsigned long) const;
   void RemovePolishCharactersFromWideString(std::wstring& txt);
 
+  static Language& Instance() {
+    static Language instance;
+    return instance;
+  }
+
 private:
-  std::vector<Gothic_II_Addon::zSTRING> data;
+  Language() = default;
+
+  std::vector<zSTRING> data;
 };

@@ -56,7 +56,7 @@ SOFTWARE.
 #include "InjectMage.h"
 #include <stdio.h>
 #include <spdlog/spdlog.h>
-#include "CLanguage.h"
+#include "language.h"
 
 namespace {
 constexpr char kDefaultFavoritesFile[] = "Multiplayer/Favorites.json";
@@ -72,8 +72,6 @@ std::filesystem::path ResolveFavoritesPath(const char* file) {
 using namespace std;
 using namespace G2W;
 
-extern CLanguage* Lang;
-
 ExtendedServerList::ExtendedServerList(CServerList* server_list)
 {
 	server_list_ = server_list;
@@ -81,7 +79,7 @@ ExtendedServerList::ExtendedServerList(CServerList* server_list)
 	tab_all = new Button(0,0);
 	tab_all->setHighlightTexture("LOG_PAPER.TGA");
 	tab_all->setTexture("INV_BACK_PLUNDER.TGA");
-	tab_all->setText((*Lang)[CLanguage::SRVLIST_ALL].ToChar());
+	tab_all->setText(Language::Instance()[Language::SRVLIST_ALL].ToChar());
 	tab_all->setFont(FNT_WHITE_10);
 	tab_all->setHighlightFont(FNT_GREEN_10);
 	tab_all->highlight = true;
@@ -89,24 +87,24 @@ ExtendedServerList::ExtendedServerList(CServerList* server_list)
 	tab_fav = new Button(1000,0);
 	tab_fav->setHighlightTexture("LOG_PAPER.TGA");
 	tab_fav->setTexture("INV_BACK_PLUNDER.TGA");
-	tab_fav->setText((*Lang)[CLanguage::SRVLIST_FAVOURITES].ToChar());
+	tab_fav->setText(Language::Instance()[Language::SRVLIST_FAVOURITES].ToChar());
 	tab_fav->setFont(FNT_WHITE_10);
 	tab_fav->setHighlightFont(FNT_GREEN_10);
 	tab_fav->highlight = false;
 
 	list_all = new Table(0,400, 8192, 7792);
-	list_all->addColumn((*Lang)[CLanguage::SRVLIST_NAME].ToChar(), 2500);
-	list_all->addColumn((*Lang)[CLanguage::SRVLIST_MAP].ToChar(), 3000);
-	list_all->addColumn((*Lang)[CLanguage::SRVLIST_PLAYERNUMBER].ToChar(), 1500);
+	list_all->addColumn(Language::Instance()[Language::SRVLIST_NAME].ToChar(), 2500);
+	list_all->addColumn(Language::Instance()[Language::SRVLIST_MAP].ToChar(), 3000);
+	list_all->addColumn(Language::Instance()[Language::SRVLIST_PLAYERNUMBER].ToChar(), 1500);
 	list_all->addColumn("Ping", 600);
 	list_all->setBackground("INV_BACK_PLUNDER.TGA");
 	list_all->setHighlightFont(FNT_GREEN_10);
 	list_all->setFont(FNT_WHITE_10);
 
 	list_fav = new Table(0,400, 8192, 7792);
-	list_fav->addColumn((*Lang)[CLanguage::SRVLIST_NAME].ToChar(), 2500);
-	list_fav->addColumn((*Lang)[CLanguage::SRVLIST_MAP].ToChar(), 3000);
-	list_fav->addColumn((*Lang)[CLanguage::SRVLIST_PLAYERNUMBER].ToChar(), 1500);
+	list_fav->addColumn(Language::Instance()[Language::SRVLIST_NAME].ToChar(), 2500);
+	list_fav->addColumn(Language::Instance()[Language::SRVLIST_MAP].ToChar(), 3000);
+	list_fav->addColumn(Language::Instance()[Language::SRVLIST_PLAYERNUMBER].ToChar(), 1500);
 	list_fav->addColumn("Ping", 600);
 	list_fav->setBackground("INV_BACK_PLUNDER.TGA");
 	list_fav->setHighlightFont(FNT_GREEN_10);
@@ -116,8 +114,7 @@ ExtendedServerList::ExtendedServerList(CServerList* server_list)
 	SelectedServer = 0;
 	srvList_access = CreateMutex(NULL, FALSE, NULL);    
 
-	LangSetting = Lang;
-    loadFav(kDefaultFavoritesFile);
+  loadFav(kDefaultFavoritesFile);
 }
 
 
@@ -377,10 +374,6 @@ void ExtendedServerList::fillTables() {
 
 void ExtendedServerList::SelectServer(int index){
 	this->SelectedServer = index;	
-}
-
-void ExtendedServerList::setLanguage(CLanguage * lang){
-	this->LangSetting = lang;
 }
 
 void ExtendedServerList::nextTab(){

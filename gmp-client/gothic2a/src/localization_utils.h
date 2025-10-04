@@ -116,9 +116,9 @@ inline std::string ConvertUtf8ToCodePage(const std::string& text, unsigned int) 
 
 }  // namespace detail
 
-inline LanguageEncoding DetectLanguageEncoding(const std::string& language_field, const std::string& file_path) {
+inline LanguageEncoding DetectLanguageEncoding(const std::string& language_field, const std::filesystem::path& file_path) {
   const std::string lower_language = detail::ToLower(language_field);
-  const std::string lower_path = detail::ToLower(file_path);
+  const std::string lower_path = detail::ToLower(file_path.string());
 
   for (const auto& hint : detail::kEncodingHints) {
     for (const auto* keyword : hint.keywords) {

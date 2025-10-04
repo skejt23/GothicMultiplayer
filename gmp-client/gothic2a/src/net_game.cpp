@@ -23,7 +23,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#include "game_client.h"
+#include "net_game.h"
 
 #include <bitsery/adapter/buffer.h>
 #include <bitsery/bitsery.h>
@@ -69,16 +69,14 @@ void SerializeAndSend(Network *network, const Packet &packet, Net::PacketPriorit
   network->Send(buffer.data(), written_size, priority, reliable);
 }
 
-GameClient::GameClient(const char *ip, CLanguage *langPtr)
-  : network(new Network(this)),
+NetGame::NetGame(const char *ip)
+    : network(new Network(this)),
       IsReadyToJoin(false),
-      lang(langPtr),
       IsAdminOrModerator(false),
-      IgnoreFirstTimeMessage(true),
       DropItemsAllowed(false),
-    IsInGame(false),
-    clientPort(0xDEAD),
-    clientHost(ip) {
+      IsInGame(false),
+      clientPort(0xDEAD),
+      clientHost(ip) {
   // Extract port number from IP address if present
   size_t pos = clientHost.find_last_of(':');
   if (pos != std::string::npos) {
@@ -89,25 +87,25 @@ GameClient::GameClient(const char *ip, CLanguage *langPtr)
   }
 }
 
-GameClient::~GameClient() {
+NetGame::~NetGame() {
   delete network;
   network = nullptr;
   IsInGame = false;
 }
 
-bool GameClient::Connect() {
+bool NetGame::Connect() {
   if (network->Connect(clientHost, clientPort)) {
     return true;
   }
   return false;
 }
 
-string GameClient::GetServerAddresForHTTPDownloader() {
+string NetGame::GetServerAddresForHTTPDownloader() {
   auto address = network->GetServerIp() + ":" + std::to_string(network->GetServerPort() + 1);
   return address;
 }
 
-void GameClient::DownloadWBFile() {
+void NetGame::DownloadWBFile() {
   auto content = HTTPDownloader::GetWBFile(GetServerAddresForHTTPDownloader());
   static const std::filesystem::path path = ".\\Multiplayer\\Data\\";
 
@@ -124,7 +122,7 @@ void GameClient::DownloadWBFile() {
   }
 }
 
-void GameClient::RestoreHealth() {
+void NetGame::RestoreHealth() {
   if (!mp_restore || !IsInGame) {
     return;
   }
@@ -138,35 +136,17 @@ void GameClient::RestoreHealth() {
   }
 }
 
-void GameClient::HandleNetwork() {
+void NetGame::HandleNetwork() {
   if (IsConnected()) {
     network->Receive();
   }
 }
 
-bool GameClient::IsConnected() {
+bool NetGame::IsConnected() {
   return network->IsConnected();
 }
 
-zSTRING &GameClient::GetLastError() {
-  switch (network->error) {
-    case ID_CONNECTION_ATTEMPT_FAILED:
-      return (*this->lang)[CLanguage::ERR_CONN_FAIL];
-    case ID_ALREADY_CONNECTED:
-      return (*this->lang)[CLanguage::ERR_CONN_ALREADY_CONNECTED];
-    case ID_NO_FREE_INCOMING_CONNECTIONS:
-      return (*this->lang)[CLanguage::ERR_CONN_SRV_FULL];
-    case ID_CONNECTION_BANNED:
-      return (*this->lang)[CLanguage::ERR_CONN_BANNED];
-    case ID_INVALID_PASSWORD:
-    case ID_INCOMPATIBLE_PROTOCOL_VERSION:
-      return (*this->lang)[CLanguage::ERR_CONN_INCOMP_TECHNIC];
-    default:
-      return (*this->lang)[CLanguage::ERR_CONN_NO_ERROR];
-  }
-}
-
-void GameClient::JoinGame() {
+void NetGame::JoinGame() {
   if (IsReadyToJoin) {
     HooksManager::GetInstance()->AddHook(HT_RENDER, (DWORD)InterfaceLoop, false);
 
@@ -207,7 +187,7 @@ void GameClient::JoinGame() {
 
     SerializeAndSend(network, packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED);
 
-    CIngame *g = new CIngame(lang);
+    CIngame *g = new CIngame();
     if (!LocalPlayer)
       new CLocalPlayer();
     LocalPlayer->id = network->GetMyId();
@@ -221,14 +201,14 @@ void GameClient::JoinGame() {
   }
 }
 
-void GameClient::SendMessage(const char *msg) {
+void NetGame::SendMessage(const char *msg) {
   MessagePacket packet;
   packet.packet_type = PT_MSG;
   packet.message = msg;
   SerializeAndSend(network, packet, MEDIUM_PRIORITY, RELIABLE);
 }
 
-void GameClient::SendWhisper(const char *player_name, const char *msg) {
+void NetGame::SendWhisper(const char *player_name, const char *msg) {
   bool found = false;
   size_t i;
   size_t length = strlen(player_name);
@@ -251,14 +231,14 @@ void GameClient::SendWhisper(const char *player_name, const char *msg) {
   }
 }
 
-void GameClient::SendCommand(const char *msg) {
+void NetGame::SendCommand(const char *msg) {
   MessagePacket packet;
   packet.packet_type = PT_COMMAND;
   packet.message = msg;
   SerializeAndSend(network, packet, HIGH_PRIORITY, RELIABLE_ORDERED);
 }
 
-void GameClient::SendCastSpell(oCNpc *Target, short SpellId) {
+void NetGame::SendCastSpell(oCNpc *Target, short SpellId) {
   CastSpellPacket packet;
   packet.spell_id = static_cast<uint16_t>(SpellId);
   packet.packet_type = PT_CASTSPELL;
@@ -276,7 +256,7 @@ void GameClient::SendCastSpell(oCNpc *Target, short SpellId) {
   SerializeAndSend(network, packet, HIGH_PRIORITY, RELIABLE);
 }
 
-void GameClient::SendDropItem(short instance, short amount) {
+void NetGame::SendDropItem(short instance, short amount) {
   DropItemPacket packet;
   packet.packet_type = PT_DROPITEM;
   packet.item_instance = instance;
@@ -284,7 +264,7 @@ void GameClient::SendDropItem(short instance, short amount) {
   SerializeAndSend(network, packet, HIGH_PRIORITY, RELIABLE);
 }
 
-void GameClient::SendTakeItem(short instance) {
+void NetGame::SendTakeItem(short instance) {
   TakeItemPacket packet;
   packet.packet_type = PT_TAKEITEM;
   packet.item_instance = instance;
@@ -309,7 +289,7 @@ std::uint8_t GetHeadDirectionByte(oCNpc *Hero) {
   return 0;
 }
 
-void GameClient::UpdatePlayerStats(short anim) {
+void NetGame::UpdatePlayerStats(short anim) {
   PlayerStateUpdatePacket packet;
   packet.packet_type = PT_ACTUAL_STATISTICS;
   packet.state.position = Vec3ToGlmVec3(player->GetPositionWorld());
@@ -329,7 +309,7 @@ void GameClient::UpdatePlayerStats(short anim) {
   SerializeAndSend(network, packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED);
 }
 
-void GameClient::SendHPDiff(size_t who, short diff) {
+void NetGame::SendHPDiff(size_t who, short diff) {
   if (who < this->players.size()) {
     HPDiffPacket packet;
     packet.packet_type = PT_HP_DIFF;
@@ -340,15 +320,14 @@ void GameClient::SendHPDiff(size_t who, short diff) {
   }
 }
 
-void GameClient::SyncGameTime() {
+void NetGame::SyncGameTime() {
   BYTE data[2] = {PT_GAME_INFO, 0};
   network->Send((char *)data, 1, IMMEDIATE_PRIORITY, RELIABLE);
 }
 
-void GameClient::Disconnect() {
+void NetGame::Disconnect() {
   if (network->IsConnected()) {
     IsInGame = false;
-    IgnoreFirstTimeMessage = true;
     global_ingame->IgnoreFirstSync = true;
     LocalPlayer->SetNpcType(CPlayer::NPC_HUMAN);
     network->Disconnect();

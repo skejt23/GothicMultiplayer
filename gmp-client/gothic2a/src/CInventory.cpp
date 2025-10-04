@@ -32,10 +32,9 @@ SOFTWARE.
 
 #include "CInventory.h"
 
-#include "CLanguage.h"
 #include "keyboard.h"
+#include "language.h"
 
-extern CLanguage* Lang;
 extern zCOLOR Normal;
 char q[2] = {0, 0};
 
@@ -122,7 +121,7 @@ void CInventory::RenderInventory() {
     if (!Owner->IsMovLock())
       Owner->SetMovLock(1);
     screen->SetFontColor(Normal);
-    screen->Print(2000, 2000, (*Lang)[CLanguage::INV_HOWMUCH]);
+    screen->Print(2000, 2000, Language::Instance()[Language::INV_HOWMUCH]);
     screen->Print(2000, 2200, GetSelectedItem()->GetDescription());
     q[0] = GInput::GetNumberCharacterFromKeyboard();
     if ((q[0] == 0x08) && (AmountNum.Length() > 0))

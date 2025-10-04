@@ -25,7 +25,7 @@ SOFTWARE.
 
 #include "Mod.h"
 #include "ZenGin/zGothicAPI.h"
-#include "game_client.h"
+#include "net_game.h"
 #include "patch.h"
 #include "ExceptionHandler.h"
 #include "HooksManager.h"
@@ -42,10 +42,9 @@ SOFTWARE.
 
 using namespace Gothic_II_Addon;
 
-GameClient* client=NULL;
+NetGame* client=NULL;
 CMainMenu* MainMenu=NULL;
 extern zCOLOR Red;
-extern CLanguage* Lang;
 extern zCOLOR Normal;
 extern CIngame* global_ingame;
 zCOLOR Green = zCOLOR(0,255,0);
@@ -194,7 +193,7 @@ char bufferTemp[128];
 void __stdcall PrepareKillMessage()
 {
     if(player->GetFocusNpc()){
-        sprintf(bufferTemp, "%s %s", (*Lang)[CLanguage::KILLEDSOMEONE_MSG].ToChar(), player->GetFocusNpc()->GetName().ToChar());
+        sprintf(bufferTemp, "%s %s", Language::Instance()[Language::KILLEDSOMEONE_MSG].ToChar(), player->GetFocusNpc()->GetName().ToChar());
         TestPrint = bufferTemp;
     }
     else{
@@ -324,7 +323,7 @@ bool _stdcall CheckIfDistanceIsCorrect(oCMsgManipulate* Msg, oCNpc* Npc)
 				return true;
 			}
 			else if(oCItem* Item = zDYNAMIC_CAST<oCItem>(Msg->targetVob)){
-				sprintf(bufferTemp, "%s %s", Item->name.ToChar(), (*Lang)[CLanguage::ITEM_TOOFAR].ToChar());
+				sprintf(bufferTemp, "%s %s", Item->name.ToChar(), Language::Instance()[Language::ITEM_TOOFAR].ToChar());
 				TakeTooFarMessage = bufferTemp;
 				ogame->array_view[oCGame::GAME_VIEW_SCREEN]->PrintTimedCXY(TakeTooFarMessage, 4000.0f, 0);
 				return false;

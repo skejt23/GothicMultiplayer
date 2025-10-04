@@ -25,21 +25,21 @@ SOFTWARE.
 
 #pragma once
 
-#include "../CChat.h"
-#include "../game_client.h"
+#include "CChat.h"
+#include "net_game.h"
 #include "CLocalPlayer.h"
+#include "language.h"
 
 extern CLocalPlayer* LocalPlayer;
 namespace Connection {
-void OnDisconnectOrLostConnection(GameClient* client, Packet packet) {
-  client->network->error = packet.data[0];
-  SPDLOG_WARN("OnDisconnectOrLostConnection, code: {}", client->network->error);
+void OnDisconnectOrLostConnection(NetGame* client, Packet packet) {
+  SPDLOG_WARN("OnDisconnectOrLostConnection, code: {}", packet.data[0]);
   client->Disconnect();
   auto pos = player->GetPositionWorld();
   player->ResetPos(pos);
   client->network->connection_lost_ = true;
   client->IsInGame = false;
   client->IsReadyToJoin = false;
-  CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(255, 0, 0, 255), "%s", (*client->lang)[CLanguage::DISCONNECTED].ToChar());
+  CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(255, 0, 0, 255), "%s", Language::Instance()[Language::DISCONNECTED].ToChar());
 }
 }  // namespace Connection

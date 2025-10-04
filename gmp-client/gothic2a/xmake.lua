@@ -13,6 +13,7 @@ target("ClientMain")
     add_defines("DIRECTINPUT_VERSION=0x0800")
     add_defines("_WIN32_WINNT=0x0601", "WINVER=0x0601")
     add_defines("SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE")
+    add_includedirs("src")
     
     local discord_app_id = get_config("discord_app_id")
     if discord_app_id and #discord_app_id > 0 then
