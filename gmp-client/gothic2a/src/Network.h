@@ -44,7 +44,7 @@ class Network : public Net::NetClient::PacketHandler {
 public:
   bool connection_lost_ = false;
 
-  Network(NetGame*);
+  Network();
   ~Network() override;
 
   bool Connect(std::string hostAddress, int hostPort);
@@ -71,7 +71,6 @@ private:
   void AddPacketHandlers();
   bool HandlePacket(unsigned char* data, std::uint32_t size) override;
 
-  NetGame* client_;
   uint64_t playerID;
   std::map<int, std::function<void(NetGame*, Packet packet)> > packetHandlers;
   std::string serverIp_;

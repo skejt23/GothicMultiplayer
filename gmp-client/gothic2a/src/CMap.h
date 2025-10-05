@@ -31,12 +31,6 @@ SOFTWARE.
 enum CurrentMap { MNEWWORLD, MOLDWORLD, MJARKENDAR, MOLDVALLEY, MCOLONY };
 
 class CMap : public TSingleton<CMap> {
-private:
-  char buffer[128];
-  zCView* PlayerMap;
-  CurrentMap Map;
-  bool watchwastrue;
-
 public:
   bool Opened;
   CMap();
@@ -45,4 +39,10 @@ public:
   void PrintMap();
   void Close();
   void Open();
+
+private:
+  char buffer[128];
+  zCView* PlayerMap;
+  CurrentMap Map;
+  bool watchwastrue;
 };

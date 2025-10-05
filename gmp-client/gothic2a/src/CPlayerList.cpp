@@ -29,7 +29,6 @@ SOFTWARE.
 #include "CIngame.h"
 #include "net_game.h"
 
-extern NetGame* client;
 extern zCOLOR Normal;
 extern zCOLOR Highlighted;
 extern CIngame* global_ingame;
@@ -92,17 +91,17 @@ void CPlayerList::RunPlayerListItem() {
       break;
     case 2:
       buffer = "kick " + std::string(ChosenPlayer.ToChar());
-      client->SendCommand(buffer.c_str());
+      NetGame::Instance().SendCommand(buffer.c_str());
       ClosePlayerList();
       break;
     case 3:
       buffer = "ban " + std::string(ChosenPlayer.ToChar());
-      client->SendCommand(buffer.c_str());
+      NetGame::Instance().SendCommand(buffer.c_str());
       ClosePlayerList();
       break;
     case 4:
       buffer = "kill " + std::string(ChosenPlayer.ToChar());
-      client->SendCommand(buffer.c_str());
+      NetGame::Instance().SendCommand(buffer.c_str());
       ClosePlayerList();
       break;
     case 5:
@@ -120,12 +119,12 @@ void CPlayerList::UpdatePlayerList() {
     player->SetMovLock(1);
   if (!PlayerOptions) {
     // INIT
-    if (MenuPos > (int)client->players.size() - 1)
-      MenuPos = (int)client->players.size() - 1;
-    if (PrintFrom > (int)client->players.size() - 1)
+    if (MenuPos > (int)NetGame::Instance().players.size() - 1)
+      MenuPos = (int)NetGame::Instance().players.size() - 1;
+    if (PrintFrom > (int)NetGame::Instance().players.size() - 1)
       PrintFrom--;
     // INPUT
-    if (client->players.size() > 1) {
+    if (NetGame::Instance().players.size() > 1) {
       if (zinput->KeyToggled(KEY_UP)) {
         if (MenuPos > 1)
           MenuPos--;
@@ -135,7 +134,7 @@ void CPlayerList::UpdatePlayerList() {
         }
       }
       if (zinput->KeyToggled(KEY_DOWN)) {
-        if (MenuPos < (int)client->players.size() - 1) {
+        if (MenuPos < (int)NetGame::Instance().players.size() - 1) {
           MenuPos++;
           if (MenuPos > 17)
             PrintFrom++;
@@ -143,8 +142,8 @@ void CPlayerList::UpdatePlayerList() {
       }
       if (zinput->KeyPressed(KEY_RETURN)) {
         zinput->ClearKeyBuffer();
-        ChosenPlayer = client->players[MenuPos]->npc->GetName();
-        ChPlayerNpc = client->players[MenuPos]->npc;
+        ChosenPlayer = NetGame::Instance().players[MenuPos]->npc->GetName();
+        ChPlayerNpc = NetGame::Instance().players[MenuPos]->npc;
         PlayerOptions = true;
         MenuPos = 0;
       }
@@ -154,27 +153,27 @@ void CPlayerList::UpdatePlayerList() {
     Screen->SetFontColor(Normal);
     Screen->Print(x + 400, y, Language::Instance()[Language::SRV_PLAYERS]);
     char buffer[128];
-    sprintf(buffer, "%d", client->players.size());
+    sprintf(buffer, "%d", NetGame::Instance().players.size());
     zSTRING NoOfPlayers = buffer;
     Screen->Print(x + 3000, y, NoOfPlayers);
     int Size = 2400;
-    if (client->players.size() > 1) {
-      if ((int)client->players.size() > 17)
+    if (NetGame::Instance().players.size() > 1) {
+      if ((int)NetGame::Instance().players.size() > 17)
         PrintTo = 17;
       else
-        PrintTo = (int)client->players.size() - 1;
+        PrintTo = (int)NetGame::Instance().players.size() - 1;
       for (int i = PrintFrom; i < PrintFrom + PrintTo; i++) {
-        if (i > (int)client->players.size() - 1) {
-          MenuPos = (int)client->players.size() - 1;
-          if (PrintFrom > (int)client->players.size() - 1)
+        if (i > (int)NetGame::Instance().players.size() - 1) {
+          MenuPos = (int)NetGame::Instance().players.size() - 1;
+          if (PrintFrom > (int)NetGame::Instance().players.size() - 1)
             PrintFrom--;
           break;
         }
-        if (client->players[i]->npc) {
+        if (NetGame::Instance().players[i]->npc) {
           FColors1 = (MenuPos == i) ? Highlighted : Normal;
           Screen->SetFontColor(FColors1);
           ZeroMemory(buffer, 128);
-          std::string display_name = client->players[i]->GetName();
+          std::string display_name = NetGame::Instance().players[i]->GetName();
           if (display_name.length() > 20)
             display_name.resize(20);
           sprintf(buffer, "%s", display_name.c_str());
@@ -192,7 +191,7 @@ void CPlayerList::UpdatePlayerList() {
         MenuPos--;
     }
     if (zinput->KeyToggled(KEY_DOWN)) {
-      if (client->IsAdminOrModerator) {
+      if (NetGame::Instance().IsAdminOrModerator) {
         if (MenuPos < 5)
           MenuPos++;
       } else {
@@ -214,7 +213,7 @@ void CPlayerList::UpdatePlayerList() {
     FColors1 = (MenuPos == 1) ? Highlighted : Normal;
     Screen->SetFontColor(FColors1);
     Screen->Print(x + 400, y + 400, Language::Instance()[Language::PLIST_PM]);
-    if (client->IsAdminOrModerator) {
+    if (NetGame::Instance().IsAdminOrModerator) {
       FColors1 = (MenuPos == 2) ? Highlighted : Normal;
       Screen->SetFontColor(FColors1);
       Screen->Print(x + 400, y + 800, "Kick");

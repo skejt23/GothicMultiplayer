@@ -34,12 +34,12 @@ SOFTWARE.
 #include "packet-handlers/Connection.hpp"
 #include "packet-handlers/Game.hpp"
 #include "znet_client.h"
+#include "net_game.h"
 
 static Net::NetClient* g_netclient = nullptr;
 
-Network::Network(NetGame* client) {
+Network::Network() {
   assert(g_netclient != nullptr);
-  client_ = client;
   playerID = -1;
 
   AddPacketHandlers();
@@ -83,8 +83,8 @@ bool Network::Connect(std::string hostAddress, int hostPort) {
 
   serverIp_ = hostAddress;
   serverPort_ = hostPort;
-  client_->DownloadWBFile();
-  client_->IsReadyToJoin = true;
+  NetGame::Instance().DownloadWBFile();
+  NetGame::Instance().IsReadyToJoin = true;
   return true;
 }
 
@@ -103,7 +103,7 @@ void Network::Receive() {
 bool Network::HandlePacket(unsigned char* data, std::uint32_t size) {
   try {
     SPDLOG_TRACE("Received packet: {}", (int)data[0]);
-    packetHandlers[(int)data[0]](client_, Packet{data, size});
+    packetHandlers[(int)data[0]](&NetGame::Instance(), Packet{data, size});
   } catch (std::exception& ex) {
     SPDLOG_ERROR("Error handling packet: {}", ex.what());
   }

@@ -72,7 +72,7 @@ void OnInitialInfo(NetGame* client, Packet p) {
     client->map.Clear();
   }
 
-  client->network->UpdateMyId(packet.player_id);
+  client->network.UpdateMyId(packet.player_id);
 }
 
 void OnInGame(NetGame* client, Packet packet) {

@@ -53,7 +53,6 @@ extern CBuilder* Builder;
 char TextFFS[2] = {0, 0};
 bool WritingMapSave = false;
 bool OrgOptionsOpened = false;
-extern NetGame* client;
 extern zCOLOR Red;
 extern zCOLOR Normal;
 extern CLocalPlayer* LocalPlayer;
@@ -75,7 +74,7 @@ void ExitToBigMainMenu() {
   player->ResetPos(pos);
   player->RefreshNpc();
   MainMenu = NULL;
-  client->Disconnect();
+  NetGame::Instance().Disconnect();
   CMainMenu::GetInstance()->ReLaunchMainMenu();
   HooksManager::GetInstance()->RemoveHook(HT_RENDER, (DWORD)InterfaceLoop);
   HooksManager::GetInstance()->RemoveHook(HT_RENDER, (DWORD)CIngame::Loop);
@@ -85,7 +84,7 @@ void ExitToMainmenu() {
   MainMenu->Open();
 }
 void ExitGameFromMainMenu() {
-  client->Disconnect();
+  NetGame::Instance().Disconnect();
   gameMan->Done();
 }
 void CreateOptionsMenu() {

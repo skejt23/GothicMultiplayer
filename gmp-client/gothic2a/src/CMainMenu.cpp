@@ -38,24 +38,23 @@ SOFTWARE.
 #include <fstream>
 #include <nlohmann/json.hpp>
 
-#include "language.h"
 #include "CSyncFuncs.h"
 #include "CWatch.h"
 #include "ExtendedServerList.h"
-#include "world-builder\CBuilder.h"
 #include "config.h"
-#include "net_game.h"
 #include "interface.h"
 #include "keyboard.h"
+#include "language.h"
 #include "localization_utils.h"
 #include "mod.h"
+#include "net_game.h"
 #include "patch.h"
 #include "version.h"
+#include "world-builder\CBuilder.h"
 #include "world-utils.hpp"
 
 using namespace Gothic_II_Addon;
 
-extern NetGame* client;
 std::vector<zSTRING> vec_choose_lang;
 std::vector<std::string> vec_lang_files;
 extern const char* LANG_DIR;
@@ -349,11 +348,13 @@ void CMainMenu::PrintMenu() {
         screen->Print(1500, 3200, Config::Instance().Nickname);
       FColor = (OptionPos == 1) ? Highlighted : Normal;
       screen->SetFontColor(FColor);
-      screen->Print(200, 3600,
-                    (Config::Instance().logchat) ? Language::Instance()[Language::MMENU_LOGCHATYES] : Language::Instance()[Language::MMENU_LOGCHATNO]);
+      screen->Print(
+          200, 3600,
+          (Config::Instance().logchat) ? Language::Instance()[Language::MMENU_LOGCHATYES] : Language::Instance()[Language::MMENU_LOGCHATNO]);
       FColor = (OptionPos == 2) ? Highlighted : Normal;
       screen->SetFontColor(FColor);
-      screen->Print(200, 4000, (Config::Instance().watch) ? Language::Instance()[Language::MMENU_WATCHON] : Language::Instance()[Language::MMENU_WATCHOFF]);
+      screen->Print(200, 4000,
+                    (Config::Instance().watch) ? Language::Instance()[Language::MMENU_WATCHON] : Language::Instance()[Language::MMENU_WATCHOFF]);
       FColor = (OptionPos == 3) ? Highlighted : Normal;
       screen->SetFontColor(FColor);
       screen->Print(200, 4400, Language::Instance()[Language::MMENU_SETWATCHPOS]);
@@ -400,9 +401,9 @@ void CMainMenu::PrintMenu() {
       screen->Print(200, 6400, languageOptionText);
       FColor = (OptionPos == 9) ? Highlighted : Normal;
       screen->SetFontColor(FColor);
-      screen->Print(
-          200, 6800,
-          (zoptions->ReadBool(zOPT_SEC_GAME, "playLogoVideos", 1) == 1) ? Language::Instance()[Language::INTRO_YES] : Language::Instance()[Language::INTRO_NO]);
+      screen->Print(200, 6800,
+                    (zoptions->ReadBool(zOPT_SEC_GAME, "playLogoVideos", 1) == 1) ? Language::Instance()[Language::INTRO_YES]
+                                                                                  : Language::Instance()[Language::INTRO_NO]);
       FColor = (OptionPos == 10) ? Highlighted : Normal;
       screen->SetFontColor(FColor);
       screen->Print(200, 7200, Language::Instance()[Language::MMENU_BACK]);
@@ -732,46 +733,41 @@ void CMainMenu::RenderMenu() {
         }
         fast_localhost_join = false;
         zinput->ClearKeyBuffer();
-        if (client) {
-          delete client;
-          client = NULL;
-        }
-        client = new NetGame(ServerIP.ToChar());
-        if (!client->Connect()) {
+        if (!NetGame::Instance().Connect(ServerIP.ToChar())) {
           SPDLOG_ERROR("Unable to connect to the server.");
         }
-        if (client->IsConnected()) {
-          client->HandleNetwork();
-          client->SyncGameTime();
+        if (NetGame::Instance().IsConnected()) {
+          NetGame::Instance().HandleNetwork();
+          NetGame::Instance().SyncGameTime();
           zVEC3 SpawnpointPos = player->GetPositionWorld();
           CleanUpMainMenu();
           Patch::PlayerInterfaceEnabled(true);
           HooksManager::GetInstance()->RemoveHook(HT_RENDER, (DWORD)MainMenuLoop);
-          if (!client->map.IsEmpty()) {
+          if (!NetGame::Instance().map.IsEmpty()) {
             Patch::ChangeLevelEnabled(true);
-            ogame->ChangeLevel(client->map, zSTRING("????"));
+            ogame->ChangeLevel(NetGame::Instance().map, zSTRING("????"));
             Patch::ChangeLevelEnabled(false);
           }
           DeleteAllNpcsBesidesHero();
           player->trafoObjToWorld.SetTranslation(SpawnpointPos);
           std::string WordBuilderMapFileName = ".\\Multiplayer\\Data\\";
-          WordBuilderMapFileName += client->network->GetServerIp() + "_" + std::to_string(client->network->GetServerPort());
+          WordBuilderMapFileName += NetGame::Instance().network.GetServerIp() + "_" + std::to_string(NetGame::Instance().network.GetServerPort());
           std::ifstream WbMap(WordBuilderMapFileName.c_str());
           if (WbMap.good()) {
             WbMap.close();
-            LoadWorld::LoadWorld(WordBuilderMapFileName.c_str(), client->VobsWorldBuilderMap);
+            LoadWorld::LoadWorld(WordBuilderMapFileName.c_str(), NetGame::Instance().VobsWorldBuilderMap);
           }
           CleanupWorldObjects(ogame->GetGameWorld());
           if (WbMap.is_open())
             WbMap.close();
           WordBuilderMapFileName.clear();
-          if (client->VobsWorldBuilderMap.size() > 0) {
-            for (int i = 0; i < (int)client->VobsWorldBuilderMap.size(); i++) {
-              if (client->VobsWorldBuilderMap[i].Type == TYPE_MOB)
-                client->VobsWorldBuilderMap[i].Vob->SetCollDet(1);
+          if (NetGame::Instance().VobsWorldBuilderMap.size() > 0) {
+            for (int i = 0; i < (int)NetGame::Instance().VobsWorldBuilderMap.size(); i++) {
+              if (NetGame::Instance().VobsWorldBuilderMap[i].Type == TYPE_MOB)
+                NetGame::Instance().VobsWorldBuilderMap[i].Vob->SetCollDet(1);
             }
           }
-          client->JoinGame();
+          NetGame::Instance().JoinGame();
         }
       }
       if (zinput->KeyPressed(KEY_W)) {

@@ -4,8 +4,8 @@ target("zNetInterface")
     add_includedirs("zNet", {public = true})
     add_deps("common")
 
--- znet shared library
-target("ClientNet")
+-- Implementation of zNetInterface using RakNet
+target("ClientRakNetSharedLib")
     set_kind("shared")
     add_files("znet-rak/client.cpp")
     add_deps("zNetInterface", "RakNet")

@@ -37,12 +37,12 @@ SOFTWARE.
 #include "CActiveAniID.h"
 #include "CIngame.h"
 #include <ctime>
+#include <memory>
 
 #pragma warning(disable:4996)
 
 using namespace Gothic_II_Addon;
 
-NetGame* client=NULL;
 CMainMenu* MainMenu=NULL;
 extern zCOLOR Red;
 extern zCOLOR Normal;
@@ -281,9 +281,9 @@ void _stdcall OnDropItem(sRegs & regs, DWORD & item)
 	}
 	short amount = DroppedItem->amount;
 	static int dropItemTimeout = 0;
-	if(client && global_ingame && dropItemTimeout < GetTickCount()){
-		if(!client->DropItemsAllowed) return;
-		client->SendDropItem(DroppedItem->GetInstance(), amount);
+	if(global_ingame && dropItemTimeout < GetTickCount()){
+		if(!NetGame::Instance().DropItemsAllowed) return;
+		NetGame::Instance().SendDropItem(DroppedItem->GetInstance(), amount);
 		dropItemTimeout = GetTickCount() + DROP_ITEM_TIMEOUT;
 	}
 }
@@ -292,9 +292,9 @@ void _stdcall OnTakeItem(sRegs & regs, DWORD & item)
 {	   
 		if((DWORD)regs.ECX == (DWORD)player){
 				oCItem* TakenItem = (oCItem*)item;
-				if(client && global_ingame){
-					if(!client->DropItemsAllowed) return;
-					client->SendTakeItem(TakenItem->GetInstance());
+				if(global_ingame){
+					if(!NetGame::Instance().DropItemsAllowed) return;
+					NetGame::Instance().SendTakeItem(TakenItem->GetInstance());
 				}
 		}
 }
@@ -303,12 +303,12 @@ void _stdcall OnCastSpell(sRegs & regs)
 {	  
 	oCSpell* CastedSpell = (oCSpell*)regs.ECX;
 	if((DWORD)CastedSpell->spellCasterNpc == (DWORD)player){
-			if(client && global_ingame){
+			if(global_ingame){
 				if(CastedSpell->spellTargetNpc){
 					if(CastedSpell->GetSpellID() == 46) if(!global_ingame->Shrinker->IsShrinked(CastedSpell->spellTargetNpc)) global_ingame->Shrinker->ShrinkNpc(CastedSpell->spellTargetNpc);
-					client->SendCastSpell(CastedSpell->spellTargetNpc, CastedSpell->GetSpellID());
+					NetGame::Instance().SendCastSpell(CastedSpell->spellTargetNpc, CastedSpell->GetSpellID());
 				}
-				else client->SendCastSpell(0, CastedSpell->GetSpellID());
+				else NetGame::Instance().SendCastSpell(0, CastedSpell->GetSpellID());
 			}
 	}
 }

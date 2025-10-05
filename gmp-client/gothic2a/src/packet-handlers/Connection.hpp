@@ -37,7 +37,7 @@ void OnDisconnectOrLostConnection(NetGame* client, Packet packet) {
   client->Disconnect();
   auto pos = player->GetPositionWorld();
   player->ResetPos(pos);
-  client->network->connection_lost_ = true;
+  client->network.connection_lost_ = true;
   client->IsInGame = false;
   client->IsReadyToJoin = false;
   CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(255, 0, 0, 255), "%s", Language::Instance()[Language::DISCONNECTED].ToChar());

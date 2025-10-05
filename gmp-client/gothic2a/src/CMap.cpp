@@ -28,8 +28,6 @@ SOFTWARE.
 #include "config.h"
 #include "net_game.h"
 
-extern NetGame* client;
-
 CMap::CMap() {
   Opened = false;
   PlayerMap = new zCView(0, 0, 8192, 8192, VIEW_ITEM);
@@ -91,10 +89,10 @@ void CMap::PrintMap() {
   switch (Map) {
     // NEWWORLD
     case MNEWWORLD:
-      for (int i = 0; i < (int)client->players.size(); i++) {
-        if (client->players[i]->npc) {
-          zVEC3 MapPos = client->players[i]->npc->GetPositionWorld();
-          zSTRING Name = client->players[i]->npc->GetName();
+      for (int i = 0; i < (int)NetGame::Instance().players.size(); i++) {
+        if (NetGame::Instance().players[i]->npc) {
+          zVEC3 MapPos = NetGame::Instance().players[i]->npc->GetPositionWorld();
+          zSTRING Name = NetGame::Instance().players[i]->npc->GetName();
           int x = (int)floor((MapPos[VX] / 15) + 1850);
           int y = (int)floor((MapPos[VZ] / 12));
           sprintf(buffer, "+ %s", Name.ToChar());
@@ -104,10 +102,10 @@ void CMap::PrintMap() {
       break;
     // OLDWORLD
     case MOLDWORLD:
-      for (int i = 0; i < (int)client->players.size(); i++) {
-        if (client->players[i]->npc) {
-          zVEC3 MapPos = client->players[i]->npc->GetPositionWorld();
-          zSTRING Name = client->players[i]->npc->GetName();
+      for (int i = 0; i < (int)NetGame::Instance().players.size(); i++) {
+        if (NetGame::Instance().players[i]->npc) {
+          zVEC3 MapPos = NetGame::Instance().players[i]->npc->GetPositionWorld();
+          zSTRING Name = NetGame::Instance().players[i]->npc->GetName();
           int x = (int)floor((MapPos[VX] / 16) + 4830);
           int y = (int)floor((MapPos[VZ] / 12));
           sprintf(buffer, "+ %s", Name.ToChar());
@@ -117,10 +115,10 @@ void CMap::PrintMap() {
       break;
     // JARKENDAR
     case MJARKENDAR:
-      for (int i = 0; i < (int)client->players.size(); i++) {
-        if (client->players[i]->npc) {
-          zVEC3 MapPos = client->players[i]->npc->GetPositionWorld();
-          zSTRING Name = client->players[i]->npc->GetName();
+      for (int i = 0; i < (int)NetGame::Instance().players.size(); i++) {
+        if (NetGame::Instance().players[i]->npc) {
+          zVEC3 MapPos = NetGame::Instance().players[i]->npc->GetPositionWorld();
+          zSTRING Name = NetGame::Instance().players[i]->npc->GetName();
           int x = (int)floor((MapPos[VX] / 11) + 4290);
           int y = (int)floor((MapPos[VZ] / 10));
           sprintf(buffer, "+ %s", Name.ToChar());
@@ -130,10 +128,10 @@ void CMap::PrintMap() {
       break;
     // OLD VALLEY
     case MOLDVALLEY:
-      for (int i = 0; i < (int)client->players.size(); i++) {
-        if (client->players[i]->npc) {
-          zVEC3 MapPos = client->players[i]->npc->GetPositionWorld();
-          zSTRING Name = client->players[i]->npc->GetName();
+      for (int i = 0; i < (int)NetGame::Instance().players.size(); i++) {
+        if (NetGame::Instance().players[i]->npc) {
+          zVEC3 MapPos = NetGame::Instance().players[i]->npc->GetPositionWorld();
+          zSTRING Name = NetGame::Instance().players[i]->npc->GetName();
           int x = (int)floor((MapPos[VX] / 24) + 4045);
           int y = (int)floor((MapPos[VZ] / 16));
           sprintf(buffer, "+ %s", Name.ToChar());
@@ -143,10 +141,10 @@ void CMap::PrintMap() {
       break;
     // COLONY.ZEN
     case MCOLONY:
-      for (int i = 0; i < (int)client->players.size(); i++) {
-        if (client->players[i]->npc) {
-          zVEC3 MapPos = client->players[i]->npc->GetPositionWorld();
-          zSTRING Name = client->players[i]->npc->GetName();
+      for (int i = 0; i < (int)NetGame::Instance().players.size(); i++) {
+        if (NetGame::Instance().players[i]->npc) {
+          zVEC3 MapPos = NetGame::Instance().players[i]->npc->GetPositionWorld();
+          zSTRING Name = NetGame::Instance().players[i]->npc->GetName();
           int x = (int)floor((MapPos[VX] / 24) + 4045);
           int y = (int)floor((MapPos[VZ] / 16));
           sprintf(buffer, "+ %s", Name.ToChar());

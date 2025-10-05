@@ -42,7 +42,6 @@ SOFTWARE.
 #include "random_utils.h"
 
 CIngame* global_ingame = NULL;
-extern NetGame* client;
 extern CLocalPlayer* LocalPlayer;
 void InterfaceLoop(void);
 constexpr const char* arrow = "->";
@@ -127,17 +126,17 @@ void CIngame::CheckSwampLights() {
 
 void CIngame::Loop() {
   if (global_ingame) {
-    if (client->network->IsConnected()) {
+    if (NetGame::Instance().network.IsConnected()) {
       if (global_ingame->NextTimeSync == time(NULL)) {
         if (!global_ingame->IgnoreFirstSync)
-          client->SyncGameTime();
+          NetGame::Instance().SyncGameTime();
         else
           global_ingame->IgnoreFirstSync = false;
         global_ingame->NextTimeSync += 1200;
       }
-      client->HandleNetwork();
-      if (client->network->IsConnected()) {
-        client->RestoreHealth();
+      NetGame::Instance().HandleNetwork();
+      if (NetGame::Instance().network.IsConnected()) {
+        NetGame::Instance().RestoreHealth();
         global_ingame->CheckForUpdate();
         global_ingame->CheckForHPDiff();
       }
@@ -230,10 +229,10 @@ void CIngame::PrepareForWrite() {
   Patch::PlayerInterfaceEnabled(false);
 }
 bool CIngame::PlayerExists(const char* PlayerName) {
-  if (client->players.size() > 1) {
-    for (int i = 1; i < (int)client->players.size(); i++) {
-      if (client->players[i]->npc) {
-        if (!memcmp(client->players[i]->npc->GetName().ToChar(), PlayerName, strlen(PlayerName)))
+  if (NetGame::Instance().players.size() > 1) {
+    for (int i = 1; i < (int)NetGame::Instance().players.size(); i++) {
+      if (NetGame::Instance().players[i]->npc) {
+        if (!memcmp(NetGame::Instance().players[i]->npc->GetName().ToChar(), PlayerName, strlen(PlayerName)))
           return true;
       }
     }
@@ -244,8 +243,8 @@ bool CIngame::PlayerExists(const char* PlayerName) {
 void CIngame::HandleInput() {
   if ((zinput->KeyPressed(KEY_LCONTROL) || zinput->KeyPressed(KEY_RCONTROL)) && (zinput->KeyPressed(KEY_LALT) || zinput->KeyPressed(KEY_RALT)) &&
       zinput->KeyPressed(KEY_F8)) {
-    if (client->network->IsConnected()) {
-      client->Disconnect();
+    if (NetGame::Instance().network.IsConnected()) {
+      NetGame::Instance().Disconnect();
       CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(255, 0, 0, 255), "%s", "Disconnected!");
     }
   }
@@ -263,14 +262,14 @@ void CIngame::HandleInput() {
   }
   // MAP
   if (mapusable) {
-    if (zinput->KeyToggled(KEY_F2) && (!client->ForceHideMap)) {
+    if (zinput->KeyToggled(KEY_F2) && (!NetGame::Instance().ForceHideMap)) {
       if (!MMap->Opened)
         MMap->Open();
       else
         MMap->Close();
     }
     if (MMap->Opened) {
-      if (zinput->KeyToggled(KEY_ESCAPE) || (client->ForceHideMap))
+      if (zinput->KeyToggled(KEY_ESCAPE) || (NetGame::Instance().ForceHideMap))
         MMap->Close();
       MMap->PrintMap();
     }
@@ -326,7 +325,7 @@ void CIngame::HandleInput() {
             else {
               if (MuteTimer < clock()) {
                 if (SpamMessages < 3) {
-                  client->SendMessage(chatbuffer.c_str());
+                  NetGame::Instance().SendMessage(chatbuffer.c_str());
                   if (ChatTimer > clock()) {
                     SpamMessages++;
                   } else {
@@ -354,11 +353,11 @@ void CIngame::HandleInput() {
                                                Language::Instance()[Language::CHAT_PLAYER_DOES_NOT_EXIST].ToChar());
               }
             } else if (WhisperingTo.length() > 0) {
-              client->SendWhisper(WhisperingTo.c_str(), chatbuffer.c_str());
+              NetGame::Instance().SendWhisper(WhisperingTo.c_str(), chatbuffer.c_str());
             }
             break;
           case ADMIN:
-            client->SendCommand(chatbuffer.c_str());
+            NetGame::Instance().SendCommand(chatbuffer.c_str());
             CChat::GetInstance()->WriteMessage(ADMIN, false, COLOR_RED, "%s", chatbuffer.c_str());
             break;
         }
@@ -399,22 +398,23 @@ void CIngame::Draw() {
 
 void CIngame::CheckForUpdate() {
   if (clock() - this->last_player_update > 80) {
-    client->UpdatePlayerStats(static_cast<short>(CActiveAniID::GetInstance()->GetAniID()));
+    NetGame::Instance().UpdatePlayerStats(static_cast<short>(CActiveAniID::GetInstance()->GetAniID()));
     this->last_player_update = clock();
   }
 }
 
 void CIngame::CheckForHPDiff() {
-  for (size_t i = 0; i < client->players.size(); i++) {
-    if (client->players[i]->hp != static_cast<short>(client->players[i]->npc->attribute[NPC_ATR_HITPOINTS])) {
-      if (!ValidatePlayerForHPDiff(client->players[i])) {
-        if (client->players[i]->npc->attribute[NPC_ATR_HITPOINTS] <= 0) {
-          client->players[i]->RespawnPlayer();
+  for (size_t i = 0; i < NetGame::Instance().players.size(); i++) {
+    if (NetGame::Instance().players[i]->hp != static_cast<short>(NetGame::Instance().players[i]->npc->attribute[NPC_ATR_HITPOINTS])) {
+      if (!ValidatePlayerForHPDiff(NetGame::Instance().players[i])) {
+        if (NetGame::Instance().players[i]->npc->attribute[NPC_ATR_HITPOINTS] <= 0) {
+          NetGame::Instance().players[i]->RespawnPlayer();
         }
-        client->players[i]->npc->attribute[NPC_ATR_HITPOINTS] = static_cast<int>(client->players[i]->hp);
+        NetGame::Instance().players[i]->npc->attribute[NPC_ATR_HITPOINTS] = static_cast<int>(NetGame::Instance().players[i]->hp);
       }
-      client->SendHPDiff(i, static_cast<short>(static_cast<short>(client->players[i]->npc->attribute[NPC_ATR_HITPOINTS]) - client->players[i]->hp));
-      client->players[i]->hp = static_cast<short>(client->players[i]->npc->attribute[NPC_ATR_HITPOINTS]);
+      NetGame::Instance().SendHPDiff(i, static_cast<short>(static_cast<short>(NetGame::Instance().players[i]->npc->attribute[NPC_ATR_HITPOINTS]) -
+                                                           NetGame::Instance().players[i]->hp));
+      NetGame::Instance().players[i]->hp = static_cast<short>(NetGame::Instance().players[i]->npc->attribute[NPC_ATR_HITPOINTS]);
     }
   }
 }

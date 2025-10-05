@@ -30,8 +30,8 @@ SOFTWARE.
 #include "CSyncFuncs.h"
 #include "HooksManager.h"
 #include "Network.h"
-#include "world-builder\load.h"
 #include "ZenGin/zGothicAPI.h"
+#include "world-builder\load.h"
 
 enum FILE_REQ { WB_FILE = 1, NULL_SIZE = 255 };
 
@@ -49,12 +49,9 @@ union STime {
 
 class NetGame : public CSyncFuncs {
 public:
-  NetGame(const char* ip);
-  ~NetGame();
-
-  void HandleNetwork(void);
-  bool IsConnected(void);
-  bool Connect(void);
+  void HandleNetwork();
+  bool IsConnected();
+  bool Connect(std::string_view full_address);
   void JoinGame();
   void SendDropItem(short Instance, short amount);
   void SendTakeItem(short Instance);
@@ -64,26 +61,29 @@ public:
   void SendCommand(const char* msg);
   void UpdatePlayerStats(short anim);
   void SendHPDiff(size_t who, short diff);
-  void SyncGameTime(void);
-  void Disconnect(void);
-  void DownloadWBFile(void);
-  void RestoreHealth(void);
+  void SyncGameTime();
+  void Disconnect();
+  void DownloadWBFile();
+  void RestoreHealth();
+
+  static NetGame& Instance() {
+    static NetGame instance;
+    return instance;
+  }
 
   std::vector<CPlayer*> players;
   std::vector<Info> VobsWorldBuilderMap;
   int HeroLastHp;
   zSTRING map;
-  bool IsAdminOrModerator;
-  bool IsInGame;
-  short mp_restore;
-  int DropItemsAllowed;
-  int ForceHideMap;
-  Network* network;
-  bool IsReadyToJoin;
+  bool IsAdminOrModerator{false};
+  bool IsInGame{false};
+  short mp_restore{0};
+  int DropItemsAllowed{0};
+  int ForceHideMap{0};
+  bool IsReadyToJoin{false};
+  Network network;
 
 private:
-  int clientPort;
-  std::string clientHost;
   time_t last_mp_regen;
 
   std::string GetServerAddresForHTTPDownloader();

@@ -51,7 +51,6 @@ SOFTWARE.
 static int HeroInstance;
 
 // Externs
-extern NetGame* client;
 extern CIngame* global_ingame;
 extern CLocalPlayer* LocalPlayer;
 
@@ -117,12 +116,12 @@ void CPlayer::AnalyzePosition(zVEC3& Pos) {
 
 void CPlayer::DeleteAllPlayers() {
   global_ingame->Shrinker->UnShrinkAll();
-  for (size_t i = 1; i < client->players.size(); i++) {
-    client->players[i]->npc->GetSpellBook()->Close(1);
-    ogame->GetSpawnManager()->DeleteNpc(client->players[i]->npc);
-    delete client->players[i];
+  for (size_t i = 1; i < NetGame::Instance().players.size(); i++) {
+    NetGame::Instance().players[i]->npc->GetSpellBook()->Close(1);
+    ogame->GetSpawnManager()->DeleteNpc(NetGame::Instance().players[i]->npc);
+    delete NetGame::Instance().players[i];
   }
-  client->players.clear();
+  NetGame::Instance().players.clear();
 };
 
 void CPlayer::DisablePlayer() {
@@ -174,7 +173,7 @@ int CPlayer::GetHealth() {
 };
 
 CPlayer* CPlayer::GetLocalPlayer() {
-  return client->players[0];
+  return NetGame::Instance().players[0];
 };
 
 const char* CPlayer::GetName() {
@@ -224,15 +223,7 @@ bool CPlayer::IsLocalPlayer() {
   if (this == LocalPlayer)
     return true;
   return false;
-};
-
-bool CPlayer::IsPlayerValid(CPlayer* Player) {
-  for (size_t i = 0; i < client->players.size(); i++) {
-    if (Player = client->players[i])
-      return true;
-  }
-  return false;
-};
+}
 
 void CPlayer::LeaveGame() {
   if (global_ingame->Shrinker->IsShrinked(npc))

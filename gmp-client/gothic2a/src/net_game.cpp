@@ -63,45 +63,31 @@ extern CLocalPlayer *LocalPlayer;
 using namespace Net;
 
 template <typename TContainer = std::vector<std::uint8_t>, typename Packet>
-void SerializeAndSend(Network *network, const Packet &packet, Net::PacketPriority priority, Net::PacketReliability reliable) {
+void SerializeAndSend(Network &network, const Packet &packet, Net::PacketPriority priority, Net::PacketReliability reliable) {
   TContainer buffer;
   auto written_size = bitsery::quickSerialization<bitsery::OutputBufferAdapter<TContainer>>(buffer, packet);
-  network->Send(buffer.data(), written_size, priority, reliable);
+  network.Send(buffer.data(), written_size, priority, reliable);
 }
 
-NetGame::NetGame(const char *ip)
-    : network(new Network(this)),
-      IsReadyToJoin(false),
-      IsAdminOrModerator(false),
-      DropItemsAllowed(false),
-      IsInGame(false),
-      clientPort(0xDEAD),
-      clientHost(ip) {
+bool NetGame::Connect(std::string_view full_address) {
   // Extract port number from IP address if present
-  size_t pos = clientHost.find_last_of(':');
+  std::string host(full_address);
+  int port = 0xDEAD;
+  size_t pos = host.find_last_of(':');
   if (pos != std::string::npos) {
-    std::string portStr = clientHost.substr(pos + 1);
+    std::string portStr = host.substr(pos + 1);
     std::istringstream iss(portStr);
-    iss >> clientPort;
-    clientHost.erase(pos);
+    iss >> port;
+    host.erase(pos);
   }
-}
-
-NetGame::~NetGame() {
-  delete network;
-  network = nullptr;
-  IsInGame = false;
-}
-
-bool NetGame::Connect() {
-  if (network->Connect(clientHost, clientPort)) {
+  if (network.Connect(host, port)) {
     return true;
   }
   return false;
 }
 
 string NetGame::GetServerAddresForHTTPDownloader() {
-  auto address = network->GetServerIp() + ":" + std::to_string(network->GetServerPort() + 1);
+  auto address = network.GetServerIp() + ":" + std::to_string(network.GetServerPort() + 1);
   return address;
 }
 
@@ -109,7 +95,7 @@ void NetGame::DownloadWBFile() {
   auto content = HTTPDownloader::GetWBFile(GetServerAddresForHTTPDownloader());
   static const std::filesystem::path path = ".\\Multiplayer\\Data\\";
 
-  auto serverWbFile = path / (network->GetServerIp() + "_" + std::to_string(network->GetServerPort()));
+  auto serverWbFile = path / (network.GetServerIp() + "_" + std::to_string(network.GetServerPort()));
 
   if (content == "EMPTY") {
     std::filesystem::remove(serverWbFile);
@@ -138,12 +124,12 @@ void NetGame::RestoreHealth() {
 
 void NetGame::HandleNetwork() {
   if (IsConnected()) {
-    network->Receive();
+    network.Receive();
   }
 }
 
 bool NetGame::IsConnected() {
-  return network->IsConnected();
+  return network.IsConnected();
 }
 
 void NetGame::JoinGame() {
@@ -190,7 +176,7 @@ void NetGame::JoinGame() {
     CIngame *g = new CIngame();
     if (!LocalPlayer)
       new CLocalPlayer();
-    LocalPlayer->id = network->GetMyId();
+    LocalPlayer->id = network.GetMyId();
     LocalPlayer->enable = TRUE;
     LocalPlayer->SetNpc(player);
     LocalPlayer->hp = static_cast<short>(LocalPlayer->GetHealth());
@@ -322,15 +308,15 @@ void NetGame::SendHPDiff(size_t who, short diff) {
 
 void NetGame::SyncGameTime() {
   BYTE data[2] = {PT_GAME_INFO, 0};
-  network->Send((char *)data, 1, IMMEDIATE_PRIORITY, RELIABLE);
+  network.Send((char *)data, 1, IMMEDIATE_PRIORITY, RELIABLE);
 }
 
 void NetGame::Disconnect() {
-  if (network->IsConnected()) {
+  if (network.IsConnected()) {
     IsInGame = false;
     global_ingame->IgnoreFirstSync = true;
     LocalPlayer->SetNpcType(CPlayer::NPC_HUMAN);
-    network->Disconnect();
+    network.Disconnect();
     delete LocalPlayer;
     CPlayer::DeleteAllPlayers();
     if (VobsWorldBuilderMap.size() > 0) {

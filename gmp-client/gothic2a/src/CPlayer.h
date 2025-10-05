@@ -87,7 +87,6 @@ public:
   static Gothic_II_Addon::zSTRING GetWalkStyleFromByte(BYTE walkstyle);
   bool IsFighting();
   bool IsLocalPlayer();
-  static bool IsPlayerValid(CPlayer* Player);
   void LeaveGame();
   void RespawnPlayer();
   void SetAppearance(BYTE head, BYTE skin, BYTE face);
