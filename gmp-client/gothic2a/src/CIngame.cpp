@@ -30,7 +30,6 @@ SOFTWARE.
 #include <format>
 
 #include "CActiveAniID.h"
-#include "CLocalPlayer.h"
 #include "CMainMenu.h"
 #include "CMenu.h"
 #include "CWatch.h"
@@ -42,7 +41,6 @@ SOFTWARE.
 #include "random_utils.h"
 
 CIngame* global_ingame = NULL;
-extern CLocalPlayer* LocalPlayer;
 void InterfaceLoop(void);
 constexpr const char* arrow = "->";
 constexpr const char* DEADB = "S_DEADB";
@@ -126,7 +124,7 @@ void CIngame::CheckSwampLights() {
 
 void CIngame::Loop() {
   if (global_ingame) {
-    if (NetGame::Instance().network.IsConnected()) {
+    if (NetGame::Instance().IsConnected()) {
       if (global_ingame->NextTimeSync == time(NULL)) {
         if (!global_ingame->IgnoreFirstSync)
           NetGame::Instance().SyncGameTime();
@@ -135,7 +133,7 @@ void CIngame::Loop() {
         global_ingame->NextTimeSync += 1200;
       }
       NetGame::Instance().HandleNetwork();
-      if (NetGame::Instance().network.IsConnected()) {
+      if (NetGame::Instance().IsConnected()) {
         NetGame::Instance().RestoreHealth();
         global_ingame->CheckForUpdate();
         global_ingame->CheckForHPDiff();
@@ -143,7 +141,7 @@ void CIngame::Loop() {
     }
     // SENDING MY ANIMATION
     zCModel* model = player->GetModel();
-    if (model) {
+    if (model && model->numActiveAnis > 0) {
       zCModelAni* AniUnusual = model->aniChannels[1] ? model->aniChannels[1]->protoAni : nullptr;  // TALK, TURNR ETC
       zCModelAni* Ani = model->aniChannels[0] ? model->aniChannels[0]->protoAni : nullptr;         // ZWYKLE
       if (Ani) {
@@ -243,7 +241,7 @@ bool CIngame::PlayerExists(const char* PlayerName) {
 void CIngame::HandleInput() {
   if ((zinput->KeyPressed(KEY_LCONTROL) || zinput->KeyPressed(KEY_RCONTROL)) && (zinput->KeyPressed(KEY_LALT) || zinput->KeyPressed(KEY_RALT)) &&
       zinput->KeyPressed(KEY_F8)) {
-    if (NetGame::Instance().network.IsConnected()) {
+    if (NetGame::Instance().IsConnected()) {
       NetGame::Instance().Disconnect();
       CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(255, 0, 0, 255), "%s", "Disconnected!");
     }
@@ -405,21 +403,21 @@ void CIngame::CheckForUpdate() {
 
 void CIngame::CheckForHPDiff() {
   for (size_t i = 0; i < NetGame::Instance().players.size(); i++) {
-    if (NetGame::Instance().players[i]->hp != static_cast<short>(NetGame::Instance().players[i]->npc->attribute[NPC_ATR_HITPOINTS])) {
+    if (NetGame::Instance().players[i]->base_player().hp() != static_cast<short>(NetGame::Instance().players[i]->npc->attribute[NPC_ATR_HITPOINTS])) {
       if (!ValidatePlayerForHPDiff(NetGame::Instance().players[i])) {
         if (NetGame::Instance().players[i]->npc->attribute[NPC_ATR_HITPOINTS] <= 0) {
           NetGame::Instance().players[i]->RespawnPlayer();
         }
-        NetGame::Instance().players[i]->npc->attribute[NPC_ATR_HITPOINTS] = static_cast<int>(NetGame::Instance().players[i]->hp);
+        NetGame::Instance().players[i]->npc->attribute[NPC_ATR_HITPOINTS] = static_cast<int>(NetGame::Instance().players[i]->base_player().hp());
       }
       NetGame::Instance().SendHPDiff(i, static_cast<short>(static_cast<short>(NetGame::Instance().players[i]->npc->attribute[NPC_ATR_HITPOINTS]) -
-                                                           NetGame::Instance().players[i]->hp));
-      NetGame::Instance().players[i]->hp = static_cast<short>(NetGame::Instance().players[i]->npc->attribute[NPC_ATR_HITPOINTS]);
+                                                           NetGame::Instance().players[i]->base_player().hp()));
+      NetGame::Instance().players[i]->base_player().set_hp(static_cast<short>(NetGame::Instance().players[i]->npc->attribute[NPC_ATR_HITPOINTS]));
     }
   }
 }
 
-bool CIngame::ValidatePlayerForHPDiff(CPlayer* player) {
+bool CIngame::ValidatePlayerForHPDiff(Gothic2APlayer* player) {
   if (oCNpc::player == player->npc) {
     return true;
   }

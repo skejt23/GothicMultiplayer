@@ -24,13 +24,12 @@ SOFTWARE.
 */
 
 /*****************************************************************************
-** ** *	File name:		CGmpClient/CPlayer.cpp		   							** *
-*** *	Created by:		16/12/11	-	skejt23/Pampi							** *
-*** *	Description:	Player class	 										** *
+*** 	Created by:		16/12/11	-	skejt23/Pampi
+*** 	Description:	Player class
 ***
 *****************************************************************************/
 
-#include "CPlayer.h"
+#include "gothic2a_player.hpp"
 
 #include <spdlog/spdlog.h>
 
@@ -38,7 +37,6 @@ SOFTWARE.
 
 #include "CIngame.h"
 #include "CInterpolatePos.h"
-#include "CLocalPlayer.h"
 #include "config.h"
 #include "net_game.h"
 
@@ -52,7 +50,6 @@ static int HeroInstance;
 
 // Externs
 extern CIngame* global_ingame;
-extern CLocalPlayer* LocalPlayer;
 
 constexpr const char* BODYMESHNAKED = "HUM_BODY_NAKED0";
 // Head models
@@ -79,29 +76,22 @@ constexpr const char* UNDEADORC = "UNDEADORCWARRIOR";
 constexpr const char* SHEEP = "SHEEP";
 constexpr const char* DRACONIAN = "DRACONIAN";
 
-CPlayer::CPlayer() {
+Gothic2APlayer::Gothic2APlayer(gmp::client::Player& base_player, bool is_local_player)
+    : base_player_(base_player), is_local_player_(is_local_player) {
   this->npc = NULL;
-  this->id = NULL;
-  this->enable = FALSE;
-  this->hp = NULL;
   this->ScriptInstance = NULL;
-  this->update_hp_packet = NULL;
   this->InterPos = new CInterpolatePos(this);
   this->Type = NPC_HUMAN;
-};
+}
 
-CPlayer::~CPlayer() {
+Gothic2APlayer::~Gothic2APlayer() {
   this->npc = NULL;
-  this->id = NULL;
-  this->enable = FALSE;
-  this->hp = NULL;
   this->ScriptInstance = NULL;
-  this->update_hp_packet = NULL;
   delete this->InterPos;
   this->InterPos = NULL;
-};
+}
 
-void CPlayer::AnalyzePosition(zVEC3& Pos) {
+void Gothic2APlayer::AnalyzePosition(zVEC3& Pos) {
   if (!InterPos->IsDistanceSmallerThanRadius(400.0f, npc->GetPositionWorld(), Pos)) {
     npc->trafoObjToWorld.SetTranslation(Pos);
     return;
@@ -114,7 +104,7 @@ void CPlayer::AnalyzePosition(zVEC3& Pos) {
   }
 };
 
-void CPlayer::DeleteAllPlayers() {
+void Gothic2APlayer::DeleteAllPlayers() {
   global_ingame->Shrinker->UnShrinkAll();
   for (size_t i = 1; i < NetGame::Instance().players.size(); i++) {
     NetGame::Instance().players[i]->npc->GetSpellBook()->Close(1);
@@ -124,25 +114,25 @@ void CPlayer::DeleteAllPlayers() {
   NetGame::Instance().players.clear();
 };
 
-void CPlayer::DisablePlayer() {
-  if (enable) {
+void Gothic2APlayer::DisablePlayer() {
+  if (base_player_.is_enabled()) {
     npc->GetSpellBook()->Close(1);
     npc->Disable();
-    enable = FALSE;
+    base_player_.set_enabled(false);
   }
-};
+}
 
-void CPlayer::GetAppearance(BYTE& head, BYTE& skin, BYTE& face) {
+void Gothic2APlayer::GetAppearance(BYTE& head, BYTE& skin, BYTE& face) {
   head = this->Head;
   skin = this->Skin;
   face = this->Face;
 };
 
-zSTRING CPlayer::GetHeadModelName() {
+zSTRING Gothic2APlayer::GetHeadModelName() {
   return GetHeadModelNameFromByte(Head);
 };
 
-zSTRING CPlayer::GetHeadModelNameFromByte(BYTE head) {
+zSTRING Gothic2APlayer::GetHeadModelNameFromByte(BYTE head) {
   switch (head) {
     case 0:
       return HUM_HEAD_FIGHTER;
@@ -168,23 +158,23 @@ zSTRING CPlayer::GetHeadModelNameFromByte(BYTE head) {
   }
 };
 
-int CPlayer::GetHealth() {
+int Gothic2APlayer::GetHealth() {
   return this->npc->attribute[NPC_ATR_HITPOINTS];
 };
 
-CPlayer* CPlayer::GetLocalPlayer() {
+Gothic2APlayer* Gothic2APlayer::GetLocalPlayer() {
   return NetGame::Instance().players[0];
 };
 
-const char* CPlayer::GetName() {
+const char* Gothic2APlayer::GetName() {
   return this->npc->GetName().ToChar();
 };
 
-int CPlayer::GetNameLength() {
+int Gothic2APlayer::GetNameLength() {
   return this->npc->GetName().Length();
 };
 
-zSTRING CPlayer::GetWalkStyleFromByte(BYTE walkstyle) {
+zSTRING Gothic2APlayer::GetWalkStyleFromByte(BYTE walkstyle) {
   switch (walkstyle) {
     case 0:
       return WALK_NONE;
@@ -213,19 +203,17 @@ zSTRING CPlayer::GetWalkStyleFromByte(BYTE walkstyle) {
   }
 }
 
-bool CPlayer::IsFighting() {
+bool Gothic2APlayer::IsFighting() {
   if (npc->GetWeaponMode() > 0)
     return true;
   return false;
 };
 
-bool CPlayer::IsLocalPlayer() {
-  if (this == LocalPlayer)
-    return true;
-  return false;
+bool Gothic2APlayer::IsLocalPlayer() {
+  return is_local_player_;
 }
 
-void CPlayer::LeaveGame() {
+void Gothic2APlayer::LeaveGame() {
   if (global_ingame->Shrinker->IsShrinked(npc))
     global_ingame->Shrinker->UnShrinkNpc(npc);
   this->npc->GetSpellBook()->Close(1);
@@ -237,24 +225,24 @@ void CPlayer::LeaveGame() {
   this->npc = NULL;
 };
 
-void CPlayer::RespawnPlayer() {
+void Gothic2APlayer::RespawnPlayer() {
   global_ingame->Shrinker->UnShrinkNpc(npc);
   npc->GetSpellBook()->Close(1);
   if (!IsLocalPlayer()) {
-    hp = static_cast<short>(npc->attribute[NPC_ATR_HITPOINTSMAX]);
+    base_player_.set_hp(static_cast<short>(npc->attribute[NPC_ATR_HITPOINTSMAX]));
     auto player_pos = npc->GetPositionWorld();
     npc->ResetPos(player_pos);
   } else {
     npc->RefreshNpc();
     npc->SetMovLock(0);
     npc->SetWeaponMode(NPC_WEAPON_NONE);
-    hp = static_cast<short>(npc->attribute[NPC_ATR_HITPOINTSMAX]);
+    base_player_.set_hp(static_cast<short>(npc->attribute[NPC_ATR_HITPOINTSMAX]));
     auto pos = npc->GetPositionWorld();
     npc->ResetPos(pos);
   }
-};
+}
 
-void CPlayer::SetAppearance(BYTE head, BYTE skin, BYTE face) {
+void Gothic2APlayer::SetAppearance(BYTE head, BYTE skin, BYTE face) {
   this->Head = head;
   this->Skin = skin;
   this->Face = face;
@@ -263,26 +251,26 @@ void CPlayer::SetAppearance(BYTE head, BYTE skin, BYTE face) {
   this->npc->SetAdditionalVisuals(body_mesh, skin, 0, head_model, face, 0, -1);
 };
 
-void CPlayer::SetHealth(int Value) {
+void Gothic2APlayer::SetHealth(int Value) {
   this->npc->attribute[NPC_ATR_HITPOINTS] = Value;
 };
 
-void CPlayer::SetName(zSTRING& Name) {
+void Gothic2APlayer::SetName(zSTRING& Name) {
   this->npc->name[0].Clear();
   this->npc->name[0].Insert(0, Name);
 };
 
-void CPlayer::SetName(const char* Name) {
+void Gothic2APlayer::SetName(const char* Name) {
   this->npc->name[0].Clear();
   this->npc->name[0] = Name;
 };
 
-void CPlayer::SetNpc(oCNpc* Npc) {
+void Gothic2APlayer::SetNpc(oCNpc* Npc) {
   this->npc = Npc;
   this->ScriptInstance = Npc->GetInstance();
 };
 
-void CPlayer::SetNpcType(NpcType TYPE) {
+void Gothic2APlayer::SetNpcType(NpcType TYPE) {
   if (Type == TYPE)
     return;
   if (TYPE > NPC_DRACONIAN && Type != NPC_HUMAN) {
@@ -292,8 +280,8 @@ void CPlayer::SetNpcType(NpcType TYPE) {
   char buffer[128];
   zSTRING TypeTemp;
   zCParser::GetParser()->SetInstance("SELF", npc);
-  if (npc->GetModel()->HasAppliedModelProtoOverlay(CPlayer::GetWalkStyleFromByte(Config::Instance().walkstyle)))
-    npc->GetModel()->RemoveModelProtoOverlay(CPlayer::GetWalkStyleFromByte(Config::Instance().walkstyle));
+  if (npc->GetModel()->HasAppliedModelProtoOverlay(Gothic2APlayer::GetWalkStyleFromByte(Config::Instance().walkstyle)))
+    npc->GetModel()->RemoveModelProtoOverlay(Gothic2APlayer::GetWalkStyleFromByte(Config::Instance().walkstyle));
   switch (TYPE) {
     case NPC_HUMAN: {
       oCNpc* New = zfactory->CreateNpc(zCParser::GetParser()->GetIndex(PCHERO));
@@ -303,9 +291,9 @@ void CPlayer::SetNpcType(NpcType TYPE) {
       New->Enable(position);
       if (IsLocalPlayer()) {
         TypeTemp = "HUM_BODY_NAKED0";
-        zSTRING headmodel_tmp = CPlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
+        zSTRING headmodel_tmp = Gothic2APlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
         New->SetAdditionalVisuals(TypeTemp, Config::Instance().skintexture, 0, headmodel_tmp, Config::Instance().facetexture, 0, -1);
-        New->GetModel()->ApplyModelProtoOverlay(CPlayer::GetWalkStyleFromByte(Config::Instance().walkstyle));
+        New->GetModel()->ApplyModelProtoOverlay(Gothic2APlayer::GetWalkStyleFromByte(Config::Instance().walkstyle));
       }
       if (IsLocalPlayer())
         New->SetAsPlayer();
@@ -389,13 +377,13 @@ void CPlayer::SetNpcType(NpcType TYPE) {
       sprintf(buffer, "%s_%s", B_SETVISUALS, LESSER_SKELETON);
       TypeTemp = buffer;
       zCParser::GetParser()->CallFunc(TypeTemp);
-      npc->GetModel()->ApplyModelProtoOverlay(CPlayer::GetWalkStyleFromByte(Config::Instance().walkstyle));
+      npc->GetModel()->ApplyModelProtoOverlay(Gothic2APlayer::GetWalkStyleFromByte(Config::Instance().walkstyle));
       break;
     case NPC_SKELETON:
       sprintf(buffer, "%s_%s", B_SETVISUALS, SKELETON);
       TypeTemp = buffer;
       zCParser::GetParser()->CallFunc(TypeTemp);
-      npc->GetModel()->ApplyModelProtoOverlay(CPlayer::GetWalkStyleFromByte(Config::Instance().walkstyle));
+      npc->GetModel()->ApplyModelProtoOverlay(Gothic2APlayer::GetWalkStyleFromByte(Config::Instance().walkstyle));
       break;
     case NPC_SKELETONMAGE:
       sprintf(buffer, "%s_%s", B_SETVISUALS, SKELETON_MAGE);
@@ -412,10 +400,10 @@ void CPlayer::SetNpcType(NpcType TYPE) {
   };
 };
 
-void CPlayer::SetPosition(zVEC3& pos) {
+void Gothic2APlayer::SetPosition(zVEC3& pos) {
   this->npc->trafoObjToWorld.SetTranslation(pos);
 };
 
-void CPlayer::SetPosition(float x, float y, float z) {
+void Gothic2APlayer::SetPosition(float x, float y, float z) {
   this->npc->trafoObjToWorld.SetTranslation(zVEC3(x, y, z));
 };

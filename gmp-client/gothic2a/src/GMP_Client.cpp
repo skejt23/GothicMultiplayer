@@ -33,12 +33,12 @@ SOFTWARE.
 
 #include "HooksManager.h"
 #include "Mod.h"
-#include "Network.h"
 #include "ZenGin/zGothicAPI.h"
 #include "common.h"
 #include "config.h"
 #include "discord_presence.h"
 #include "external_console_window.hpp"
+#include "game_client.hpp"
 #include "patch.h"
 #include "patch_install.hpp"
 
@@ -119,7 +119,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
       spdlog::default_logger()->sinks().push_back(std::make_shared<spdlog::sinks::basic_file_sink_mt>("GMP_Log.txt", false));
       spdlog::flush_on(spdlog::level::debug);
 
-      Network::LoadNetworkLibrary();
+      gmp::client::LoadNetworkLibrary();
 
       // Window hook
       CallPatch(0x0050323F, (DWORD)&HookCreateWindowExA, 1);

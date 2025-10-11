@@ -38,7 +38,6 @@ enum PacketPriority {
 enum PacketID {
   WL_PREPARE_TO_JOIN,
   WL_JOIN_TO_GAME,
-  WL_INGAME,
   ID_CONNECTION_ATTEMPT_FAILED = 17,
   ID_ALREADY_CONNECTED,
   ID_NEW_INCOMING_CONNECTION,
@@ -82,8 +81,6 @@ inline const char* PacketIDToString(PacketID id) {
       return "WL_PREPARE_TO_JOIN";
     case WL_JOIN_TO_GAME:
       return "WL_JOIN_TO_GAME";
-    case WL_INGAME:
-      return "WL_INGAME";
     case ID_CONNECTION_ATTEMPT_FAILED:
       return "ID_CONNECTION_ATTEMPT_FAILED";
     case ID_ALREADY_CONNECTED:

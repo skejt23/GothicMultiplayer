@@ -33,7 +33,6 @@ SOFTWARE.
 
 #include "CIngame.h"
 #include "language.h"
-#include "CLocalPlayer.h"
 #include "CMainMenu.h"
 #include "CMenu.h"
 #include "HooksManager.h"
@@ -55,7 +54,6 @@ bool WritingMapSave = false;
 bool OrgOptionsOpened = false;
 extern zCOLOR Red;
 extern zCOLOR Normal;
-extern CLocalPlayer* LocalPlayer;
 constexpr const char* WorldBuilder = "World Builder";
 constexpr const char* GothicMP = "Gothic Multiplayer";
 bool InWorldBuilder = false;

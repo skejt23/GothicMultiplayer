@@ -5,7 +5,7 @@ target("ClientMain")
     add_files("src/**.cpp")
     add_includedirs("src/gothic-patches")
     
-    add_deps("common", "SharedLib", "zNetInterface", "SDL3", "InjectMage", "BugTrap", "gothic_api")
+    add_deps("common", "SharedLib", "zNetInterface", "Client.Net", "SDL3", "InjectMage", "BugTrap", "gothic_api")
     add_packages("spdlog", "fmt", "cpp-httplib", "dylib", "glm", "bitsery", "nlohmann_json")
     add_syslinks("wsock32", "ws2_32", "Iphlpapi", "user32", "gdi32", "kernel32")
 

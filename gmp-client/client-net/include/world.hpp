@@ -2,7 +2,7 @@
 /*
 MIT License
 
-Copyright (c) 2022 Gothic Multiplayer Team.
+Copyright (c) 2025 Gothic Multiplayer Team.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -25,21 +25,22 @@ SOFTWARE.
 
 #pragma once
 
-#include "CChat.h"
-#include "net_game.h"
-#include "CLocalPlayer.h"
-#include "language.h"
+#include <string>
 
-extern CLocalPlayer* LocalPlayer;
-namespace Connection {
-void OnDisconnectOrLostConnection(NetGame* client, Packet packet) {
-  SPDLOG_WARN("OnDisconnectOrLostConnection, code: {}", packet.data[0]);
-  client->Disconnect();
-  auto pos = player->GetPositionWorld();
-  player->ResetPos(pos);
-  client->network.connection_lost_ = true;
-  client->IsInGame = false;
-  client->IsReadyToJoin = false;
-  CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(255, 0, 0, 255), "%s", Language::Instance()[Language::DISCONNECTED].ToChar());
-}
-}  // namespace Connection
+namespace gmp::client {
+
+class World {
+public:
+  World(std::string name) : name_(std::move(name)) {
+  }
+  ~World() = default;
+
+  const std::string& Name() const {
+    return name_;
+  }
+
+private:
+  std::string name_;
+};
+
+}  // namespace gmp::client

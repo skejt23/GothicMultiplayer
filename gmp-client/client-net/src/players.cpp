@@ -23,7 +23,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+#include "players.hpp"
+
 namespace gmp::client {
 
-class Client {};
 }  // namespace gmp::client

@@ -275,8 +275,8 @@ void CMainMenu::LoadConfig() {
   LoadLangNames();
   Language = Config::Instance().lang;
   if (!Config::Instance().IsDefault()) {
-    headmodel_tmp = CPlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
-    Walkstyle_tmp = CPlayer::GetWalkStyleFromByte(Config::Instance().walkstyle);
+    headmodel_tmp = Gothic2APlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
+    Walkstyle_tmp = Gothic2APlayer::GetWalkStyleFromByte(Config::Instance().walkstyle);
     string_tmp = "HUM_BODY_NAKED0";
     player->SetAdditionalVisuals(string_tmp, Config::Instance().skintexture, 0, headmodel_tmp, Config::Instance().facetexture, 0, -1);
     player->ApplyOverlay(Walkstyle_tmp);
@@ -751,7 +751,7 @@ void CMainMenu::RenderMenu() {
           DeleteAllNpcsBesidesHero();
           player->trafoObjToWorld.SetTranslation(SpawnpointPos);
           std::string WordBuilderMapFileName = ".\\Multiplayer\\Data\\";
-          WordBuilderMapFileName += NetGame::Instance().network.GetServerIp() + "_" + std::to_string(NetGame::Instance().network.GetServerPort());
+          WordBuilderMapFileName += NetGame::Instance().game_client->GetServerIp() + "_" + std::to_string(NetGame::Instance().game_client->GetServerPort());
           std::ifstream WbMap(WordBuilderMapFileName.c_str());
           if (WbMap.good()) {
             WbMap.close();
@@ -811,7 +811,7 @@ void CMainMenu::RenderMenu() {
         AppWeapon->RotateWorldY(30);
         AppWeapon->name.Clear();
         string_tmp = "HUM_BODY_NAKED0";
-        headmodel_tmp = CPlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
+        headmodel_tmp = Gothic2APlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
         player->SetAdditionalVisuals(string_tmp, Config::Instance().skintexture, 0, headmodel_tmp, Config::Instance().facetexture, 0, -1);
         player->GetModel()->meshLibList[0]->texAniState.actAniFrames[0][0] = Config::Instance().skintexture;
         ChoosingApperance = ApperancePart::FACE;
@@ -837,14 +837,14 @@ void CMainMenu::RenderMenu() {
           if ((zinput->KeyToggled(KEY_LEFT))) {
             if (Config::Instance().headmodel > 0) {
               Config::Instance().headmodel--;
-              headmodel_tmp = CPlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
+              headmodel_tmp = Gothic2APlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
               player->SetAdditionalVisuals(string_tmp, Config::Instance().skintexture, 0, headmodel_tmp, Config::Instance().facetexture, 0, -1);
             }
           }
           if ((zinput->KeyToggled(KEY_RIGHT))) {
             if (Config::Instance().headmodel < 5) {
               Config::Instance().headmodel++;
-              headmodel_tmp = CPlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
+              headmodel_tmp = Gothic2APlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
               player->SetAdditionalVisuals(string_tmp, Config::Instance().skintexture, 0, headmodel_tmp, Config::Instance().facetexture, 0, -1);
             }
           }
@@ -904,7 +904,7 @@ void CMainMenu::RenderMenu() {
                 player->GetModel()->StopAnimation(WalkAnim);
               player->RemoveOverlay(Walkstyle_tmp);
               Config::Instance().walkstyle--;
-              Walkstyle_tmp = CPlayer::GetWalkStyleFromByte(Config::Instance().walkstyle);
+              Walkstyle_tmp = Gothic2APlayer::GetWalkStyleFromByte(Config::Instance().walkstyle);
               player->ApplyOverlay(Walkstyle_tmp);
             }
           }
@@ -915,7 +915,7 @@ void CMainMenu::RenderMenu() {
                 player->GetModel()->StopAnimation(WalkAnim);
               player->RemoveOverlay(Walkstyle_tmp);
               Config::Instance().walkstyle++;
-              Walkstyle_tmp = CPlayer::GetWalkStyleFromByte(Config::Instance().walkstyle);
+              Walkstyle_tmp = Gothic2APlayer::GetWalkStyleFromByte(Config::Instance().walkstyle);
               player->ApplyOverlay(Walkstyle_tmp);
             }
           }

@@ -32,6 +32,8 @@ SOFTWARE.
 #include <ostream>
 #include <string>
 
+using PlayerID = std::uint32_t;
+
 struct PlayerState {
   glm::vec3 position{0.0f};
   glm::vec3 nrot{0.0f};

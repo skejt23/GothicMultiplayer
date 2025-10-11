@@ -24,13 +24,15 @@ SOFTWARE.
 
 #pragma once
 
+#include <memory>
 #include <string>
 
-#include "CPlayer.h"
+#include "gothic2a_player.hpp"
 #include "CSyncFuncs.h"
 #include "HooksManager.h"
-#include "Network.h"
 #include "ZenGin/zGothicAPI.h"
+#include "event_observer.hpp"
+#include "game_client.hpp"
 #include "world-builder\load.h"
 
 enum FILE_REQ { WB_FILE = 1, NULL_SIZE = 255 };
@@ -47,7 +49,7 @@ union STime {
   };
 };
 
-class NetGame : public CSyncFuncs {
+class NetGame : public CSyncFuncs, public gmp::client::EventObserver {
 public:
   void HandleNetwork();
   bool IsConnected();
@@ -71,7 +73,7 @@ public:
     return instance;
   }
 
-  std::vector<CPlayer*> players;
+  std::vector<Gothic2APlayer*> players;
   std::vector<Info> VobsWorldBuilderMap;
   int HeroLastHp;
   zSTRING map;
@@ -81,10 +83,37 @@ public:
   int DropItemsAllowed{0};
   int ForceHideMap{0};
   bool IsReadyToJoin{false};
-  Network network;
+  std::unique_ptr<gmp::client::GameClient> game_client;
+
+  // EventObserver interface implementation
+  void OnConnected() override;
+  void OnDisconnected() override;
+  void OnConnectionLost() override;
+  void OnMapChange(const std::string& map_name) override;
+  void OnGameInfoReceived(std::uint32_t raw_game_time, std::uint8_t flags) override;
+  void OnLocalPlayerJoined(gmp::client::Player& player) override;
+  void OnPlayerJoined(gmp::client::Player& player) override;
+  void OnPlayerLeft(std::uint64_t player_id, const std::string& player_name) override;
+  void OnPlayerStateUpdate(std::uint64_t player_id, const PlayerState& state) override;
+  void OnPlayerPositionUpdate(std::uint64_t player_id, float x, float z) override;
+  void OnPlayerDied(std::uint64_t player_id) override;
+  void OnPlayerRespawned(std::uint64_t player_id) override;
+  void OnItemDropped(std::uint64_t player_id, std::uint16_t item_instance, std::uint16_t amount) override;
+  void OnItemTaken(std::uint64_t player_id, std::uint16_t item_instance) override;
+  void OnSpellCast(std::uint64_t caster_id, std::uint16_t spell_id) override;
+  void OnSpellCastOnTarget(std::uint64_t caster_id, std::uint64_t target_id, std::uint16_t spell_id) override;
+  void OnChatMessage(std::uint64_t sender_id, const std::string& sender_name, const std::string& message) override;
+  void OnWhisperReceived(std::uint64_t sender_id, const std::string& sender_name, const std::string& message) override;
+  void OnServerMessage(const std::string& message) override;
+  void OnRconResponse(const std::string& response, bool is_admin) override;
+  void OnDiscordActivityUpdate(const std::string& state, const std::string& details, const std::string& large_image_key,
+                               const std::string& large_image_text, const std::string& small_image_key,
+                               const std::string& small_image_text) override;
 
 private:
+  NetGame();
   time_t last_mp_regen;
 
   std::string GetServerAddresForHTTPDownloader();
+  Gothic2APlayer* GetPlayerById(std::uint64_t player_id);
 };

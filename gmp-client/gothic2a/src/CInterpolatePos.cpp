@@ -29,6 +29,7 @@ SOFTWARE.
 *** *	Description:	Position interpolation	(at least pretends to be :-))
 ***
 *****************************************************************************/
+
 #include "CInterpolatePos.h"
 
 #include "CIngame.h"
@@ -36,7 +37,7 @@ SOFTWARE.
 // Externs
 extern CIngame* global_ingame;
 
-CInterpolatePos::CInterpolatePos(CPlayer* Player) {
+CInterpolatePos::CInterpolatePos(Gothic2APlayer* Player) {
   InterpolatingPlayer = Player;
   IsInterpolating = false;
   global_ingame->Interpolation.push_back(this);
