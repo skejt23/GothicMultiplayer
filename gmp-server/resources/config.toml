@@ -12,6 +12,14 @@ slots = 12
 admin_passwd = ""
 auth_key = ""
 
+# --- Server Identity ---------------------------------------------------------
+# This seed is automatically generated on first startup and uniquely identifies this server.
+# The seed is used to deterministically derive the server's Ed25519 public/private keypair.
+# DO NOT share this seed - it's the master secret for server identity.
+# Backup this value to preserve your server's identity across migrations.
+# Seed is 32 bytes, base64-encoded (typically 43-44 characters).
+server_identity_seed = ""
+
 # --- Gameplay ----------------------------------------------------------------
 map = "NEWWORLD\\NEWWORLD.ZEN"
 map_md5 = ""

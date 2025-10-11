@@ -25,6 +25,7 @@ SOFTWARE.
 
 #pragma once
 
+#include <array>
 #include <cassert>
 #include <cstdint>
 #include <ostream>
@@ -48,9 +49,21 @@ public:
 
   void LogConfigValues() const;
 
+  // Binary accessors - for network transmission and crypto operations
+  // Returns raw binary data suitable for sending over network or signing
+  std::vector<std::uint8_t> GetServerPublicKeyBinary() const;
+  std::vector<std::uint8_t> GetServerPrivateKeyBinary() const;
+
 protected:
   void ValidateAndFixValues();
   void Load();
+  void EnsureServerKeys();
+  void SaveConfigToFile();
+  void DeriveKeysFromSeed();
 
   std::unordered_map<std::string, std::variant<std::string, std::vector<std::string>, std::int32_t, bool>> values_;
+
+  // Cached binary keys - computed once from seed, reused for all subsequent calls
+  std::vector<std::uint8_t> cached_public_key_;
+  std::vector<std::uint8_t> cached_private_key_;
 };
