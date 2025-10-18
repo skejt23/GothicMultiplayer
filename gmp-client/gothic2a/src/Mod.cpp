@@ -33,7 +33,7 @@ SOFTWARE.
 #include "InjectMage.h"
 #include "config.h"
 #include "CServerList.h"
-#include "CMainMenu.h"
+#include "main_menu.h"
 #include "CActiveAniID.h"
 #include "CIngame.h"
 #include <ctime>

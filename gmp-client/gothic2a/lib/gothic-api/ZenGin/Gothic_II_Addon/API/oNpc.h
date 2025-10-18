@@ -1001,7 +1001,7 @@ namespace Gothic_II_Addon {
     void SetMovLock( int )                                                                       zCall( 0x007380B0 );
     int IsMovLock()                                                                              zCall( 0x007380E0 );
     void SetHead()                                                                               zCall( 0x007380F0 );
-    void SetAdditionalVisuals( zSTRING&, int, int, zSTRING&, int, int, int )                     zCall( 0x00738350 );
+    void SetAdditionalVisuals(const zSTRING& body, int, int, zSTRING&, int, int, int )           zCall( 0x00738350 );
     void InitModel()                                                                             zCall( 0x00738480 );
     zCModel* GetModel()                                                                          zCall( 0x00738720 );
     zSTRING GetVisualBody()                                                                      zCall( 0x007387C0 );

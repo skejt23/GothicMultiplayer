@@ -59,42 +59,33 @@ enum { HEAD, FACE, SKIN, WALKSTYLE };
 class CMainMenu : public TSingleton<CMainMenu> {
 private:
   Resolution ScreenResolution;
-  Gothic_II_Addon::oCItem* CamWeapon;
-  CServerList* ServerList;
+  oCItem* CamWeapon;
+  CServerList server_list_;
   int hbX, hbY;
   int Hour, Minute;
-  char tmpbuff[32];
-  Gothic_II_Addon::zSTRING ChatLinesTMP;
-  bool Christmas;
-  int MusicId;
 
 public:
-  Gothic_II_Addon::zSTRING string_tmp;
-  char versionbuff[32];
-  Gothic_II_Addon::zSTRING VersionString;
-  Gothic_II_Addon::zVEC3 HeroPos;
-  Gothic_II_Addon::zVEC3 Angle;
-  Gothic_II_Addon::zVEC3 NAngle;
-  Gothic_II_Addon::zCView* GMPLogo;
+  zVEC3 HeroPos;
+  zVEC3 Angle;
+  zVEC3 NAngle;
+  zCView* GMPLogo;
   int ps;
-  Gothic_II_Addon::zCMenu* Options;
+  zCMenu* Options;
   int SelectedServer;
-  Gothic_II_Addon::zSTRING ServerIP;
-  Gothic_II_Addon::oCItem* TitleWeapon;
-  Gothic_II_Addon::oCItem* AppWeapon;
-  Gothic_II_Addon::zSTRING WBMapName;
+  zSTRING ServerIP;
+  oCItem* TitleWeapon;
+  oCItem* AppWeapon;
+  zSTRING WBMapName;
   short MenuItems;
   short MenuPos;
   short WBMenuPos;
   short OptionPos;
   MenuState MState;
-  bool TitleWeaponEnabled;
-  bool WritingNickname;
-  Gothic_II_Addon::zSTRING headmodel_tmp;
-  Gothic_II_Addon::zSTRING Walkstyle_tmp;
-  bool AppCamCreated;
-  unsigned char ChoosingApperance;
-  unsigned char LastApperance;
+  bool TitleWeaponEnabled{false};
+  bool WritingNickname{false};
+  bool AppCamCreated{false};
+  unsigned char ChoosingApperance{0};
+  unsigned char LastApperance{0};
   ExtendedServerList* esl;
 
 public:
@@ -117,7 +108,7 @@ public:
   void RunMenuItem();
   void RunWbMenuItem();
   void RunOptionsItem();
-  void ClearNpcTalents(Gothic_II_Addon::oCNpc* Npc);
+  void ClearNpcTalents(oCNpc* Npc);
   void static __stdcall MainMenuLoop();
   void SetServerIP(int selected);
 };

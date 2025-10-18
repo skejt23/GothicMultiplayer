@@ -72,10 +72,9 @@ std::filesystem::path ResolveFavoritesPath(const char* file) {
 using namespace std;
 using namespace G2W;
 
-ExtendedServerList::ExtendedServerList(CServerList* server_list)
+ExtendedServerList::ExtendedServerList(CServerList& server_list)
+: server_list_(server_list)
 {
-	server_list_ = server_list;
-
 	tab_all = new Button(0,0);
 	tab_all->setHighlightTexture("LOG_PAPER.TGA");
 	tab_all->setTexture("INV_BACK_PLUNDER.TGA");
@@ -116,8 +115,6 @@ ExtendedServerList::ExtendedServerList(CServerList* server_list)
 
   loadFav(kDefaultFavoritesFile);
 }
-
-
 
 void ExtendedServerList::loadFav(const char* file) {
     favorite_servers_.clear();
@@ -272,12 +269,8 @@ void ExtendedServerList::HandleInput(){
 }
 
 bool ExtendedServerList::RefreshList(){
-  if (!server_list_) {
-    SPDLOG_ERROR("Failed to refresh server list: CServerList instance is null.");
-    return false;
-  }
-  if (!server_list_->ReceiveListHttp()) {
-    if (const char* error_message = server_list_->GetLastError()) {
+  if (!server_list_.ReceiveListHttp()) {
+    if (const char* error_message = server_list_.GetLastError()) {
                         SPDLOG_ERROR("Failed to refresh server list: {}", error_message);
     }
     DWORD wait_result = WaitForSingleObject(srvList_access, INFINITE);
@@ -296,11 +289,11 @@ bool ExtendedServerList::RefreshList(){
   }
 
   srvList.clear();
-  const size_t server_count = server_list_->GetListSize();
+  const size_t server_count = server_list_.GetListSize();
   srvList.reserve(server_count);
 
   for (size_t index = 0; index < server_count; ++index) {
-    if (auto server_info = server_list_->At(index)) {
+    if (auto server_info = server_list_.At(index)) {
                         ServerInfo server{};
                         server.name = server_info->name.ToChar();
                         server.map = server_info->map.ToChar();

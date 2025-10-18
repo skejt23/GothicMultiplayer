@@ -56,7 +56,6 @@ public:
   std::string WhisperingTo;
   CMap* MMap;
   CShrinker* Shrinker;
-  bool Christmas;
   CInventory* Inventory;
   std::vector<CInterpolatePos*> Interpolation;
 

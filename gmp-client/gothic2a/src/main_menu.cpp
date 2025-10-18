@@ -24,13 +24,12 @@ SOFTWARE.
 */
 
 /*****************************************************************************
-** 	File name:		Interface/CMainMenu.cpp
 ** 	Created by:		06/06/11	-	skejt23
 ** 	Description:	Multiplayer main menu functionallity
 **
 *****************************************************************************/
 
-#include "CMainMenu.h"
+#include "main_menu.h"
 
 #include <spdlog/spdlog.h>
 #include <urlmon.h>
@@ -51,7 +50,7 @@ SOFTWARE.
 #include "patch.h"
 #include "version.h"
 #include "world-builder\CBuilder.h"
-#include "world-utils.hpp"
+#include "world_utils.hpp"
 
 using namespace Gothic_II_Addon;
 
@@ -72,8 +71,6 @@ std::ifstream g2particles;
 constexpr const char* WRITE_MAPNAME = "Write ZEN world name ex. newworld.zen:";
 constexpr const char* WRITE_SAVEDMAP = "Write saved map name:";
 constexpr const char* MAPFILE_EMPTY = "Map file doesn't exist!";
-#define RSS_FILE ""
-#define RSS_URL_ADDON ""
 
 int Language;
 char x[2] = {0, 0};
@@ -90,10 +87,19 @@ void DeleteAllNpcsBesidesHero() {
   }
   ogame->GetSpawnManager()->SetSpawningEnabled(0);
 }
+
+const zSTRING& GetVersionString() {
+  static zSTRING version_string;
+  if (version_string.IsEmpty()) {
+    constexpr std::string_view version = GIT_TAG_LONG;
+    version_string = zSTRING{version.empty() ? "Unknown build" : version.data()};
+  }
+  return version_string;
+}
+
 }  // namespace
 
 CMainMenu::CMainMenu() {
-  string_tmp = "ItMw_1h_Mil_Sword";
   player->SetMovLock(1);
   Patch::PlayerInterfaceEnabled(false);
   LoadConfig();
@@ -120,7 +126,6 @@ CMainMenu::CMainMenu() {
   MState = CHOOSE_LANGUAGE;
 
   oCSpawnManager::SetRemoveRange(2097152.0f);
-  ServerList = new CServerList();
   LaunchMenuScene();
   ogame->GetWorldTimer()->GetTime(Hour, Minute);
   HooksManager* hm = HooksManager::GetInstance();
@@ -130,14 +135,10 @@ CMainMenu::CMainMenu() {
   Angle = player->trafoObjToWorld.GetAtVector();
   NAngle = player->trafoObjToWorld.GetRightVector();
   ClearNpcTalents(player);
-  zCSoundFX* FXMusic;
-  if (Christmas)
-    FXMusic = zsound->LoadSoundFX("XMAS.WAV");
-  else
-    FXMusic = zsound->LoadSoundFX("K_KURKOWSKI_A_CERTAIN_PLACE.WAV");
+  zCSoundFX* FXMusic = zsound->LoadSoundFX("K_KURKOWSKI_A_CERTAIN_PLACE.WAV");
   FXMusic->SetLooping(1);
-  MusicId = zsound->PlaySound(FXMusic, 1);
-};
+  zsound->PlaySound(FXMusic, 1);
+}
 
 CMainMenu::~CMainMenu() {
   delete esl;
@@ -261,13 +262,13 @@ void CMainMenu::LoadLangNames(void) {
 };
 
 void CMainMenu::LaunchMenuScene() {
-  CamWeapon = zfactory->CreateItem(zCParser::GetParser()->GetIndex(string_tmp));
+  // Just a placeholder weapon for the camera (the actual object is not relevant)
+  CamWeapon = zfactory->CreateItem(zCParser::GetParser()->GetIndex("ItMw_1h_Mil_Sword"));
   CamWeapon->name.Clear();
   CamWeapon->SetPositionWorld(zVEC3((float)13354.502930, 2040.0, (float)-1141.678467));
   CamWeapon->RotateWorldY(-150);
   ogame->CamInit(CamWeapon, zCCamera::activeCam);
-  string_tmp = "ItMw_1H_Blessed_03";
-  TitleWeapon = zfactory->CreateItem(zCParser::GetParser()->GetIndex(string_tmp));
+  TitleWeapon = zfactory->CreateItem(zCParser::GetParser()->GetIndex("ItMw_1H_Blessed_03"));
   TitleWeapon->SetPositionWorld(zVEC3((float)13346.502930, 2006.0, (float)-1240.678467));
 };
 
@@ -275,11 +276,10 @@ void CMainMenu::LoadConfig() {
   LoadLangNames();
   Language = Config::Instance().lang;
   if (!Config::Instance().IsDefault()) {
-    headmodel_tmp = Gothic2APlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
-    Walkstyle_tmp = Gothic2APlayer::GetWalkStyleFromByte(Config::Instance().walkstyle);
-    string_tmp = "HUM_BODY_NAKED0";
-    player->SetAdditionalVisuals(string_tmp, Config::Instance().skintexture, 0, headmodel_tmp, Config::Instance().facetexture, 0, -1);
-    player->ApplyOverlay(Walkstyle_tmp);
+    auto head_model = Gothic2APlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
+    auto walkstyle = Gothic2APlayer::GetWalkStyleFromByte(Config::Instance().walkstyle);
+    player->SetAdditionalVisuals("HUM_BODY_NAKED0", Config::Instance().skintexture, 0, head_model, Config::Instance().facetexture, 0, -1);
+    player->ApplyOverlay(walkstyle);
   }
 };
 
@@ -370,9 +370,9 @@ void CMainMenu::PrintMenu() {
                                                                             : Language::Instance()[Language::MMENU_JOYSTICKNO]);
       FColor = (OptionPos == 6) ? Highlighted : Normal;
       screen->SetFontColor(FColor);
-      sprintf(tmpbuff, "%s %d", Language::Instance()[Language::MMENU_CHATLINES].ToChar(), Config::Instance().ChatLines);
-      ChatLinesTMP = tmpbuff;
-      screen->Print(200, 5600, ChatLinesTMP);
+
+      const auto chatlines_str = std::format("{} {}", Language::Instance()[Language::MMENU_CHATLINES].ToChar(), Config::Instance().ChatLines);
+      screen->Print(200, 5600, chatlines_str.c_str());
       FColor = (OptionPos == 7) ? Highlighted : Normal;
       screen->SetFontColor(FColor);
       int printx = 200;
@@ -457,7 +457,7 @@ void CMainMenu::ApplyLanguage(int newLangIndex, bool persist) {
   if (esl) {
     delete esl;
   }
-  esl = new ExtendedServerList(ServerList);
+  esl = new ExtendedServerList(server_list_);
   SelectedServer = 0;
 
   Config::Instance().lang = newLangIndex;
@@ -473,7 +473,8 @@ void CMainMenu::SpeedUpTime() {
     Hour++;
   Minute++;
   ogame->GetWorldTimer()->SetTime(Hour, Minute);
-};
+}
+
 void CMainMenu::ClearNpcTalents(oCNpc* Npc) {
   Npc->inventory2.ClearInventory();
   Npc->DestroySpellBook();
@@ -621,9 +622,6 @@ void __stdcall CMainMenu::MainMenuLoop() {
 };
 
 void CMainMenu::RenderMenu() {
-  if (Christmas) {
-    ogame->GetWorld()->skyControlerOutdoor->SetWeatherType(zTWEATHER_SNOW);
-  }
   if (player->GetPositionWorld()[VX] != HeroPos[VX]) {
     player->trafoObjToWorld.SetTranslation(HeroPos);
     player->trafoObjToWorld.SetAtVector(Angle);
@@ -633,8 +631,7 @@ void CMainMenu::RenderMenu() {
   switch (MState) {
     case CHOOSE_LANGUAGE:
       if (Config::Instance().IsDefault()) {
-        string_tmp = "Choose your language:";
-        screen->Print(200, 200, string_tmp);
+        screen->Print(200, 200, "Choose your language:");
         screen->Print(200, 350, vec_choose_lang[Language]);
         if (zinput->KeyToggled(KEY_LEFT))
           Language = (Language == 0) ? (vec_choose_lang.size() - 1) : Language - 1;
@@ -674,13 +671,10 @@ void CMainMenu::RenderMenu() {
         TitleWeaponEnabled = true;
         ogame->GetWorld()->AddVob(TitleWeapon);
       }
-      if (!Christmas)
-        SpeedUpTime();
+      SpeedUpTime();
       screen->SetFont(FDefault);
       screen->SetFontColor(Normal);
-      std::string version = GIT_TAG_LONG;
-      VersionString = (!version.empty()) ? version.c_str() : "Unknown build";
-      screen->Print(8192 - screen->FontSize(VersionString), 8192 - screen->FontY(), VersionString);
+      screen->Print(8192 - screen->FontSize(GetVersionString()), 8192 - screen->FontY(), GetVersionString());
       static zSTRING HOWTOWB = "F1 - World Builder";
       screen->Print(100, 8192 - screen->FontY(), HOWTOWB);
       static zSTRING fast_localhost_join_text = "F5 - Fast join localhost server";
@@ -751,9 +745,9 @@ void CMainMenu::RenderMenu() {
           DeleteAllNpcsBesidesHero();
           player->trafoObjToWorld.SetTranslation(SpawnpointPos);
           std::string WordBuilderMapFileName = ".\\Multiplayer\\Data\\";
-          WordBuilderMapFileName += NetGame::Instance().game_client->GetServerIp() + "_" + std::to_string(NetGame::Instance().game_client->GetServerPort());
-          std::ifstream WbMap(WordBuilderMapFileName.c_str());
-          if (WbMap.good()) {
+          WordBuilderMapFileName += NetGame::Instance().game_client->GetServerIp() + "_" +
+          std::to_string(NetGame::Instance().game_client->GetServerPort()); std::ifstream WbMap(WordBuilderMapFileName.c_str()); if (WbMap.good())
+          {
             WbMap.close();
             LoadWorld::LoadWorld(WordBuilderMapFileName.c_str(), NetGame::Instance().VobsWorldBuilderMap);
           }
@@ -804,15 +798,13 @@ void CMainMenu::RenderMenu() {
       screen->SetFont(FDefault);
       screen->Print(100, 200, Language::Instance()[Language::APP_INFO1]);
       if (!AppCamCreated) {
-        string_tmp = "ItMw_1h_Mil_Sword";
-        AppWeapon = zfactory->CreateItem(zCParser::GetParser()->GetIndex(string_tmp));
+        AppWeapon = zfactory->CreateItem(zCParser::GetParser()->GetIndex("ItMw_1h_Mil_Sword"));
         AppWeapon->SetPositionWorld(
             zVEC3(player->GetPositionWorld()[VX] - 78, player->GetPositionWorld()[VY] + 50, player->GetPositionWorld()[VZ] - 119));
         AppWeapon->RotateWorldY(30);
         AppWeapon->name.Clear();
-        string_tmp = "HUM_BODY_NAKED0";
-        headmodel_tmp = Gothic2APlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
-        player->SetAdditionalVisuals(string_tmp, Config::Instance().skintexture, 0, headmodel_tmp, Config::Instance().facetexture, 0, -1);
+        auto head_model = Gothic2APlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
+        player->SetAdditionalVisuals("HUM_BODY_NAKED0", Config::Instance().skintexture, 0, head_model, Config::Instance().facetexture, 0, -1);
         player->GetModel()->meshLibList[0]->texAniState.actAniFrames[0][0] = Config::Instance().skintexture;
         ChoosingApperance = ApperancePart::FACE;
         LastApperance = ApperancePart::FACE;
@@ -824,7 +816,6 @@ void CMainMenu::RenderMenu() {
       if ((zinput->KeyToggled(KEY_DOWN)) && (ChoosingApperance < ApperancePart::WALKSTYLE))
         ++ChoosingApperance;
       if ((zinput->KeyPressed(KEY_ESCAPE))) {
-        string_tmp.Clear();
         zinput->ClearKeyBuffer();
         MState = MENU_LOOP;
         Config::Instance().SaveConfigToFile();
@@ -837,15 +828,15 @@ void CMainMenu::RenderMenu() {
           if ((zinput->KeyToggled(KEY_LEFT))) {
             if (Config::Instance().headmodel > 0) {
               Config::Instance().headmodel--;
-              headmodel_tmp = Gothic2APlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
-              player->SetAdditionalVisuals(string_tmp, Config::Instance().skintexture, 0, headmodel_tmp, Config::Instance().facetexture, 0, -1);
+              auto head_model = Gothic2APlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
+              player->SetAdditionalVisuals("HUM_BODY_NAKED0", Config::Instance().skintexture, 0, head_model, Config::Instance().facetexture, 0, -1);
             }
           }
           if ((zinput->KeyToggled(KEY_RIGHT))) {
             if (Config::Instance().headmodel < 5) {
               Config::Instance().headmodel++;
-              headmodel_tmp = Gothic2APlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
-              player->SetAdditionalVisuals(string_tmp, Config::Instance().skintexture, 0, headmodel_tmp, Config::Instance().facetexture, 0, -1);
+              auto head_model = Gothic2APlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
+              player->SetAdditionalVisuals("HUM_BODY_NAKED0", Config::Instance().skintexture, 0, head_model, Config::Instance().facetexture, 0, -1);
             }
           }
           if (LastApperance != ChoosingApperance) {
@@ -860,13 +851,15 @@ void CMainMenu::RenderMenu() {
           if ((zinput->KeyToggled(KEY_LEFT))) {
             if (Config::Instance().facetexture > 0) {
               Config::Instance().facetexture--;
-              player->SetAdditionalVisuals(string_tmp, Config::Instance().skintexture, 0, headmodel_tmp, Config::Instance().facetexture, 0, -1);
+              auto head_model = Gothic2APlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
+              player->SetAdditionalVisuals("HUM_BODY_NAKED0", Config::Instance().skintexture, 0, head_model, Config::Instance().facetexture, 0, -1);
             }
           }
           if ((zinput->KeyToggled(KEY_RIGHT))) {
             if (Config::Instance().facetexture < 162) {
               Config::Instance().facetexture++;
-              player->SetAdditionalVisuals(string_tmp, Config::Instance().skintexture, 0, headmodel_tmp, Config::Instance().facetexture, 0, -1);
+              auto head_model = Gothic2APlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
+              player->SetAdditionalVisuals("HUM_BODY_NAKED0", Config::Instance().skintexture, 0, head_model, Config::Instance().facetexture, 0, -1);
             }
           }
           if (LastApperance != ChoosingApperance) {
@@ -883,14 +876,16 @@ void CMainMenu::RenderMenu() {
           if ((zinput->KeyToggled(KEY_LEFT))) {
             if (Config::Instance().skintexture > 0) {
               Config::Instance().skintexture--;
-              player->SetAdditionalVisuals(string_tmp, Config::Instance().skintexture, 0, headmodel_tmp, Config::Instance().facetexture, 0, -1);
+              auto head_model = Gothic2APlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
+              player->SetAdditionalVisuals("HUM_BODY_NAKED0", Config::Instance().skintexture, 0, head_model, Config::Instance().facetexture, 0, -1);
               player->GetModel()->meshLibList[0]->texAniState.actAniFrames[0][0] = Config::Instance().skintexture;
             }
           }
           if ((zinput->KeyToggled(KEY_RIGHT))) {
             if (Config::Instance().skintexture < 12) {
               Config::Instance().skintexture++;
-              player->SetAdditionalVisuals(string_tmp, Config::Instance().skintexture, 0, headmodel_tmp, Config::Instance().facetexture, 0, -1);
+              auto head_model = Gothic2APlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
+              player->SetAdditionalVisuals("HUM_BODY_NAKED0", Config::Instance().skintexture, 0, head_model, Config::Instance().facetexture, 0, -1);
               player->GetModel()->meshLibList[0]->texAniState.actAniFrames[0][0] = Config::Instance().skintexture;
             }
           }
@@ -902,10 +897,11 @@ void CMainMenu::RenderMenu() {
             if (Config::Instance().walkstyle > 0) {
               if (player->GetModel()->IsAnimationActive(WalkAnim))
                 player->GetModel()->StopAnimation(WalkAnim);
-              player->RemoveOverlay(Walkstyle_tmp);
+              auto walkstyle_tmp = Gothic2APlayer::GetWalkStyleFromByte(Config::Instance().walkstyle);
+              player->RemoveOverlay(walkstyle_tmp);
               Config::Instance().walkstyle--;
-              Walkstyle_tmp = Gothic2APlayer::GetWalkStyleFromByte(Config::Instance().walkstyle);
-              player->ApplyOverlay(Walkstyle_tmp);
+              walkstyle_tmp = Gothic2APlayer::GetWalkStyleFromByte(Config::Instance().walkstyle);
+              player->ApplyOverlay(walkstyle_tmp);
             }
           }
           if ((zinput->KeyPressed(KEY_RIGHT))) {
@@ -913,10 +909,11 @@ void CMainMenu::RenderMenu() {
             if (Config::Instance().walkstyle < 6) {
               if (player->GetModel()->IsAnimationActive(WalkAnim))
                 player->GetModel()->StopAnimation(WalkAnim);
-              player->RemoveOverlay(Walkstyle_tmp);
+              auto walkstyle_tmp = Gothic2APlayer::GetWalkStyleFromByte(Config::Instance().walkstyle);
+              player->RemoveOverlay(walkstyle_tmp);
               Config::Instance().walkstyle++;
-              Walkstyle_tmp = Gothic2APlayer::GetWalkStyleFromByte(Config::Instance().walkstyle);
-              player->ApplyOverlay(Walkstyle_tmp);
+              walkstyle_tmp = Gothic2APlayer::GetWalkStyleFromByte(Config::Instance().walkstyle);
+              player->ApplyOverlay(walkstyle_tmp);
             }
           }
           if (!player->GetModel()->IsAnimationActive(WalkAnim))
@@ -1123,13 +1120,14 @@ void CMainMenu::RenderMenu() {
         Config::Instance().WatchPosX += 16;
       break;
   };
-};
+}
+
 void CMainMenu::SetServerIP(int selected) {
   if (selected >= 0) {
     if (!ServerIP.IsEmpty())
       ServerIP.Clear();
     char buffer[128];
-    sprintf(buffer, "%s:%hu\0", ServerList->At((size_t)selected)->ip.ToChar(), ServerList->At((size_t)selected)->port);
+    sprintf(buffer, "%s:%hu\0", server_list_.At((size_t)selected)->ip.ToChar(), server_list_.At((size_t)selected)->port);
     ServerIP = buffer;
   }
 }

@@ -48,7 +48,7 @@ struct FavoriteServerEndpoint {
 
 class ExtendedServerList {
 public:
-  ExtendedServerList(CServerList* server_list);
+  ExtendedServerList(CServerList& server_list);
   ~ExtendedServerList(void);
   void SelectServer(int index);
   void Draw();
@@ -77,5 +77,5 @@ private:
   std::vector<ServerInfo> srvList;
   int SelectedTab;
   int SelectedServer;
-  CServerList* server_list_;
+  CServerList& server_list_;
 };

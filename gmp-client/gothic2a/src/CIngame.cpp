@@ -30,7 +30,7 @@ SOFTWARE.
 #include <format>
 
 #include "CActiveAniID.h"
-#include "CMainMenu.h"
+#include "main_menu.h"
 #include "CMenu.h"
 #include "CWatch.h"
 #include "HooksManager.h"
@@ -163,9 +163,6 @@ void CIngame::Loop() {
     // INVENTORY RENDER
     if (global_ingame->Inventory)
       global_ingame->Inventory->RenderInventory();
-    // START SNOW IF CHRISTMAS
-    if (global_ingame->Christmas)
-      ogame->GetWorld()->skyControlerOutdoor->SetWeatherType(zTWEATHER_SNOW);
     // RUN SHRINKER
     global_ingame->Shrinker->Loop();
     // CHECK FOR SWAMP LIGHTS STATE

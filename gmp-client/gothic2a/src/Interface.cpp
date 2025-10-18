@@ -33,7 +33,7 @@ SOFTWARE.
 
 #include "CIngame.h"
 #include "language.h"
-#include "CMainMenu.h"
+#include "main_menu.h"
 #include "CMenu.h"
 #include "HooksManager.h"
 #include "world-builder\CBuilder.h"

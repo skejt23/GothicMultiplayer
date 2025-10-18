@@ -208,7 +208,7 @@ namespace Gothic_II_Addon {
     zCFont* GetFont()                                                                                                 zCall( 0x007A9950 );
     zSTRING GetFontName()                                                                                             zCall( 0x007A9960 );
     int FontY()                                                                                                       zCall( 0x007A99F0 );
-    int FontSize( zSTRING& )                                                                                          zCall( 0x007A9A10 );
+    int FontSize(const zSTRING& str)                                                                                  zCall( 0x007A9A10 );
     void Print( int, int, zSTRING const& )                                                                            zCall( 0x007A9A40 );
     void PrintChars( int, int, zSTRING const& )                                                                       zCall( 0x007A9B10 );
     void PrintCX( int, zSTRING const& )                                                                               zCall( 0x007A9E50 );
