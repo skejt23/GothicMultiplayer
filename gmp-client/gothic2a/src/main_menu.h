@@ -45,13 +45,10 @@ enum MenuState {
   CHOOSE_SRV_LOOP,
   MENU_OPTIONS,
   MENU_OPTONLINE,
-  MENU_SETWATCHPOS,
-  MENU_WORLDBUILDER,
-  WRITE_WORLDNAME,
-  LOAD_WBMAP
+  MENU_SETWATCHPOS
 };
 
-enum PrintState { MAIN_MENU = 0, SERVER_LIST, SETTINGS_MENU, WORLDBUILDER_MENU };
+enum PrintState { MAIN_MENU = 0, SERVER_LIST, SETTINGS_MENU };
 namespace ApperancePart {
 enum { HEAD, FACE, SKIN, WALKSTYLE };
 };
@@ -75,10 +72,8 @@ public:
   zSTRING ServerIP;
   oCItem* TitleWeapon;
   oCItem* AppWeapon;
-  zSTRING WBMapName;
   short MenuItems;
   short MenuPos;
-  short WBMenuPos;
   short OptionPos;
   MenuState MState;
   bool TitleWeaponEnabled{false};

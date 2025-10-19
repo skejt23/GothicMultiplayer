@@ -78,3 +78,15 @@ void CleanupWorldObjects(oCWorld* world) {
     }
   }
 }
+
+void DeleteAllNpcsAndDisableSpawning() {
+  zCListSort<oCNpc>* NpcList = ogame->GetGameWorld()->voblist_npcs;
+  int size = NpcList->GetNumInList();
+  for (int i = 0; i < size; i++) {
+    NpcList = NpcList->next;
+    oCNpc* NpcOnList = NpcList->GetData();
+    if (NpcOnList->GetInstance() != 11471)
+      NpcOnList->Disable();
+  }
+  ogame->GetSpawnManager()->SetSpawningEnabled(0);
+}

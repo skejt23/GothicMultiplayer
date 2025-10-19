@@ -49,7 +49,6 @@ SOFTWARE.
 #include "net_game.h"
 #include "patch.h"
 #include "version.h"
-#include "world-builder\CBuilder.h"
 #include "world_utils.hpp"
 
 using namespace Gothic_II_Addon;
@@ -65,29 +64,11 @@ extern zCOLOR Green;
 zCOLOR FColor;
 constexpr const char* FDefault = "FONT_DEFAULT.TGA";
 constexpr const char* WalkAnim = "S_WALKL";
-CBuilder* Builder;
-std::ifstream g2names;
-std::ifstream g2particles;
-constexpr const char* WRITE_MAPNAME = "Write ZEN world name ex. newworld.zen:";
-constexpr const char* WRITE_SAVEDMAP = "Write saved map name:";
-constexpr const char* MAPFILE_EMPTY = "Map file doesn't exist!";
 
 int Language;
 char x[2] = {0, 0};
 
 namespace {
-void DeleteAllNpcsBesidesHero() {
-  zCListSort<oCNpc>* NpcList = ogame->GetGameWorld()->voblist_npcs;
-  int size = NpcList->GetNumInList();
-  for (int i = 0; i < size; i++) {
-    NpcList = NpcList->next;
-    oCNpc* NpcOnList = NpcList->GetData();
-    if (NpcOnList->GetInstance() != 11471)
-      NpcOnList->Disable();
-  }
-  ogame->GetSpawnManager()->SetSpawningEnabled(0);
-}
-
 const zSTRING& GetVersionString() {
   static zSTRING version_string;
   if (version_string.IsEmpty()) {
@@ -105,8 +86,8 @@ CMainMenu::CMainMenu() {
   LoadConfig();
   ScreenResolution.x = zoptions->ReadInt(zOPT_SEC_VIDEO, "zVidResFullscreenX", 320);
   ScreenResolution.y = zoptions->ReadInt(zOPT_SEC_VIDEO, "zVidResFullscreenY", 258);
-  MenuItems = 4;
-  hbX, hbY, ps = 0, MenuPos = 0, OptionPos = 0, WBMenuPos = 0;
+  MenuItems = 3;
+  hbX, hbY, ps = 0, MenuPos = 0, OptionPos = 0;
   RECT wymiary;
   GetWindowRect(Patch::GetHWND(), &wymiary);
   fWRatio = 1280.0f / (float)wymiary.right;  // zalozenie jest takie ze szerokosc jest dopasowywana weddug szerokosci 1280
@@ -324,10 +305,7 @@ void CMainMenu::PrintMenu() {
       screen->Print(200, 4000, Language::Instance()[Language::MMENU_OPTIONS]);
       FColor = (MenuPos == 3) ? Highlighted : Normal;
       screen->SetFontColor(FColor);
-      screen->Print(200, 4400, Language::Instance()[Language::MMENU_ONLINEOPTIONS]);
-      FColor = (MenuPos == 4) ? Highlighted : Normal;
-      screen->SetFontColor(FColor);
-      screen->Print(200, 4800, Language::Instance()[Language::MMENU_LEAVEGAME]);
+      screen->Print(200, 4400, Language::Instance()[Language::MMENU_LEAVEGAME]);
       break;
     case SERVER_LIST: {
       esl->HandleInput();
@@ -408,18 +386,6 @@ void CMainMenu::PrintMenu() {
       screen->SetFontColor(FColor);
       screen->Print(200, 7200, Language::Instance()[Language::MMENU_BACK]);
     } break;
-    case WORLDBUILDER_MENU:
-      screen->SetFont("FONT_OLD_20_WHITE.TGA");
-      FColor = (WBMenuPos == 0) ? Highlighted : Normal;
-      screen->SetFontColor(FColor);
-      screen->Print(200, 3200, Language::Instance()[Language::WB_NEWMAP]);
-      FColor = (WBMenuPos == 1) ? Highlighted : Normal;
-      screen->SetFontColor(FColor);
-      screen->Print(200, 3600, Language::Instance()[Language::WB_LOADMAP]);
-      FColor = (WBMenuPos == 2) ? Highlighted : Normal;
-      screen->SetFontColor(FColor);
-      screen->Print(200, 4000, Language::Instance()[Language::MMENU_BACK]);
-      break;
   }
 };
 
@@ -527,11 +493,6 @@ void CMainMenu::RunMenuItem() {
       Options->Run();
       break;
     case 3:
-      // OPCJE DODATKOWE
-      MState = MENU_OPTONLINE;
-      ps = SETTINGS_MENU;
-      break;
-    case 4:
       // WYJDZ Z GRY
       gameMan->Done();
       break;
@@ -597,25 +558,6 @@ void CMainMenu::RunOptionsItem() {
       break;
   };
 };
-void CMainMenu::RunWbMenuItem() {
-  switch (WBMenuPos) {
-    case 0:
-      // NOWA MAPA
-      MState = WRITE_WORLDNAME;
-      WBMapName.Clear();
-      break;
-    case 1:
-      // WCZYTYWANIE MAPY
-      MState = LOAD_WBMAP;
-      WBMapName.Clear();
-      break;
-    case 2:
-      // POWROT DO MENU
-      ps = MAIN_MENU;
-      MState = MENU_LOOP;
-      break;
-  };
-};
 
 void __stdcall CMainMenu::MainMenuLoop() {
   CMainMenu::GetInstance()->RenderMenu();
@@ -675,26 +617,10 @@ void CMainMenu::RenderMenu() {
       screen->SetFont(FDefault);
       screen->SetFontColor(Normal);
       screen->Print(8192 - screen->FontSize(GetVersionString()), 8192 - screen->FontY(), GetVersionString());
-      static zSTRING HOWTOWB = "F1 - World Builder";
-      screen->Print(100, 8192 - screen->FontY(), HOWTOWB);
       static zSTRING fast_localhost_join_text = "F5 - Fast join localhost server";
-      screen->Print(100 + screen->FontSize(HOWTOWB) + 50, 8192 - screen->FontY(), fast_localhost_join_text);
+      screen->Print(100, 8192 - screen->FontY(), fast_localhost_join_text);
       if (TitleWeapon)
         TitleWeapon->RotateWorldX(0.6f);
-      if (zinput->KeyToggled(KEY_F1)) {
-        g2names.open(".\\Multiplayer\\world-builder\\g2mobs.wb");
-        g2particles.open(".\\Multiplayer\\world-builder\\g2particles.wb");
-        if (g2names.good() && g2particles.good()) {
-          ps = WORLDBUILDER_MENU;
-          MState = MENU_WORLDBUILDER;
-        } else
-          ogame->array_view[oCGame::GAME_VIEW_SCREEN]->PrintTimedCXY(
-              "Important World Builder files missing. Couldn't launch. Download full installer from GMP site.", 5000.0f, 0);
-        g2names.close();
-        g2particles.close();
-        g2names.clear();
-        g2particles.clear();
-      }
       if (zinput->KeyToggled(KEY_F5)) {
         SelectedServer = -1;
         ServerIP = "127.0.0.1";
@@ -742,25 +668,9 @@ void CMainMenu::RenderMenu() {
             ogame->ChangeLevel(NetGame::Instance().map, zSTRING("????"));
             Patch::ChangeLevelEnabled(false);
           }
-          DeleteAllNpcsBesidesHero();
+          DeleteAllNpcsAndDisableSpawning();
           player->trafoObjToWorld.SetTranslation(SpawnpointPos);
-          std::string WordBuilderMapFileName = ".\\Multiplayer\\Data\\";
-          WordBuilderMapFileName += NetGame::Instance().game_client->GetServerIp() + "_" +
-          std::to_string(NetGame::Instance().game_client->GetServerPort()); std::ifstream WbMap(WordBuilderMapFileName.c_str()); if (WbMap.good())
-          {
-            WbMap.close();
-            LoadWorld::LoadWorld(WordBuilderMapFileName.c_str(), NetGame::Instance().VobsWorldBuilderMap);
-          }
           CleanupWorldObjects(ogame->GetGameWorld());
-          if (WbMap.is_open())
-            WbMap.close();
-          WordBuilderMapFileName.clear();
-          if (NetGame::Instance().VobsWorldBuilderMap.size() > 0) {
-            for (int i = 0; i < (int)NetGame::Instance().VobsWorldBuilderMap.size(); i++) {
-              if (NetGame::Instance().VobsWorldBuilderMap[i].Type == TYPE_MOB)
-                NetGame::Instance().VobsWorldBuilderMap[i].Vob->SetCollDet(1);
-            }
-          }
           NetGame::Instance().JoinGame();
         }
       }
@@ -1005,101 +915,6 @@ void CMainMenu::RenderMenu() {
         }
       }
       PrintMenu();
-      break;
-    case MENU_WORLDBUILDER:
-      if (TitleWeapon)
-        TitleWeapon->RotateWorldX(0.6f);
-      // Wybor opcji przez enter
-      if (zinput->KeyToggled(KEY_UP)) {
-        WBMenuPos == 0 ? WBMenuPos = 2 : WBMenuPos--;
-      }
-      if (zinput->KeyToggled(KEY_DOWN)) {
-        WBMenuPos == 2 ? WBMenuPos = 0 : WBMenuPos++;
-      }
-      if (zinput->KeyPressed(KEY_RETURN)) {
-        zinput->ClearKeyBuffer();
-        RunWbMenuItem();
-      }
-      PrintMenu();
-      break;
-    case WRITE_WORLDNAME:
-      if (TitleWeapon)
-        TitleWeapon->RotateWorldX(0.6f);
-      if (zinput->KeyToggled(KEY_ESCAPE)) {
-        ps = WORLDBUILDER_MENU;
-        MState = MENU_WORLDBUILDER;
-      }
-      x[0] = GInput::GetCharacterFormKeyboard(true);
-      if ((x[0] == 8) && (WBMapName.Length() > 0))
-        WBMapName.DeleteRight(1);
-      if ((x[0] >= 0x20) && (WBMapName.Length() < 24))
-        WBMapName += x;
-      if ((x[0] == 0x0D) && (!WBMapName.IsEmpty())) {
-        CleanUpMainMenu();
-        HooksManager::GetInstance()->RemoveHook(HT_RENDER, (DWORD)MainMenuLoop);
-        WBMapName.Upper();
-        if (!strstr(WBMapName.ToChar(), ".ZEN"))
-          WBMapName += ".ZEN";
-        if (!memcmp("NEWWORLD.ZEN", WBMapName.ToChar(), 12)) {
-          WBMapName = "NEWWORLD\\NEWWORLD.ZEN";
-          goto ALLDONE;
-        };
-        if (!memcmp("OLDWORLD.ZEN", WBMapName.ToChar(), 12)) {
-          WBMapName = "OLDWORLD\\OLDWORLD.ZEN";
-        };
-        if (!memcmp("ADDONWORLD.ZEN", WBMapName.ToChar(), 13)) {
-          WBMapName = "ADDON\\ADDONWORLD.ZEN";
-        };
-        Patch::ChangeLevelEnabled(true);
-        ogame->ChangeLevel(WBMapName, zSTRING("????"));
-        Patch::ChangeLevelEnabled(false);
-      ALLDONE:
-        DeleteAllNpcsBesidesHero();
-        Builder = new CBuilder();
-        HooksManager::GetInstance()->AddHook(HT_RENDER, (DWORD)WorldBuilderInterface, false);
-      }
-      screen->PrintCX(3600, WRITE_MAPNAME);
-      screen->PrintCX(4000, WBMapName);
-      break;
-    case LOAD_WBMAP:
-      if (TitleWeapon)
-        TitleWeapon->RotateWorldX(0.6f);
-      if (zinput->KeyToggled(KEY_ESCAPE)) {
-        ps = WORLDBUILDER_MENU;
-        MState = MENU_WORLDBUILDER;
-      }
-      x[0] = GInput::GetCharacterFormKeyboard();
-      if ((x[0] == 8) && (WBMapName.Length() > 0))
-        WBMapName.DeleteRight(1);
-      if ((x[0] >= 0x20) && (WBMapName.Length() < 24))
-        WBMapName += x;
-      if ((x[0] == 0x0D) && (!WBMapName.IsEmpty())) {
-        WBMapName.Upper();
-        if (!strstr(WBMapName.ToChar(), ".WBM"))
-          WBMapName += ".WBM";
-        char buffer[64];
-        sprintf(buffer, ".\\Multiplayer\\world-builder\\Maps\\%s", WBMapName.ToChar());
-        std::string Map = LoadWorld::GetZenName(buffer);
-        if (Map.size() > 0) {
-          CleanUpMainMenu();
-          HooksManager::GetInstance()->RemoveHook(HT_RENDER, (DWORD)MainMenuLoop);
-          if (!memcmp("NEWWORLD\\NEWWORLD.ZEN", Map.c_str(), 22)) {
-            goto ALLDONE2;
-          };
-          WBMapName = Map.c_str();
-          Patch::ChangeLevelEnabled(true);
-          ogame->ChangeLevel(WBMapName, zSTRING("????"));
-          Patch::ChangeLevelEnabled(false);
-        ALLDONE2:
-          DeleteAllNpcsBesidesHero();
-          Builder = new CBuilder();
-          LoadWorld::LoadWorld(buffer, Builder->SpawnedVobs);
-          HooksManager::GetInstance()->AddHook(HT_RENDER, (DWORD)WorldBuilderInterface, false);
-        } else
-          ogame->array_view[oCGame::GAME_VIEW_SCREEN]->PrintTimedCX(2000, MAPFILE_EMPTY, 5000.0f, 0);
-      }
-      screen->PrintCX(3600, WRITE_SAVEDMAP);
-      screen->PrintCX(4000, WBMapName);
       break;
     case MENU_SETWATCHPOS:
       if (Config::Instance().watch)

@@ -36,7 +36,6 @@ SOFTWARE.
 #include "main_menu.h"
 #include "CMenu.h"
 #include "HooksManager.h"
-#include "world-builder\CBuilder.h"
 #include "net_game.h"
 #include "keyboard.h"
 #include "mod.h"
@@ -45,18 +44,10 @@ bool HelpOpen = false;
 CMenu* MainMenu;
 std::vector<CMenu*> MenuList;
 zCMenu* Options;
-constexpr const char* WriteMapName = "Write map name:";
-constexpr const char* MAPSAVED = "Map successfully saved!";
-constexpr const char* CANTSAVE = "Saving map failed!";
-extern CBuilder* Builder;
-char TextFFS[2] = {0, 0};
-bool WritingMapSave = false;
 bool OrgOptionsOpened = false;
 extern zCOLOR Red;
 extern zCOLOR Normal;
-constexpr const char* WorldBuilder = "World Builder";
 constexpr const char* GothicMP = "Gothic Multiplayer";
-bool InWorldBuilder = false;
 
 // MENU FUNCTIONS
 void CreateHelpMenu() {
@@ -101,12 +92,10 @@ void LeaveOptionsMenu() {
   Options->Leave();
   gameMan->ApplySomeSettings();
   player->SetMovLock(1);
-  CreateMainMenu(InWorldBuilder);
+  CreateMainMenu();
 };
 
 void InterfaceLoop(void) {
-  if (InWorldBuilder)
-    InWorldBuilder = false;
   if (HelpOpen) {
     screen->Print(2500, 2000, Language::Instance()[Language::HCONTROLS]);
     screen->Print(2500, 2200, Language::Instance()[Language::HCHAT]);
@@ -141,7 +130,7 @@ void InterfaceLoop(void) {
         if (HelpOpen) {
           HelpOpen = false;
         }
-        CreateMainMenu(false);
+        CreateMainMenu();
       } else {
         if (MainMenu->IsOpened()) {
           MainMenu->Close();
@@ -151,144 +140,18 @@ void InterfaceLoop(void) {
           if (HelpOpen) {
             HelpOpen = false;
           }
-          CreateMainMenu(false);
+          CreateMainMenu();
         }
       }
     }
   }
 }
 
-// WORLD BUILDER MENU FUNCTIONS
-void SaveMap() {
-  zinput->ClearKeyBuffer();
-  WritingMapSave = true;
-}
-void ExitToBigMainMenuFromWB() {
-  auto pos = player->trafoObjToWorld.GetTranslation();
-  player->ResetPos(pos);
-  player->RefreshNpc();
-  MainMenu = NULL;
-  HooksManager::GetInstance()->RemoveHook(HT_RENDER, (DWORD)RenderEvent);
-  HooksManager::GetInstance()->RemoveHook(HT_RENDER, (DWORD)WorldBuilderInterface);
-  delete Builder;
-  Builder = NULL;
-  CMainMenu::GetInstance()->ReLaunchMainMenu();
-}
-void ExitGameFromMainMenuWB() {
-  gameMan->Done();
-}
-// WORLD BUILDER HELP
-constexpr const char* H_CHOBJECT = "Q/E Change object";
-constexpr const char* H_UPDOWN = "Z/X Down and up";
-constexpr const char* H_ROTY = "NUMPAD 4/8/6/2 Rotations";
-constexpr const char* H_ROTYRESET = "NUMPAD 0 Reset rotation";
-constexpr const char* H_CAMDIS = "+/- Change camera distance";
-constexpr const char* H_UNDO = "F1 - Undo";
-constexpr const char* H_SPAWN = "NUMPAD ENTER/ KEY S - SPAWN OBJECT";
-constexpr const char* H_SPAWNPLAYER = "G - Spawn player near object";
-constexpr const char* H_TEST = "T - Launch test mode";
-constexpr const char* H_SPEED = "NUMPAD 1/3 - Decrease/Increase moving speed";
-constexpr const char* H_LEFTRIGHT = "DELETE/PAGEDOWN - Move left/right";
-constexpr const char* H_COLLIDE = "END - Mob collision ON/OFF";
-constexpr const char* H_OBJMENU = "F2 - Objects Menu ON/OFF";
-constexpr const char* H_CHANGETYPE = "HOME - Change mob type";
-constexpr const char* H_INOBJMENU = "In object menu : DELETE - erase vob, SPACE - Stop rotation";
-// WB MENU INTERFACE
-void WorldBuilderInterface(void) {
-  static zSTRING MapNameTxt;
-  if (!InWorldBuilder)
-    InWorldBuilder = true;
-  if (WritingMapSave) {
-    TextFFS[0] = GInput::GetCharacterFormKeyboard();
-    if ((TextFFS[0] == 8) && (MapNameTxt.Length() > 0))
-      MapNameTxt.DeleteRight(1);
-    if ((TextFFS[0] >= 0x20) && (MapNameTxt.Length() < 24))
-      MapNameTxt += TextFFS;
-    if ((TextFFS[0] == 0x0D) && (!MapNameTxt.IsEmpty())) {
-      WritingMapSave = false;
-      if (SaveWorld::SaveBuilderMap(Builder->SpawnedVobs, MapNameTxt.ToChar()))
-        ogame->array_view[oCGame::GAME_VIEW_SCREEN]->PrintTimedCXY(MAPSAVED, 5000.0f, 0);
-      else
-        ogame->array_view[oCGame::GAME_VIEW_SCREEN]->PrintTimedCXY(CANTSAVE, 5000.0f, 0);
-    }
-    screen->PrintCX(3600, WriteMapName);
-    screen->PrintCX(4000, MapNameTxt);
-    if (zinput->KeyToggled(KEY_ESCAPE)) {
-      WritingMapSave = false;
-    }
-  }
-  if (HelpOpen) {
-    screen->Print(2500, 2000, Language::Instance()[Language::HCONTROLS]);
-    screen->Print(2500, 2200, H_CHOBJECT);
-    screen->Print(2500, 2400, H_UPDOWN);
-    screen->Print(2500, 2600, H_ROTY);
-    screen->Print(2500, 2800, H_ROTYRESET);
-    screen->Print(2500, 3000, H_CAMDIS);
-    screen->Print(2500, 3200, H_UNDO);
-    screen->Print(2500, 3400, H_SPAWN);
-    screen->Print(2500, 3600, H_SPAWNPLAYER);
-    screen->Print(2500, 3800, H_TEST);
-    screen->Print(2500, 4000, H_SPEED);
-    screen->Print(2500, 4200, H_LEFTRIGHT);
-    screen->Print(2500, 4400, H_COLLIDE);
-    screen->Print(2500, 4600, H_OBJMENU);
-    screen->Print(2500, 4800, H_CHANGETYPE);
-    screen->Print(2500, 5000, H_INOBJMENU);
-  }
-  if (OrgOptionsOpened) {
-    if (!player->IsMovLock())
-      player->SetMovLock(1);
-    if (memcmp("MENU_OPTIONS", zCMenu::GetActive()->GetName().ToChar(), 12) == 0 && zinput->KeyPressed(KEY_ESCAPE))
-      LeaveOptionsMenu();
-    if (memcmp("MENUITEM_OPT_BACK", Options->GetActiveItem()->GetName().ToChar(), 17) == 0 && zinput->KeyPressed(KEY_RETURN))
-      LeaveOptionsMenu();
-  }
-  if (MenuList.size() > 0) {
-    for (int i = 0; i < (int)MenuList.size(); i++) {
-      if (MenuList[i]) {
-        if (MenuList[i]->IsOpened())
-          MenuList[i]->RenderMenu();
-      }
-    }
-  }
-  if (!player->inventory2.IsOpen()) {
-    if (zinput->KeyToggled(KEY_ESCAPE) && !OrgOptionsOpened && !WritingMapSave) {
-      if (!MainMenu) {
-        if (HelpOpen) {
-          HelpOpen = false;
-        }
-        CreateMainMenu(true);
-      } else {
-        if (MainMenu->IsOpened()) {
-          MainMenu->Close();
-        } else {
-          delete MainMenu;
-          MainMenu = NULL;
-          if (HelpOpen) {
-            HelpOpen = false;
-          }
-          CreateMainMenu(true);
-        }
-      }
-    }
-  }
-}
-
-void CreateMainMenu(bool InWorldBuilder) {
-  if (!InWorldBuilder) {
-    MainMenu = new CMenu(GothicMP, zCOLOR(0, 128, 128), 3500, 4000);  // MAIN-MENU
-    MainMenu->AddMenuItem(Language::Instance()[Language::INGAMEM_BACKTOGAME], (DWORD)ExitMainMenu);
-    MainMenu->AddMenuItem(Language::Instance()[Language::INGAMEM_HELP], (DWORD)CreateHelpMenu);
-    MainMenu->AddMenuItem(Language::Instance()[Language::MMENU_OPTIONS], (DWORD)CreateOptionsMenu);
-    MainMenu->AddMenuItem(Language::Instance()[Language::EXITTOMAINMENU], (DWORD)ExitToBigMainMenu);
-    MainMenu->AddMenuItem(Language::Instance()[Language::MMENU_LEAVEGAME], (DWORD)ExitGameFromMainMenu);
-  } else {
-    MainMenu = new CMenu(WorldBuilder, zCOLOR(0, 128, 128), 3500, 4000);  // MAIN-MENU
-    MainMenu->AddMenuItem(Language::Instance()[Language::INGAMEM_BACKTOGAME], (DWORD)ExitMainMenu);
-    MainMenu->AddMenuItem(Language::Instance()[Language::WB_SAVEMAP], (DWORD)SaveMap);
-    MainMenu->AddMenuItem(Language::Instance()[Language::INGAMEM_HELP], (DWORD)CreateHelpMenu);
-    MainMenu->AddMenuItem(Language::Instance()[Language::MMENU_OPTIONS], (DWORD)CreateOptionsMenu);
-    MainMenu->AddMenuItem(Language::Instance()[Language::EXITTOMAINMENU], (DWORD)ExitToBigMainMenuFromWB);
-    MainMenu->AddMenuItem(Language::Instance()[Language::MMENU_LEAVEGAME], (DWORD)ExitGameFromMainMenuWB);
-  }
+void CreateMainMenu() {
+  MainMenu = new CMenu(GothicMP, zCOLOR(0, 128, 128), 3500, 4000);  // MAIN-MENU
+  MainMenu->AddMenuItem(Language::Instance()[Language::INGAMEM_BACKTOGAME], (DWORD)ExitMainMenu);
+  MainMenu->AddMenuItem(Language::Instance()[Language::INGAMEM_HELP], (DWORD)CreateHelpMenu);
+  MainMenu->AddMenuItem(Language::Instance()[Language::MMENU_OPTIONS], (DWORD)CreateOptionsMenu);
+  MainMenu->AddMenuItem(Language::Instance()[Language::EXITTOMAINMENU], (DWORD)ExitToBigMainMenu);
+  MainMenu->AddMenuItem(Language::Instance()[Language::MMENU_LEAVEGAME], (DWORD)ExitGameFromMainMenu);
 };

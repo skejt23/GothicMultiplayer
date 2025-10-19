@@ -35,6 +35,5 @@ SOFTWARE.
 #pragma once
 
 void InterfaceLoop(void);
-void WorldBuilderInterface(void);
-void CreateMainMenu(bool InWorldBuilder);
+void CreateMainMenu(void);
 void ExitToBigMainMenu(void);

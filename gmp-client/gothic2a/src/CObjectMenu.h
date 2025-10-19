@@ -25,7 +25,6 @@ SOFTWARE.
 
 #pragma once
 
-#include "world-builder/load.h"
 #include "ZenGin/zGothicAPI.h"
 
 class CObjectMenu {

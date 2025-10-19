@@ -33,7 +33,6 @@ SOFTWARE.
 #include "ZenGin/zGothicAPI.h"
 #include "event_observer.hpp"
 #include "game_client.hpp"
-#include "world-builder\load.h"
 
 enum FILE_REQ { WB_FILE = 1, NULL_SIZE = 255 };
 
@@ -74,7 +73,6 @@ public:
   }
 
   std::vector<Gothic2APlayer*> players;
-  std::vector<Info> VobsWorldBuilderMap;
   int HeroLastHp;
   zSTRING map;
   bool IsAdminOrModerator{false};

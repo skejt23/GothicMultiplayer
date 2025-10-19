@@ -264,12 +264,6 @@ void NetGame::Disconnect() {
     // }
     game_client->Disconnect();
     Gothic2APlayer::DeleteAllPlayers();
-    if (VobsWorldBuilderMap.size() > 0) {
-      for (int i = 0; i < (int)VobsWorldBuilderMap.size(); i++) {
-        VobsWorldBuilderMap[i].Vob->RemoveVobFromWorld();
-      }
-      VobsWorldBuilderMap.clear();
-    }
     CChat::GetInstance()->ClearChat();
     if (global_ingame) {
       global_ingame->WhisperingTo.clear();

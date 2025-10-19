@@ -31,3 +31,8 @@ SOFTWARE.
  * Removes all items from the world, cleans and unlocks all containers and doors.
  */
 void CleanupWorldObjects(oCWorld* world);
+
+/*
+ * Deletes all NPCs from the world and disables NPC spawning. Excludes the player character.
+ */
+void DeleteAllNpcsAndDisableSpawning();
