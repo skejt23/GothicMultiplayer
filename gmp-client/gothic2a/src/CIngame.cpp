@@ -142,7 +142,7 @@ void CIngame::Loop() {
     // SENDING MY ANIMATION
     zCModel* model = player->GetModel();
     if (model && model->numActiveAnis > 0) {
-      zCModelAni* AniUnusual = model->aniChannels[1] ? model->aniChannels[1]->protoAni : nullptr;  // TALK, TURNR ETC
+      zCModelAni* AniUnusual = model->numActiveAnis > 1 ? model->aniChannels[1]->protoAni : nullptr;  // TALK, TURNR ETC
       zCModelAni* Ani = model->aniChannels[0] ? model->aniChannels[0]->protoAni : nullptr;         // ZWYKLE
       if (Ani) {
         if (Ani->GetAniName().Search(TURN) < 2) {

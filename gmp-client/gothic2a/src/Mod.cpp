@@ -36,6 +36,7 @@ SOFTWARE.
 #include "main_menu.h"
 #include "CActiveAniID.h"
 #include "CIngame.h"
+#include "language.h"
 #include <ctime>
 #include <memory>
 
@@ -396,6 +397,8 @@ void Initialize(void)
 		// Floor Sliding Crashfix
 		JmpPatch(0x0050D5CF, (DWORD)FLOORSLIDING_CRASHFIX);
 		SetupExceptionHandler();
+		// Initialize language system
+		LanguageManager::Instance().LoadLanguages(".\\Multiplayer\\Localization\\", Config::Instance().lang);
 		MainMenu = CMainMenu::GetInstance();
 		Patch::FixSetTime();
 		Patch::DisableCheat();

@@ -1,8 +1,7 @@
-
 /*
 MIT License
 
-Copyright (c) 2022 Gothic Multiplayer Team (pampi, skejt23, mecio)
+Copyright (c) 2025 Gothic Multiplayer Team.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -25,50 +24,43 @@ SOFTWARE.
 
 #pragma once
 
-#include <vector>
-#include <memory>
-#include <singleton.h>
+#include "menu/menu_context.hpp"
+#include "menu/states/menu_state.hpp"
 
-#include "CServerList.h"
-#include "ExtendedServerList.h"
-#include "ZenGin/zGothicAPI.h"
-
-// Forward declarations for new menu system
 namespace menu {
-  class MenuStateMachine;
-  struct MenuContext;
-}
+namespace states {
 
-class CMainMenu : public TSingleton<CMainMenu> {
+/**
+ * @brief State for entering the player's nickname on first launch
+ *
+ * This state allows the player to type in their desired nickname
+ * when they run the game for the first time.
+ */
+class ChooseNicknameState : public MenuState {
 private:
-  oCItem* CamWeapon;
-  CServerList server_list_;
-  int Hour, Minute;
+  MenuContext& context_;
 
-  // Menu state machine system
-  std::unique_ptr<menu::MenuStateMachine> stateMachine_;
-  std::unique_ptr<menu::MenuContext> menuContext_;
+  zSTRING currentNickname_;
+  bool shouldTransitionToMainMenu_;
 
 public:
-  zVEC3 HeroPos;
-  zVEC3 Angle;
-  zVEC3 NAngle;
-  zCView* GMPLogo;
-  oCItem* TitleWeapon;
-  bool TitleWeaponEnabled{false};
-  ExtendedServerList* esl;
-  int hbX, hbY;  // Health bar dimensions
+  explicit ChooseNicknameState(MenuContext& context);
+  ~ChooseNicknameState() override = default;
 
-public:
-  CMainMenu();
-  ~CMainMenu();
-  void RenderMenu();
-  void ReLaunchMainMenu();
-  void LaunchMenuScene();
-  void LoadConfig();
-  void ClearNpcTalents(oCNpc* Npc);
-  void static __stdcall MainMenuLoop();
-  void InitializeStateMachine();
-  
+  // MenuState interface
+  void OnEnter() override;
+  void OnExit() override;
+  StateResult Update() override;
+  MenuState* CheckTransition() override;
+  const char* GetStateName() const override {
+    return "ChooseNickname";
+  }
+
 private:
+  void RenderNicknameInput();
+  void HandleInput();
+  void SaveNickname();
 };
+
+}  // namespace states
+}  // namespace menu

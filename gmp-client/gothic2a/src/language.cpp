@@ -33,6 +33,142 @@ SOFTWARE.
 
 #include "localization_utils.h"
 
+// ============================================================================
+// LanguageManager Implementation
+// ============================================================================
+
+LanguageManager& LanguageManager::Instance() {
+  static LanguageManager instance;
+  return instance;
+}
+
+void LanguageManager::LoadLanguages(const char* languageDir, int languageIndex) {
+  languageDir_ = languageDir;
+  availableLanguages_.clear();
+
+  const std::string indexPath = languageDir_ + "index";
+  std::ifstream ifs(indexPath, std::ifstream::in);
+
+  if (!ifs.is_open()) {
+    SPDLOG_ERROR("LanguageManager: Couldn't find language index file {}", indexPath);
+    // Add a fallback language
+    LanguageInfo fallback;
+    fallback.filename = "English.json";
+    fallback.displayName = zSTRING("English");
+    fallback.encoding = localization::LanguageEncoding::kNone;
+    availableLanguages_.push_back(fallback);
+    SPDLOG_INFO("LanguageManager: Added fallback English language");
+    
+    // Load the fallback language
+    std::string langPath = languageDir_ + fallback.filename;
+    Language::Instance().LoadFromJsonFile(langPath);
+    return;
+  }
+
+  // Read language file names from index
+  std::vector<std::string> languageFiles;
+  std::string line;
+  while (std::getline(ifs, line)) {
+    // Remove carriage return if present
+    if (!line.empty() && line.back() == '\r') {
+      line.pop_back();
+    }
+    if (line.empty()) {
+      continue;
+    }
+    languageFiles.push_back(line);
+  }
+
+  // Remove duplicate at the end if exists
+  if (languageFiles.size() >= 2 && languageFiles.back() == languageFiles[languageFiles.size() - 2]) {
+    languageFiles.pop_back();
+  }
+
+  // Load metadata for each language file
+  for (const auto& filename : languageFiles) {
+    const std::string langPath = languageDir_ + filename;
+    std::ifstream langFile(langPath, std::ifstream::in);
+
+    if (!langFile.is_open()) {
+      SPDLOG_ERROR("LanguageManager: Couldn't open language file {}", langPath);
+      // Add with filename as fallback
+      LanguageInfo info;
+      info.filename = filename;
+      info.displayName = zSTRING(filename.c_str());
+      info.encoding = localization::LanguageEncoding::kNone;
+      availableLanguages_.push_back(info);
+      continue;
+    }
+
+    try {
+      nlohmann::json jsonData;
+      langFile >> jsonData;
+
+      LanguageInfo info;
+      info.filename = filename;
+
+      // Get display name from JSON
+      auto rawLanguageName = jsonData.value("LANGUAGE", std::string{});
+      if (rawLanguageName.empty()) {
+        rawLanguageName = filename;
+      }
+
+      // Detect encoding and convert from UTF-8
+      info.encoding = localization::DetectLanguageEncoding(rawLanguageName, langPath);
+      const auto localizedName = localization::ConvertFromUtf8(rawLanguageName, info.encoding);
+      info.displayName = zSTRING(localizedName.c_str());
+
+      availableLanguages_.push_back(info);
+      SPDLOG_DEBUG("LanguageManager: Loaded language {} ({})", filename, localizedName);
+
+    } catch (const std::exception& ex) {
+      SPDLOG_ERROR("LanguageManager: Failed to parse language file {}: {}", langPath, ex.what());
+      // Add with filename as fallback
+      LanguageInfo info;
+      info.filename = filename;
+      info.displayName = zSTRING(filename.c_str());
+      info.encoding = localization::LanguageEncoding::kNone;
+      availableLanguages_.push_back(info);
+    }
+  }
+
+  SPDLOG_INFO("LanguageManager: Loaded {} languages", availableLanguages_.size());
+
+  // Load the active language
+  if (availableLanguages_.empty()) {
+    SPDLOG_ERROR("LanguageManager: No languages available to load");
+    return;
+  }
+
+  // Default to English (index 0) if not specified or invalid
+  int targetIndex = languageIndex;
+  if (targetIndex < 0 || targetIndex >= static_cast<int>(availableLanguages_.size())) {
+    SPDLOG_WARN("LanguageManager: Invalid language index {}, defaulting to first language", languageIndex);
+    targetIndex = 0;
+  }
+
+  const auto& langInfo = availableLanguages_[targetIndex];
+  std::string langPath = languageDir_ + langInfo.filename;
+
+  SPDLOG_INFO("LanguageManager: Loading active language: {} from {}", langInfo.displayName.ToChar(), langPath);
+  
+  bool success = Language::Instance().LoadFromJsonFile(langPath);
+  if (!success) {
+    SPDLOG_ERROR("LanguageManager: Failed to load language file {}", langPath);
+  }
+}
+
+const LanguageManager::LanguageInfo* LanguageManager::GetLanguage(int index) const {
+  if (index < 0 || index >= static_cast<int>(availableLanguages_.size())) {
+    return nullptr;
+  }
+  return &availableLanguages_[index];
+}
+
+// ============================================================================
+// Language Implementation
+// ============================================================================
+
 namespace {
 constexpr std::size_t kStringCount = static_cast<std::size_t>(Language::SRVLIST_PLAYERNUMBER) + 1;
 

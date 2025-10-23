@@ -26,10 +26,62 @@ SOFTWARE.
 #pragma once
 
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "ZenGin/zGothicAPI.h"
+
+// Forward declarations
+namespace localization {
+enum class LanguageEncoding;
+}
+
+// Manages available languages and their metadata
+class LanguageManager {
+public:
+  struct LanguageInfo {
+    std::string filename;  // e.g., "English.json"
+    zSTRING displayName;   // Localized display name from JSON
+    localization::LanguageEncoding encoding;
+  };
+
+  LanguageManager() = default;
+
+  // Load all available languages from the specified directory
+  // Also loads the active language based on languageIndex (or defaults to English if invalid)
+  void LoadLanguages(const char* languageDir = ".\\Multiplayer\\Localization\\", int languageIndex = -1);
+
+  // Check if languages have been loaded
+  bool IsLoaded() const {
+    return !availableLanguages_.empty();
+  }
+
+  // Get list of all available languages
+  const std::vector<LanguageInfo>& GetAvailableLanguages() const {
+    return availableLanguages_;
+  }
+
+  // Get a specific language by index
+  const LanguageInfo* GetLanguage(int index) const;
+
+  // Get the number of available languages
+  size_t GetLanguageCount() const {
+    return availableLanguages_.size();
+  }
+
+  // Get the language directory path
+  const std::string& GetLanguageDir() const {
+    return languageDir_;
+  }
+
+  // Singleton instance for convenience
+  static LanguageManager& Instance();
+
+private:
+  std::vector<LanguageInfo> availableLanguages_;
+  std::string languageDir_;
+};
 
 class Language {
 public:

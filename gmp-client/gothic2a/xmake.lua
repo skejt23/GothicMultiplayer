@@ -4,6 +4,7 @@ target("ClientMain")
     add_includedirs("$(builddir)/config")
     add_files("src/**.cpp")
     add_includedirs("src/gothic-patches")
+    add_includedirs("src")
     
     add_deps("common", "SharedLib", "zNetInterface", "Client.Net", "SDL3", "InjectMage", "BugTrap", "gothic_api")
     add_packages("spdlog", "fmt", "cpp-httplib", "dylib", "glm", "bitsery", "nlohmann_json")

@@ -1,8 +1,7 @@
-
 /*
 MIT License
 
-Copyright (c) 2022 Gothic Multiplayer Team (pampi, skejt23, mecio)
+Copyright (c) 2025 Gothic Multiplayer Team.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -25,50 +24,43 @@ SOFTWARE.
 
 #pragma once
 
-#include <vector>
-#include <memory>
-#include <singleton.h>
+#include "menu/menu_context.hpp"
+#include "menu/states/menu_state.hpp"
 
-#include "CServerList.h"
-#include "ExtendedServerList.h"
-#include "ZenGin/zGothicAPI.h"
-
-// Forward declarations for new menu system
 namespace menu {
-  class MenuStateMachine;
-  struct MenuContext;
-}
+namespace states {
 
-class CMainMenu : public TSingleton<CMainMenu> {
+/**
+ * @brief Final state that handles complete menu shutdown and cleanup
+ *
+ * This state is responsible for cleaning up all menu resources when
+ * the player connects to a server. It's a terminal state - once entered,
+ * it performs cleanup and then signals that the menu should be destroyed.
+ *
+ * This approach centralizes all cleanup logic in one place and makes the
+ * shutdown process explicit and testable.
+ */
+class ExitMenuState : public MenuState {
 private:
-  oCItem* CamWeapon;
-  CServerList server_list_;
-  int Hour, Minute;
-
-  // Menu state machine system
-  std::unique_ptr<menu::MenuStateMachine> stateMachine_;
-  std::unique_ptr<menu::MenuContext> menuContext_;
+  MenuContext& context_;
+  bool cleanupComplete_ = false;
 
 public:
-  zVEC3 HeroPos;
-  zVEC3 Angle;
-  zVEC3 NAngle;
-  zCView* GMPLogo;
-  oCItem* TitleWeapon;
-  bool TitleWeaponEnabled{false};
-  ExtendedServerList* esl;
-  int hbX, hbY;  // Health bar dimensions
+  explicit ExitMenuState(MenuContext& context);
+  ~ExitMenuState() override = default;
 
-public:
-  CMainMenu();
-  ~CMainMenu();
-  void RenderMenu();
-  void ReLaunchMainMenu();
-  void LaunchMenuScene();
-  void LoadConfig();
-  void ClearNpcTalents(oCNpc* Npc);
-  void static __stdcall MainMenuLoop();
-  void InitializeStateMachine();
-  
+  // MenuState interface
+  void OnEnter() override;
+  void OnExit() override;
+  StateResult Update() override;
+  MenuState* CheckTransition() override;
+  const char* GetStateName() const override {
+    return "ExitMenu";
+  }
+
 private:
+  void CleanUpMenuResources();
 };
+
+}  // namespace states
+}  // namespace menu
