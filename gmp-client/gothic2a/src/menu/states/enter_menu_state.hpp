@@ -1,8 +1,7 @@
-
 /*
 MIT License
 
-Copyright (c) 2022 Gothic Multiplayer Team (pampi, skejt23, mecio)
+Copyright (c) 2025 Gothic Multiplayer Team.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -25,47 +24,42 @@ SOFTWARE.
 
 #pragma once
 
-#include <vector>
-#include <memory>
-#include <singleton.h>
+#include "menu/states/menu_state.hpp"
 
-#include "CServerList.h"
-#include "ExtendedServerList.h"
-#include "ZenGin/zGothicAPI.h"
-
-// Forward declarations for new menu system
 namespace menu {
-  class MenuStateMachine;
-  struct MenuContext;
-}
+namespace states {
 
-class CMainMenu : public TSingleton<CMainMenu> {
-private:
-  CServerList server_list_;
-  int Hour, Minute;
-
-  // Menu state machine system
-  std::unique_ptr<menu::MenuStateMachine> stateMachine_;
-  std::unique_ptr<menu::MenuContext> menuContext_;
-
+/**
+ * @brief Bootstraps the menu by preparing the player, HUD and shared visuals
+ * before handing control to the interactive state.
+ */
+class EnterMenuState : public MenuState {
 public:
-  zVEC3 HeroPos;
-  zVEC3 Angle;
-  zVEC3 NAngle;
-  int hbX, hbY;  // Health bar dimensions
+  enum class InitialFlow {
+    ChooseLanguage,
+    MainMenu
+  };
 
-public:
-  CMainMenu();
-  ~CMainMenu();
-  void RenderMenu();
-  void ReLaunchMainMenu();
-  void LoadConfig();
-  void ClearNpcTalents(oCNpc* Npc);
-  void static __stdcall MainMenuLoop();
-  void InitializeStateMachine();
-  void PrepareForMenuEntry();
-  
+  EnterMenuState(MenuContext& context, InitialFlow flow);
+  ~EnterMenuState() override = default;
+
+  void OnEnter() override;
+  void OnExit() override;
+  StateResult Update() override;
+  MenuState* CheckTransition() override;
+  const char* GetStateName() const override {
+    return "EnterMenu";
+  }
+
 private:
-  void PreparePlayerForMenuReentry();
-  static void __stdcall ReLaunchMenuCallback();
+  void PrepareMenuEnvironment();
+  void CreateTitleLogo();
+  void SetupMenuScene();
+
+  MenuContext& context_;
+  InitialFlow flow_;
+  MenuState* nextState_{nullptr};
 };
+
+}  // namespace states
+}  // namespace menu

@@ -54,25 +54,14 @@ SOFTWARE.
 // New menu state machine includes
 #include "menu/menu_context.hpp"
 #include "menu/menu_state_machine.hpp"
-#include "menu/states/choose_language_state.hpp"
-#include "menu/states/choose_nickname_state.hpp"
-#include "menu/states/main_menu_loop_state.hpp"
+#include "menu/states/enter_menu_state.hpp"
 
 using namespace Gothic_II_Addon;
 
-std::vector<zSTRING> vec_choose_lang;
-std::vector<std::string> vec_lang_files;
-extern const char* LANG_DIR;
 extern float fWRatio, fHRatio;
 zCOLOR Normal = zCOLOR(255, 255, 255);
 zCOLOR Highlighted = zCOLOR(128, 180, 128);
 zCOLOR Red = zCOLOR(0xFF, 0, 0);
-extern zCOLOR Green;
-zCOLOR FColor;
-constexpr const char* FDefault = "FONT_DEFAULT.TGA";
-constexpr const char* WalkAnim = "S_WALKL";
-
-char x[2] = {0, 0};
 
 CMainMenu::CMainMenu() {
   player->SetMovLock(1);
@@ -85,29 +74,15 @@ CMainMenu::CMainMenu() {
   fWRatio = 1280.0f / (float)wymiary.right;  // zalozenie jest takie ze szerokosc jest dopasowywana weddug szerokosci 1280
   fHRatio = 1024.0f / (float)wymiary.top;
 
-  // Disable health bar during menu
-  ogame->hpBar->GetSize(hbX, hbY);
-  ogame->hpBar->SetSize(0, 0);
-
-  // Create logo view (will be shown by state machine)
-  GMPLogo = new zCView(0, 0, 8192, 8192, VIEW_ITEM);
-  GMPLogo->SetPos(4000, 200);
-  GMPLogo->InsertBack(zSTRING("GMP_LOGO_MENU.TGA"));
-  GMPLogo->SetSize(5500, 2000);
-
-  TitleWeaponEnabled = false;
-  esl = NULL;
-
-  oCSpawnManager::SetRemoveRange(2097152.0f);
-  LaunchMenuScene();
   ogame->GetWorldTimer()->GetTime(Hour, Minute);
   HooksManager* hm = HooksManager::GetInstance();
   hm->AddHook(HT_RENDER, (DWORD)MainMenuLoop, false);
   hm->RemoveHook(HT_AIMOVING, (DWORD)Initialize);
+
+  // Save player state for later restoration
   HeroPos = player->GetPositionWorld();
   Angle = player->trafoObjToWorld.GetAtVector();
   NAngle = player->trafoObjToWorld.GetRightVector();
-  ClearNpcTalents(player);
 
   // Initialize new state machine system
   InitializeStateMachine();
@@ -127,11 +102,11 @@ void CMainMenu::InitializeStateMachine() {
   menuContext_->options = zoptions;
   menuContext_->soundSystem = zsound;
 
-  // Menu visual elements (initialized in main constructor)
-  menuContext_->logoView = GMPLogo;
-  menuContext_->titleWeapon = TitleWeapon;
-  menuContext_->cameraWeapon = CamWeapon;
-  menuContext_->titleWeaponEnabled = TitleWeaponEnabled;
+  // Menu visual elements - logo will be created by EnterMenuState
+  menuContext_->logoView = nullptr;
+  menuContext_->titleWeapon = nullptr;
+  menuContext_->cameraWeapon = nullptr;
+  menuContext_->titleWeaponEnabled = false;
 
   // Player state backup
   menuContext_->savedPlayerPosition = HeroPos;
@@ -141,82 +116,66 @@ void CMainMenu::InitializeStateMachine() {
   menuContext_->savedHealthBarY = hbY;
 
   // Create extended server list
-  if (!esl) {
-    esl = new ExtendedServerList(server_list_);
-  }
-  menuContext_->extendedServerList = esl;
+  menuContext_->extendedServerList = new ExtendedServerList(server_list_);
+
+  // Prepare player and HUD before creating state machine
+  // This avoids calling GetInstance() from within the constructor
+  PrepareForMenuEntry();
 
   // Create state machine
   stateMachine_ = std::make_unique<menu::MenuStateMachine>();
 
-  // Determine initial state based on config
+  // Determine initial flow and let the bootstrap state handle setup
+  menu::states::EnterMenuState::InitialFlow initialFlow = menu::states::EnterMenuState::InitialFlow::MainMenu;
   if (Config::Instance().IsDefault()) {
-    // First launch - start with language selection
     SPDLOG_INFO("First launch detected, starting with language selection");
-    stateMachine_->SetState(std::make_unique<menu::states::ChooseLanguageState>(*menuContext_));
+    initialFlow = menu::states::EnterMenuState::InitialFlow::ChooseLanguage;
   } else {
-    // Normal launch - go straight to main menu
     SPDLOG_INFO("Config exists, starting with main menu");
-    stateMachine_->SetState(std::make_unique<menu::states::MainMenuLoopState>(*menuContext_));
   }
+
+  stateMachine_->SetState(std::make_unique<menu::states::EnterMenuState>(*menuContext_, initialFlow));
 
   SPDLOG_INFO("Menu state machine initialized successfully");
 }
 
 CMainMenu::~CMainMenu() {
-  // Clean up state machine
+  // Clean up state machine (this will also clean up extendedServerList via context)
   if (stateMachine_) {
     SPDLOG_INFO("Cleaning up menu state machine");
     stateMachine_->Clear();
     stateMachine_.reset();
   }
   menuContext_.reset();
-
-  // Clean up legacy system
-  delete esl;
 }
 
-static void ReLaunchPart2() {
-  HooksManager::GetInstance()->RemoveHook(HT_AIMOVING, (DWORD)ReLaunchPart2);
-  CMainMenu* ReMenu = CMainMenu::GetInstance();
-  ReMenu->ClearNpcTalents(player);
-  player->SetMovLock(1);
-  Patch::PlayerInterfaceEnabled(false);
-  if (player->GetEquippedArmor())
-    player->UnequipItem(player->GetEquippedArmor());
-  if (player->GetEquippedRangedWeapon())
-    player->UnequipItem(player->GetEquippedRangedWeapon());
-  if (player->GetEquippedMeleeWeapon())
-    player->UnequipItem(player->GetEquippedMeleeWeapon());
-  if (player->GetRightHand()) {
-    zCVob* Ptr = player->GetRightHand();
-    zCVob* PtrLeft = player->GetLeftHand();
-    player->DropAllInHand();
-    if (PtrLeft)
-      PtrLeft->RemoveVobFromWorld();
-    Ptr->RemoveVobFromWorld();
+void CMainMenu::PrepareForMenuEntry() {
+  PreparePlayerForMenuReentry();
+
+  // Disable health bar
+  if (menuContext_) {
+    menuContext_->DisableHealthBar();
+  } else if (ogame && ogame->hpBar) {
+    ogame->hpBar->GetSize(hbX, hbY);
+    ogame->hpBar->SetSize(0, 0);
   }
-  player->GetModel()->StartAnimation("S_RUN");
-  player->SetWeaponMode(NPC_WEAPON_NONE);
-  player->inventory2.ClearInventory();
+}
 
-  // Disable health bar during menu
-  ogame->hpBar->GetSize(ReMenu->hbX, ReMenu->hbY);
-  ogame->hpBar->SetSize(0, 0);
+void __stdcall CMainMenu::ReLaunchMenuCallback() {
+  HooksManager::GetInstance()->RemoveHook(HT_AIMOVING, (DWORD)CMainMenu::ReLaunchMenuCallback);
 
-  // Create logo view (will be shown by state machine)
-  ReMenu->GMPLogo = new zCView(0, 0, 8192, 8192, VIEW_ITEM);
-  ReMenu->GMPLogo->SetPos(4000, 200);
-  ReMenu->GMPLogo->InsertBack(zSTRING("GMP_LOGO_MENU.TGA"));
-  ReMenu->GMPLogo->SetSize(5500, 2000);
+  CMainMenu* menu = CMainMenu::GetInstance();
+  if (!menu) {
+    SPDLOG_ERROR("ReLaunchMenuCallback invoked without CMainMenu instance");
+    return;
+  }
+  menu->PrepareForMenuEntry();
 
   HooksManager::GetInstance()->AddHook(HT_RENDER, (DWORD)CMainMenu::MainMenuLoop, false);
-  ReMenu->TitleWeaponEnabled = false;
-  ReMenu->LaunchMenuScene();
 
   // Re-initialize state machine for menu re-entry
-  ReMenu->InitializeStateMachine();
-};
+  menu->InitializeStateMachine();
+}
 
 void CMainMenu::ReLaunchMainMenu() {
   zinput->ClearKeyBuffer();
@@ -227,19 +186,39 @@ void CMainMenu::ReLaunchMainMenu() {
     ogame->ChangeLevel("NEWWORLD\\NEWWORLD.ZEN", zSTRING("????"));
     Patch::ChangeLevelEnabled(false);
   }
-  HooksManager::GetInstance()->AddHook(HT_AIMOVING, (DWORD)ReLaunchPart2, false);
+  HooksManager::GetInstance()->AddHook(HT_AIMOVING, (DWORD)CMainMenu::ReLaunchMenuCallback, false);
 }
 
-void CMainMenu::LaunchMenuScene() {
-  // Just a placeholder weapon for the camera (the actual object is not relevant)
-  CamWeapon = zfactory->CreateItem(zCParser::GetParser()->GetIndex("ItMw_1h_Mil_Sword"));
-  CamWeapon->name.Clear();
-  CamWeapon->SetPositionWorld(zVEC3((float)13354.502930, 2040.0, (float)-1141.678467));
-  CamWeapon->RotateWorldY(-150);
-  ogame->CamInit(CamWeapon, zCCamera::activeCam);
-  TitleWeapon = zfactory->CreateItem(zCParser::GetParser()->GetIndex("ItMw_1H_Blessed_03"));
-  TitleWeapon->SetPositionWorld(zVEC3((float)13346.502930, 2006.0, (float)-1240.678467));
-};
+void CMainMenu::PreparePlayerForMenuReentry() {
+  ClearNpcTalents(player);
+  player->SetMovLock(1);
+  Patch::PlayerInterfaceEnabled(false);
+
+  if (auto* equippedArmor = player->GetEquippedArmor()) {
+    player->UnequipItem(equippedArmor);
+  }
+
+  if (auto* rangedWeapon = player->GetEquippedRangedWeapon()) {
+    player->UnequipItem(rangedWeapon);
+  }
+
+  if (auto* meleeWeapon = player->GetEquippedMeleeWeapon()) {
+    player->UnequipItem(meleeWeapon);
+  }
+
+  if (auto* rightHand = player->GetRightHand()) {
+    zCVob* leftHand = player->GetLeftHand();
+    player->DropAllInHand();
+    if (leftHand) {
+      leftHand->RemoveVobFromWorld();
+    }
+    rightHand->RemoveVobFromWorld();
+  }
+
+  player->GetModel()->StartAnimation("S_RUN");
+  player->SetWeaponMode(NPC_WEAPON_NONE);
+  player->inventory2.ClearInventory();
+}
 
 void CMainMenu::LoadConfig() {
   if (!Config::Instance().IsDefault()) {
@@ -275,14 +254,6 @@ void CMainMenu::RenderMenu() {
     player->trafoObjToWorld.SetAtVector(Angle);
     player->trafoObjToWorld.SetRightVector(NAngle);
   }
-
-  // Sync menu context with current state (bidirectional)
-  menuContext_->titleWeapon = TitleWeapon;
-  // Let states control titleWeaponEnabled - don't overwrite it
-  // menuContext_->titleWeaponEnabled = TitleWeaponEnabled;
-
-  // Sync back from context (states can modify this)
-  TitleWeaponEnabled = menuContext_->titleWeaponEnabled;
 
   // Run state machine update
   bool shouldContinue = stateMachine_->Update();

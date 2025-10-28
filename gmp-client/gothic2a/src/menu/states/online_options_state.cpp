@@ -328,12 +328,9 @@ void OnlineOptionsState::AdjustOption(OptionItem option, int direction) {
       context_.config.SaveConfigToFile();
 
       // Rebuild server list UI so translated labels refresh immediately
-      if (auto* mainMenu = CMainMenu::GetInstance()) {
-        delete mainMenu->esl;
-        mainMenu->esl = new ExtendedServerList(context_.serverList);
-        context_.extendedServerList = mainMenu->esl;
-        context_.extendedServerList->RefreshList();
-      }
+      delete context_.extendedServerList;
+      context_.extendedServerList = new ExtendedServerList(context_.serverList);
+      context_.extendedServerList->RefreshList();
       break;
     }
 

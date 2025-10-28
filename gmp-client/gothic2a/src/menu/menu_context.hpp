@@ -106,7 +106,13 @@ struct MenuContext {
    */
   void DisableHealthBar() {
     if (game && game->hpBar) {
-      game->hpBar->GetSize(savedHealthBarX, savedHealthBarY);
+      int currentX = 0;
+      int currentY = 0;
+      game->hpBar->GetSize(currentX, currentY);
+      if (currentX != 0 || currentY != 0) {
+        savedHealthBarX = currentX;
+        savedHealthBarY = currentY;
+      }
       game->hpBar->SetSize(0, 0);
     }
   }
@@ -131,6 +137,14 @@ struct MenuContext {
       titleWeapon->RemoveVobFromWorld();
     }
     titleWeaponEnabled = false;
+  }
+
+  // Destructor to clean up owned resources
+  ~MenuContext() {
+    if (extendedServerList) {
+      delete extendedServerList;
+      extendedServerList = nullptr;
+    }
   }
 
   // Disable copy
