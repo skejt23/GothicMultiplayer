@@ -291,7 +291,6 @@ int __fastcall OnDropItem(oCNpc* thisNpc, void* /*unusedEdx*/, zCVob* vob)
 {   
 	oCItem* item = vob ? zDYNAMIC_CAST<oCItem>(vob) : nullptr;
 	int result = g_originalDropItem ? g_originalDropItem(thisNpc, vob) : 0;
-  SPDLOG_INFO("OnDropItem called for npc {0}", (void*)thisNpc);
 
 	if (thisNpc != player || !item) {
 		return result;
