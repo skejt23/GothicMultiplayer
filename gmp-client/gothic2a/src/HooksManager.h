@@ -26,9 +26,15 @@ SOFTWARE.
 #pragma once
 #include "common.h"
 #include "singleton.h"
-#include "InjectMage.h"
-#include <map>
+#include "hooking/MemoryPatch.h"
+#include <set>
 #include <vector>
+
+namespace Gothic_II_Addon {
+class oCGame;
+class zCAIPlayer;
+class zCVob;
+}
 
 enum HOOK_TYPE
 {
@@ -42,21 +48,21 @@ class HooksManager : public TSingleton<HooksManager>
 public:
 	HooksManager(void);
 	~HooksManager(void);
-	void AddHook(HOOK_TYPE type, DWORD callback, bool regsAccess);
+	void AddHook(HOOK_TYPE type, DWORD callback);
 	void RemoveHook(HOOK_TYPE type, DWORD callback);
 private:
 	void InitAllPatches();
-	typedef std::map<DWORD,bool> HooksMap;
+	typedef std::set<DWORD> HooksSet;
 	std::vector<DWORD> RenderCallbacksToDelete;
 	std::vector<DWORD> AiMovingCallbacksToDelete;
-	HooksMap OnRenderHooks;
-	HooksMap OnCloseLoadScreenHooks;
-	HooksMap OnDoneHooks;
-	HooksMap OnAiMovingHooks;
+	HooksSet OnRenderHooks;
+	HooksSet OnCloseLoadScreenHooks;
+	HooksSet OnDoneHooks;
+	HooksSet OnAiMovingHooks;
 	CRITICAL_SECTION RenderCs, CloseLoadScreenCs, DoneCs, AiMovingCs;
 private:
-	void static __stdcall OnRender(sRegs & regs);
-	void static __stdcall OnCloseLoadScreen(sRegs & regs);
-	void static __stdcall OnDone(sRegs & regs);
-	void static __stdcall OnAiMoving(sRegs & regs);
+	static void __fastcall OnRender(Gothic_II_Addon::oCGame* gameInstance);
+	static void __stdcall OnCloseLoadScreen();
+	static void __stdcall OnDone();
+	static void __fastcall OnAiMoving(Gothic_II_Addon::zCAIPlayer* aiPlayer, void* unusedEdx, Gothic_II_Addon::zCVob* targetVob);
 };

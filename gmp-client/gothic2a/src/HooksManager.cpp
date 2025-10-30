@@ -24,184 +24,175 @@ SOFTWARE.
 */
 
 #include "HooksManager.h"
+
+#include <spdlog/spdlog.h>
+
 #include <cstdio>
 
-HooksManager::HooksManager(void)
-{
-	this->InitAllPatches();
-	InitializeCriticalSection(&this->DoneCs);
-	InitializeCriticalSection(&this->RenderCs);
-	InitializeCriticalSection(&this->CloseLoadScreenCs);
-	InitializeCriticalSection(&this->AiMovingCs);
+namespace {
+
+constexpr DWORD kRenderHookAddress = 0x006C86A0;
+constexpr DWORD kAiMovingHookAddress = 0x0050E750;
+
+using Gothic_II_Addon::oCGame;
+using Gothic_II_Addon::zCAIPlayer;
+using Gothic_II_Addon::zCVob;
+
+using RenderOriginalFn = void(__thiscall*)(oCGame*);
+using AiMovingOriginalFn = void(__thiscall*)(zCAIPlayer*, zCVob*);
+
+RenderOriginalFn g_renderOriginal = nullptr;
+AiMovingOriginalFn g_aiMovingOriginal = nullptr;
+
+}  // namespace
+
+HooksManager::HooksManager(void) {
+  this->InitAllPatches();
+  InitializeCriticalSection(&this->DoneCs);
+  InitializeCriticalSection(&this->RenderCs);
+  InitializeCriticalSection(&this->CloseLoadScreenCs);
+  InitializeCriticalSection(&this->AiMovingCs);
 }
 
-HooksManager::~HooksManager(void)
-{
+HooksManager::~HooksManager(void) {
 }
 
-void HooksManager::AddHook(HOOK_TYPE type, DWORD callback, bool regsAccess)
-{
-	
-	switch(type)
-	{
-	case HT_RENDER:
-		EnterCriticalSection(&this->RenderCs);
-		this->OnRenderHooks.insert(std::make_pair(callback, regsAccess));
-		LeaveCriticalSection(&this->RenderCs);
-		break;
-	case HT_CLOSELOADSCREEN:
-		EnterCriticalSection(&this->CloseLoadScreenCs);
-		this->OnCloseLoadScreenHooks.insert(std::make_pair(callback, regsAccess));
-		LeaveCriticalSection(&this->CloseLoadScreenCs);
-		break;
-	case HT_DONE:
-		EnterCriticalSection(&this->DoneCs);
-		this->OnDoneHooks.insert(std::make_pair(callback, regsAccess));
-		LeaveCriticalSection(&this->DoneCs);
-		break;
-	case HT_AIMOVING:
-		EnterCriticalSection(&this->AiMovingCs);
-		this->OnAiMovingHooks.insert(std::make_pair(callback, regsAccess));
-		LeaveCriticalSection(&this->AiMovingCs);
-		break;
-	}
-	
-
+void HooksManager::AddHook(HOOK_TYPE type, DWORD callback) {
+  switch (type) {
+    case HT_RENDER:
+      EnterCriticalSection(&this->RenderCs);
+      this->OnRenderHooks.insert(callback);
+      LeaveCriticalSection(&this->RenderCs);
+      break;
+    case HT_CLOSELOADSCREEN:
+      EnterCriticalSection(&this->CloseLoadScreenCs);
+      this->OnCloseLoadScreenHooks.insert(callback);
+      LeaveCriticalSection(&this->CloseLoadScreenCs);
+      break;
+    case HT_DONE:
+      EnterCriticalSection(&this->DoneCs);
+      this->OnDoneHooks.insert(callback);
+      LeaveCriticalSection(&this->DoneCs);
+      break;
+    case HT_AIMOVING:
+      EnterCriticalSection(&this->AiMovingCs);
+      this->OnAiMovingHooks.insert(callback);
+      LeaveCriticalSection(&this->AiMovingCs);
+      break;
+  }
 }
 
-void HooksManager::RemoveHook(HOOK_TYPE type, DWORD callback)
-{
-
-	switch(type)
-	{
-	case HT_RENDER:
-		EnterCriticalSection(&this->RenderCs);
-		this->RenderCallbacksToDelete.push_back(callback);
-		LeaveCriticalSection(&this->RenderCs);
-		break;
-	case HT_CLOSELOADSCREEN:
-		EnterCriticalSection(&this->CloseLoadScreenCs);
-		this->OnCloseLoadScreenHooks.erase(this->OnRenderHooks.find(callback));
-		LeaveCriticalSection(&this->CloseLoadScreenCs);
-		break;
-	case HT_DONE:
-		EnterCriticalSection(&this->DoneCs);
-		this->OnDoneHooks.erase(this->OnRenderHooks.find(callback));
-		LeaveCriticalSection(&this->DoneCs);
-		break;
-	case HT_AIMOVING:
-		EnterCriticalSection(&this->AiMovingCs);
-		this->AiMovingCallbacksToDelete.push_back(callback);
-		LeaveCriticalSection(&this->AiMovingCs);
-		break;
-	}
+void HooksManager::RemoveHook(HOOK_TYPE type, DWORD callback) {
+  switch (type) {
+    case HT_RENDER:
+      EnterCriticalSection(&this->RenderCs);
+      this->RenderCallbacksToDelete.push_back(callback);
+      LeaveCriticalSection(&this->RenderCs);
+      break;
+    case HT_CLOSELOADSCREEN:
+      EnterCriticalSection(&this->CloseLoadScreenCs);
+      this->OnCloseLoadScreenHooks.erase(this->OnRenderHooks.find(callback));
+      LeaveCriticalSection(&this->CloseLoadScreenCs);
+      break;
+    case HT_DONE:
+      EnterCriticalSection(&this->DoneCs);
+      this->OnDoneHooks.erase(this->OnRenderHooks.find(callback));
+      LeaveCriticalSection(&this->DoneCs);
+      break;
+    case HT_AIMOVING:
+      EnterCriticalSection(&this->AiMovingCs);
+      this->AiMovingCallbacksToDelete.push_back(callback);
+      LeaveCriticalSection(&this->AiMovingCs);
+      break;
+  }
 }
-void HooksManager::InitAllPatches()
-{
-	CreateHook(0x6C8AC2, (DWORD)&HooksManager::OnRender, 0, true);
-	//CreateHook(0x6C2C26, (DWORD)&HooksManager::OnCloseLoadScreen, 0, true); Nie potrzebne for now
-	//CreateHook(0x4254E0, (DWORD)&HooksManager::OnDone, 0, true); Nie potrzebne for now
-	CreateHook(0x50E8E1, (DWORD)&HooksManager::OnAiMoving, 0, true);
+void HooksManager::InitAllPatches() {
+  if (auto original = CreateHook(kRenderHookAddress, (DWORD)&HooksManager::OnRender)) {
+    g_renderOriginal = reinterpret_cast<RenderOriginalFn>(*original);
+  } else {
+    SPDLOG_ERROR("HooksManager: failed to hook render at 0x{0:08X}", kRenderHookAddress);
+  }
 
+  // CreateHook(0x6C2C26, (DWORD)&HooksManager::OnCloseLoadScreen); Nie potrzebne for now
+  // CreateHook(0x4254E0, (DWORD)&HooksManager::OnDone); Nie potrzebne for now
+
+  if (auto original = CreateHook(kAiMovingHookAddress, (DWORD)&HooksManager::OnAiMoving)) {
+    g_aiMovingOriginal = reinterpret_cast<AiMovingOriginalFn>(*original);
+  } else {
+    SPDLOG_ERROR("HooksManager: failed to hook AI moving at 0x{0:08X}", kAiMovingHookAddress);
+  }
 }
-void __stdcall HooksManager::OnRender(sRegs & regs)
-{
-	HooksManager * hm = HooksManager::GetInstance();
-	EnterCriticalSection(&hm->RenderCs);
-	HooksMap::iterator end = hm->OnRenderHooks.end(); 
-	for (HooksMap::iterator it = hm->OnRenderHooks.begin(); it != end; ++it)
-	{
-		if(it->second)
-		{
-			typedef void (*fptr)(int);
-			fptr p = (fptr)(it->first);
-			p(regs.ECX);
-		}else{
-			typedef void (*fptr)(void);
-			fptr p = (fptr)(it->first);
-			p();
-		}
-	}
-	if(hm->RenderCallbacksToDelete.size() > 0) 
-	{
-		for(int i = 0; i < (int)hm->RenderCallbacksToDelete.size(); i++){
-			hm->OnRenderHooks.erase(hm->OnRenderHooks.find(hm->RenderCallbacksToDelete[i]));
-			hm->RenderCallbacksToDelete.erase(hm->RenderCallbacksToDelete.begin()+i);
-		}
-	}
-	LeaveCriticalSection(&hm->RenderCs);
+
+void __fastcall HooksManager::OnRender(oCGame* gameInstance) {
+  HooksManager* hm = HooksManager::GetInstance();
+  if (g_renderOriginal) {
+    g_renderOriginal(gameInstance);
+  }
+
+  static bool logged = false;
+  if (!logged) {
+    SPDLOG_INFO("HooksManager::OnRender invoked");
+    logged = true;
+  }
+
+  EnterCriticalSection(&hm->RenderCs);
+  HooksSet::iterator end = hm->OnRenderHooks.end();
+  for (HooksSet::iterator it = hm->OnRenderHooks.begin(); it != end; ++it) {
+    typedef void (*fptr)(void);
+    fptr p = (fptr)(*it);
+    p();
+  }
+  if (!hm->RenderCallbacksToDelete.empty()) {
+    for (size_t idx = 0; idx < hm->RenderCallbacksToDelete.size(); ++idx) {
+      hm->OnRenderHooks.erase(hm->RenderCallbacksToDelete[idx]);
+    }
+    hm->RenderCallbacksToDelete.clear();
+  }
+  LeaveCriticalSection(&hm->RenderCs);
 }
-void __stdcall HooksManager::OnCloseLoadScreen(sRegs & regs)
-{
-	HooksManager * hm = HooksManager::GetInstance();
-	EnterCriticalSection(&hm->CloseLoadScreenCs);
-	HooksMap::iterator end = hm->OnCloseLoadScreenHooks.end(); 
-	for (HooksMap::iterator it = hm->OnCloseLoadScreenHooks.begin(); it != end; ++it)
-	{
 
-		if(it->second)
-		{
-			typedef void (*fptr)(int);
-			fptr p = (fptr)(it->first);
-			p(regs.ECX);
-		}else{
-			typedef void (*fptr)(void);
-			fptr p = (fptr)(it->first);
-			p();
-		}
+void __fastcall HooksManager::OnAiMoving(zCAIPlayer* aiPlayer, void* /*unusedEdx*/, zCVob* targetVob) {
+  HooksManager* hm = HooksManager::GetInstance();
+  if (g_aiMovingOriginal) {
+    g_aiMovingOriginal(aiPlayer, targetVob);
+  }
 
-	}
-	LeaveCriticalSection(&hm->CloseLoadScreenCs);
-
+  EnterCriticalSection(&hm->AiMovingCs);
+  HooksSet::iterator end = hm->OnAiMovingHooks.end();
+  for (HooksSet::iterator it = hm->OnAiMovingHooks.begin(); it != end; ++it) {
+    typedef void (*fptr)(void);
+    fptr p = (fptr)(*it);
+    p();
+  }
+  if (!hm->AiMovingCallbacksToDelete.empty()) {
+    for (size_t idx = 0; idx < hm->AiMovingCallbacksToDelete.size(); ++idx) {
+      hm->OnAiMovingHooks.erase(hm->AiMovingCallbacksToDelete[idx]);
+    }
+    hm->AiMovingCallbacksToDelete.clear();
+  }
+  LeaveCriticalSection(&hm->AiMovingCs);
 }
-void __stdcall HooksManager::OnDone(sRegs & regs)
-{
-	HooksManager * hm = HooksManager::GetInstance();
-	EnterCriticalSection(&hm->DoneCs);
-	HooksMap::iterator end = hm->OnDoneHooks.end(); 
-	for (HooksMap::iterator it = hm->OnDoneHooks.begin(); it != end; ++it)
-	{
 
-		if(it->second)
-		{
-			typedef void (*fptr)(int);
-			fptr p = (fptr)(it->first);
-			p(regs.ECX);
-		}else{
-			typedef void (*fptr)(void);
-			fptr p = (fptr)(it->first);
-			p();
-		}
-	}
-	LeaveCriticalSection(&hm->DoneCs);
+void __stdcall HooksManager::OnCloseLoadScreen() {
+  HooksManager* hm = HooksManager::GetInstance();
+  EnterCriticalSection(&hm->CloseLoadScreenCs);
+  HooksSet::iterator end = hm->OnCloseLoadScreenHooks.end();
+  for (HooksSet::iterator it = hm->OnCloseLoadScreenHooks.begin(); it != end; ++it) {
+    typedef void (*fptr)(void);
+    fptr p = (fptr)(*it);
+    p();
+  }
+  LeaveCriticalSection(&hm->CloseLoadScreenCs);
 }
-void __stdcall HooksManager::OnAiMoving(sRegs & regs)
-{
-	HooksManager * hm = HooksManager::GetInstance();
-	EnterCriticalSection(&hm->AiMovingCs);
-	HooksMap::iterator end = hm->OnAiMovingHooks.end(); 
-	for (HooksMap::iterator it = hm->OnAiMovingHooks.begin(); it != end; ++it)
-	{
 
-		if(it->second)
-		{
-			typedef void (*fptr)(int);
-			fptr p = (fptr)(it->first);
-			p(regs.ECX);
-		}else{
-			typedef void (*fptr)(void);
-			fptr p = (fptr)(it->first);
-			p();
-		}
-
-	}
-	if(hm->AiMovingCallbacksToDelete.size() > 0) 
-	{
-		for(int i = 0; i < (int)hm->AiMovingCallbacksToDelete.size(); i++){
-			hm->OnAiMovingHooks.erase(hm->OnAiMovingHooks.find(hm->AiMovingCallbacksToDelete[i]));
-			hm->AiMovingCallbacksToDelete.erase(hm->AiMovingCallbacksToDelete.begin()+i);
-		}
-	}
-	LeaveCriticalSection(&hm->AiMovingCs);
-
+void __stdcall HooksManager::OnDone() {
+  HooksManager* hm = HooksManager::GetInstance();
+  EnterCriticalSection(&hm->DoneCs);
+  HooksSet::iterator end = hm->OnDoneHooks.end();
+  for (HooksSet::iterator it = hm->OnDoneHooks.begin(); it != end; ++it) {
+    typedef void (*fptr)(void);
+    fptr p = (fptr)(*it);
+    p();
+  }
+  LeaveCriticalSection(&hm->DoneCs);
 }

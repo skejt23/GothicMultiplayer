@@ -53,7 +53,7 @@ SOFTWARE.
 #pragma warning (disable : 4101)
 
 #include "StandardFonts.h"
-#include "InjectMage.h"
+#include "hooking/MemoryPatch.h"
 #include <stdio.h>
 #include <spdlog/spdlog.h>
 #include "language.h"

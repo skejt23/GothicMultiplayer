@@ -63,11 +63,12 @@ add_requires("fmt 11.0.2",
              "cpp-httplib 0.21.0",
              "zlib 1.3.1",
              "openssl 1.1.1-w",
-             "libsodium 1.0.*")
+             "libsodium 1.0.*",
+             "polyhook2")
 
 includes("common", "shared", "gmp-server", "thirdparty", "tests")
 
 if is_plat("windows") then
     add_requires("discord")
-    includes("gmp-client", "InjectMage")
+    includes("gmp-client")
 end

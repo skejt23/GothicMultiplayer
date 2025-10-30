@@ -133,7 +133,7 @@ Gothic2APlayer* NetGame::GetPlayerById(std::uint64_t player_id) {
 
 void NetGame::JoinGame() {
   if (IsReadyToJoin) {
-    HooksManager::GetInstance()->AddHook(HT_RENDER, (DWORD)InterfaceLoop, false);
+    HooksManager::GetInstance()->AddHook(HT_RENDER, (DWORD)InterfaceLoop);
 
     auto sanitized_name = SanitizePlayerName(Config::Instance().Nickname.ToChar());
     player->name[0] = sanitized_name.c_str();

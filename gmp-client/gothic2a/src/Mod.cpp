@@ -30,7 +30,7 @@ SOFTWARE.
 #include "ExceptionHandler.h"
 #include "HooksManager.h"
 #include "Interface.h"
-#include "InjectMage.h"
+#include "hooking/MemoryPatch.h"
 #include "config.h"
 #include "CServerList.h"
 #include "main_menu.h"
@@ -50,6 +50,22 @@ extern zCOLOR Normal;
 extern CIngame* global_ingame;
 zCOLOR Green = zCOLOR(0,255,0);
 bool MultiplayerLaunched = false;
+
+namespace {
+
+constexpr DWORD kCastSpellHookAddress = 0x00485360;
+constexpr DWORD kDropItemHookAddress = 0x00744DD0;
+constexpr DWORD kTakeItemHookAddress = 0x007449C0;
+
+using CastSpellOriginalFn = int(__thiscall*)(oCSpell*);
+using DropItemOriginalFn = int(__thiscall*)(oCNpc*, zCVob*);
+using TakeItemOriginalFn = int(__thiscall*)(oCNpc*, zCVob*);
+
+CastSpellOriginalFn g_originalCastSpell = nullptr;
+DropItemOriginalFn g_originalDropItem = nullptr;
+TakeItemOriginalFn g_originalTakeItem = nullptr;
+
+} // namespace
 
 // MIEJSCE SKEJTA NA ROZNE ASSEMBLEROWE RZECZY
 // CRASHFIXY
@@ -271,47 +287,65 @@ void _declspec(naked) FLOORSLIDING_CRASHFIX() // 0x0050D5CF
 const int DROP_ITEM_TIMEOUT = 200;
 
 // DROP & TAKE
-void _stdcall OnDropItem(sRegs & regs, DWORD & item)
-{	   
-	if ((DWORD)regs.ECX != (DWORD)player) {
-		return;
+int __fastcall OnDropItem(oCNpc* thisNpc, void* /*unusedEdx*/, zCVob* vob)
+{   
+	oCItem* item = vob ? zDYNAMIC_CAST<oCItem>(vob) : nullptr;
+	int result = g_originalDropItem ? g_originalDropItem(thisNpc, vob) : 0;
+  SPDLOG_INFO("OnDropItem called for npc {0}", (void*)thisNpc);
+
+	if (thisNpc != player || !item) {
+		return result;
 	}
-	oCItem* DroppedItem = (oCItem*)item;
-	if (!DroppedItem) {
-		return;
-	}
-	short amount = DroppedItem->amount;
+
 	static int dropItemTimeout = 0;
-	if(global_ingame && dropItemTimeout < GetTickCount()){
-		if(!NetGame::Instance().DropItemsAllowed) return;
-		NetGame::Instance().SendDropItem(DroppedItem->GetInstance(), amount);
+	if (global_ingame && dropItemTimeout < GetTickCount()) {
+		if (!NetGame::Instance().DropItemsAllowed) {
+			return result;
+		}
+		NetGame::Instance().SendDropItem(item->GetInstance(), item->amount);
 		dropItemTimeout = GetTickCount() + DROP_ITEM_TIMEOUT;
 	}
+
+	return result;
 }
 
-void _stdcall OnTakeItem(sRegs & regs, DWORD & item)
-{	   
-		if((DWORD)regs.ECX == (DWORD)player){
-				oCItem* TakenItem = (oCItem*)item;
-				if(global_ingame){
-					if(!NetGame::Instance().DropItemsAllowed) return;
-					NetGame::Instance().SendTakeItem(TakenItem->GetInstance());
-				}
-		}
-}
+int __fastcall OnTakeItem(oCNpc* thisNpc, void* /*unusedEdx*/, zCVob* vob)
+{   
+	int result = g_originalTakeItem ? g_originalTakeItem(thisNpc, vob) : 0;
 
-void _stdcall OnCastSpell(sRegs & regs)
-{	  
-	oCSpell* CastedSpell = (oCSpell*)regs.ECX;
-	if((DWORD)CastedSpell->spellCasterNpc == (DWORD)player){
-			if(global_ingame){
-				if(CastedSpell->spellTargetNpc){
-					if(CastedSpell->GetSpellID() == 46) if(!global_ingame->Shrinker->IsShrinked(CastedSpell->spellTargetNpc)) global_ingame->Shrinker->ShrinkNpc(CastedSpell->spellTargetNpc);
-					NetGame::Instance().SendCastSpell(CastedSpell->spellTargetNpc, CastedSpell->GetSpellID());
-				}
-				else NetGame::Instance().SendCastSpell(0, CastedSpell->GetSpellID());
-			}
+	if (thisNpc != player) {
+		return result;
 	}
+
+	oCItem* item = vob ? zDYNAMIC_CAST<oCItem>(vob) : nullptr;
+	if (item && global_ingame) {
+		if (!NetGame::Instance().DropItemsAllowed) {
+			return result;
+		}
+		NetGame::Instance().SendTakeItem(item->GetInstance());
+	}
+
+	return result;
+}
+
+int __fastcall OnCastSpell(oCSpell* thisSpell)
+{  
+	int result = g_originalCastSpell ? g_originalCastSpell(thisSpell) : 0;
+
+	if ((DWORD)thisSpell->spellCasterNpc == (DWORD)player) {
+		if (global_ingame) {
+			if (thisSpell->spellTargetNpc) {
+				if (thisSpell->GetSpellID() == 46 && !global_ingame->Shrinker->IsShrinked(thisSpell->spellTargetNpc)) {
+					global_ingame->Shrinker->ShrinkNpc(thisSpell->spellTargetNpc);
+				}
+				NetGame::Instance().SendCastSpell(thisSpell->spellTargetNpc, thisSpell->GetSpellID());
+			} else {
+				NetGame::Instance().SendCastSpell(0, thisSpell->GetSpellID());
+			}
+		}
+	}
+
+	return result;
 }
 
 // Take distance patch
@@ -361,9 +395,15 @@ void Initialize(void)
 		MultiplayerLaunched = true;
 		HooksManager * hm = HooksManager::GetInstance();
 		CActiveAniID *ani_ptr=new CActiveAniID();
-		CreateHook(0x00485360, (DWORD)OnCastSpell, 0, true);
-		CreateHook(0x00744DD6, (DWORD)OnDropItem, 1, true);
-		CreateHook(0x007449C0, (DWORD)OnTakeItem, 1, true);
+		if (auto original = CreateHook(kCastSpellHookAddress, (DWORD)OnCastSpell)) {
+			g_originalCastSpell = reinterpret_cast<CastSpellOriginalFn>(*original);
+		}
+		if (auto original = CreateHook(kDropItemHookAddress, (DWORD)OnDropItem)) {
+			g_originalDropItem = reinterpret_cast<DropItemOriginalFn>(*original);
+		}
+		if (auto original = CreateHook(kTakeItemHookAddress, (DWORD)OnTakeItem)) {
+			g_originalTakeItem = reinterpret_cast<TakeItemOriginalFn>(*original);
+		}
 		// zCAICamera::AI_Normal(void) CrashFix
 		JmpPatch(0x004A437C, (DWORD)ZCAICAMERA_CRASHFIX);
 		EraseMemory(0x004A4381, 0x90, 1);

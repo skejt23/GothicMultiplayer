@@ -82,7 +82,7 @@ CIngame::CIngame() {
   WhisperingTo = "";
   chat_interface->WriteMessage(NORMAL, false, "Gothic Multiplayer");
   global_ingame = this;
-  HooksManager::GetInstance()->AddHook(HT_RENDER, (DWORD)CIngame::Loop, false);
+  HooksManager::GetInstance()->AddHook(HT_RENDER, (DWORD)CIngame::Loop);
 }
 
 CIngame::~CIngame() {

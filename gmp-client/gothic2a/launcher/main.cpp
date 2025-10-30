@@ -120,7 +120,7 @@ public:
     SPDLOG_INFO("Validating GMP.dll dependencies...");
 
     // Check for required dependencies in the working directory
-    std::vector<std::string> requiredDlls = {"SDL3.dll", "BugTrap.dll", "InjectMage.dll"};
+    std::vector<std::string> requiredDlls = {"SDL3.dll", "BugTrap.dll"};
 
     bool allFound = true;
     for (const auto& dll : requiredDlls) {

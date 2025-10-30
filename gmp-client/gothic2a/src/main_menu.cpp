@@ -76,7 +76,7 @@ CMainMenu::CMainMenu() {
 
   ogame->GetWorldTimer()->GetTime(Hour, Minute);
   HooksManager* hm = HooksManager::GetInstance();
-  hm->AddHook(HT_RENDER, (DWORD)MainMenuLoop, false);
+  hm->AddHook(HT_RENDER, (DWORD)MainMenuLoop);
   hm->RemoveHook(HT_AIMOVING, (DWORD)Initialize);
 
   // Save player state for later restoration
@@ -171,7 +171,7 @@ void __stdcall CMainMenu::ReLaunchMenuCallback() {
   }
   menu->PrepareForMenuEntry();
 
-  HooksManager::GetInstance()->AddHook(HT_RENDER, (DWORD)CMainMenu::MainMenuLoop, false);
+  HooksManager::GetInstance()->AddHook(HT_RENDER, (DWORD)CMainMenu::MainMenuLoop);
 
   // Re-initialize state machine for menu re-entry
   menu->InitializeStateMachine();
@@ -186,7 +186,7 @@ void CMainMenu::ReLaunchMainMenu() {
     ogame->ChangeLevel("NEWWORLD\\NEWWORLD.ZEN", zSTRING("????"));
     Patch::ChangeLevelEnabled(false);
   }
-  HooksManager::GetInstance()->AddHook(HT_AIMOVING, (DWORD)CMainMenu::ReLaunchMenuCallback, false);
+  HooksManager::GetInstance()->AddHook(HT_AIMOVING, (DWORD)CMainMenu::ReLaunchMenuCallback);
 }
 
 void CMainMenu::PreparePlayerForMenuReentry() {

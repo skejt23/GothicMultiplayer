@@ -28,7 +28,7 @@ SOFTWARE.
 #include <cstdio>
 
 #include "GMPSplash.h"
-#include "InjectMage.h"
+#include "hooking/MemoryPatch.h"
 #include "common.h"
 #include "ZenGin/zGothicAPI.h"
 

@@ -25,7 +25,7 @@ SOFTWARE.
 
 #include <optional>
 
-#include "InjectMage.h"
+#include "hooking/MemoryPatch.h"
 #include "ZenGin/zGothicAPI.h"
 #include "patch_install.hpp"
 

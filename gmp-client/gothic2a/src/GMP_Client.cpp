@@ -139,7 +139,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
       Patch::AlwaysNoMenu();
       InstalloCGamePatches();
       HooksManager* hm = HooksManager::GetInstance();
-      hm->AddHook(HT_AIMOVING, (DWORD)Initialize, false);
+      hm->AddHook(HT_AIMOVING, (DWORD)Initialize);
       Patch::ChangeDefaultIni();
       DiscordRichPresence::Instance().Init();
       SPDLOG_INFO("GMP.dll initialized successfully");
