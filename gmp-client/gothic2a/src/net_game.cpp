@@ -268,9 +268,6 @@ void NetGame::Disconnect() {
     if (global_ingame) {
       global_ingame->WhisperingTo.clear();
     }
-    if (player) {
-      player->SetWeaponMode(NPC_WEAPON_NONE);
-    }
   }
 }
 

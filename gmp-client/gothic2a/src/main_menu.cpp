@@ -215,8 +215,9 @@ void CMainMenu::PreparePlayerForMenuReentry() {
     rightHand->RemoveVobFromWorld();
   }
 
-  player->GetModel()->StartAnimation("S_RUN");
-  player->SetWeaponMode(NPC_WEAPON_NONE);
+  player->SetWeaponMode2(NPC_WEAPON_NONE);
+  oCNpcFocus::SetFocusMode(FOCUS_NORMAL);
+  player->human_ai->StartStandAni();
   player->inventory2.ClearInventory();
 }
 
