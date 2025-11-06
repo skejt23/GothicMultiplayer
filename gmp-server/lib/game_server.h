@@ -50,7 +50,6 @@ SOFTWARE.
 
 class CLog;
 class GothicClock;
-class HTTPServer;
 
 enum CONFIG_FLAGS { HIDE_MAP = 0x04 };
 
@@ -65,8 +64,6 @@ class GameServer : public Net::PacketHandler {
 public:
   using PlayerId = PlayerManager::PlayerId;
   using Player = PlayerManager::Player;
-  
-  enum FILE_REQ { WB_FILE = 1, NULL_SIZE = 255 };
 
   struct DiscordActivityState {
     std::string state;
@@ -134,7 +131,6 @@ private:
   bool allow_modification = false;
   Config config_;
   std::unique_ptr<GothicClock> clock_;
-  std::unique_ptr<HTTPServer> http_server_;
   std::future<void> public_list_http_thread_future_;
   std::chrono::time_point<std::chrono::steady_clock> last_update_time_{};
   std::thread main_thread;

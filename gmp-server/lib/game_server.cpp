@@ -45,7 +45,6 @@ SOFTWARE.
 #include <string_view>
 #include <system_error>
 
-#include "HTTPServer.h"
 #include "gothic_clock.h"
 #include "net_enums.h"
 #include "packets.h"
@@ -328,8 +327,6 @@ bool GameServer::Init() {
   } else if (!IsPublic()) {
     SPDLOG_WARN("Server marked as private, skipping connection to Master Server..");
   }
-  http_server_ = std::make_unique<HTTPServer>();
-  http_server_->Start(port);
   this->last_stand_timer = 0;
 
   SPDLOG_INFO(kFrame);

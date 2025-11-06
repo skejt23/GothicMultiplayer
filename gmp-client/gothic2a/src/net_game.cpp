@@ -45,7 +45,6 @@ SOFTWARE.
 
 #include "CChat.h"
 #include "CIngame.h"
-#include "HTTPDownloader.h"
 #include "Interface.h"
 #include "ZenGin/zGothicAPI.h"
 #include "config.h"
@@ -77,28 +76,6 @@ bool NetGame::Connect(std::string_view full_address) {
   // Return true to indicate connection attempt started
   // Actual connection status will be reported via callbacks
   return true;
-}
-
-string NetGame::GetServerAddresForHTTPDownloader() {
-  auto address = game_client->GetServerIp() + ":" + std::to_string(game_client->GetServerPort() + 1);
-  return address;
-}
-
-void NetGame::DownloadWBFile() {
-  auto content = HTTPDownloader::GetWBFile(GetServerAddresForHTTPDownloader());
-  static const std::filesystem::path path = ".\\Multiplayer\\Data\\";
-
-  auto serverWbFile = path / (game_client->GetServerIp() + "_" + std::to_string(game_client->GetServerPort()));
-
-  if (content == "EMPTY") {
-    std::filesystem::remove(serverWbFile);
-    return;
-  }
-
-  std::ofstream wbFile(serverWbFile, std::ios::binary);
-  if (wbFile) {
-    wbFile.write(content.data(), content.length());
-  }
 }
 
 void NetGame::RestoreHealth() {
@@ -284,8 +261,7 @@ void NetGame::OnConnectionStarted() {
 
 void NetGame::OnConnected() {
   SPDLOG_INFO("Successfully connected to server");
-  // Download world file and mark ready to join
-  DownloadWBFile();
+  // Mark ready to join
   IsReadyToJoin = true;
 }
 

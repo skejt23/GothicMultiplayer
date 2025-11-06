@@ -35,8 +35,6 @@ SOFTWARE.
 #include "gothic2a_player.hpp"
 #include "gothic_task_scheduler.h"
 
-enum FILE_REQ { WB_FILE = 1, NULL_SIZE = 255 };
-
 struct MD5Sum {
   BYTE data[16];
 };
@@ -65,7 +63,6 @@ public:
   void SendHPDiff(size_t who, short diff);
   void SyncGameTime();
   void Disconnect();
-  void DownloadWBFile();
   void RestoreHealth();
 
   // Task scheduler hook - called from render hook
@@ -118,6 +115,5 @@ private:
   NetGame();
   time_t last_mp_regen;
 
-  std::string GetServerAddresForHTTPDownloader();
   Gothic2APlayer* GetPlayerById(std::uint64_t player_id);
 };
