@@ -39,7 +39,11 @@ namespace menu {
 namespace states {
 
 ServerListState::ServerListState(MenuContext& context)
-    : context_(context), shouldReturnToMainMenu_(false), shouldConnectToServer_(false), enteringCustomIP_(false) {
+    : context_(context),
+      shouldReturnToMainMenu_(false),
+      shouldConnectToServer_(false),
+      enteringCustomIP_(false),
+      connectionAttemptInProgress_(false) {
 }
 
 void ServerListState::OnEnter() {
@@ -84,10 +88,39 @@ void ServerListState::OnExit() {
 }
 
 StateResult ServerListState::Update() {
-  // Check if we should connect first (for fast join)
+  // Check if we should initiate connection (for fast join or user selection)
   if (shouldConnectToServer_) {
     ConnectToServer();
-    return StateResult::Continue;  // Don't do anything else if we're connecting
+    shouldConnectToServer_ = false;                           // Only call ConnectToServer once
+    connectionAttemptInProgress_ = true;                      // Mark that we're attempting to connect
+    connectionStartTime_ = std::chrono::steady_clock::now();  // Record start time for animation
+  }
+
+  // Check async connection status only if we have an active connection attempt
+  if (connectionAttemptInProgress_ && NetGame::Instance().game_client) {
+    auto connState = NetGame::Instance().game_client->GetConnectionState();
+
+    if (connState == gmp::client::GameClient::ConnectionState::Connecting) {
+      // Still connecting - show progress UI
+      UpdateTitleWeapon();
+      RenderConnectionProgress();
+      return StateResult::Continue;
+    } else if (connState == gmp::client::GameClient::ConnectionState::Connected) {
+      // Connection successful - proceed with game setup
+      if (NetGame::Instance().IsConnected() && NetGame::Instance().IsReadyToJoin) {
+        SetupGameAfterConnection();
+        connectionAttemptInProgress_ = false;
+        // Trigger transition to ExitMenuState
+        shouldConnectToServer_ = true;  // Reuse flag for transition
+      }
+      return StateResult::Continue;
+    } else if (connState == gmp::client::GameClient::ConnectionState::Failed) {
+      // Connection failed - handle it once and reset
+      HandleConnectionFailure();
+      connectionAttemptInProgress_ = false;  // Clear the flag so we don't handle it again
+      // Disconnect to reset the connection state back to Disconnected
+      NetGame::Instance().Disconnect();
+    }
   }
 
   UpdateTitleWeapon();
@@ -241,67 +274,80 @@ void ServerListState::HandleCustomIPInput() {
 void ServerListState::ConnectToServer() {
   context_.input->ClearKeyBuffer();
 
-  // Attempt connection
-  if (!NetGame::Instance().Connect(context_.selectedServerIP.ToChar())) {
-    SPDLOG_ERROR("Unable to connect to the server: {}", context_.selectedServerIP.ToChar());
-    shouldConnectToServer_ = false;
+  SPDLOG_INFO("Starting async connection to: {}", context_.selectedServerIP.ToChar());
 
-    // Reset to normal server list mode on connection failure
-    context_.selectedServerIP.Clear();
-    context_.selectedServerIndex = 0;
-    enteringCustomIP_ = false;
+  // Initiate async connection - will not block
+  NetGame::Instance().Connect(context_.selectedServerIP.ToChar());
 
-    // Refresh server list
-    if (context_.extendedServerList) {
-      context_.extendedServerList->RefreshList();
-    }
-    return;
+  // Connection will complete in background
+  // The state will check connection status in Update() loop
+  // and transition when OnConnected callback fires
+}
+
+void ServerListState::RenderConnectionProgress() {
+  // Render "Connecting..." message to user centered on screen
+  zSTRING connectingMsg = "Connecting";
+  int msgWidth = context_.screen->FontSize(connectingMsg);
+  int centerX = (8192 - msgWidth) / 2;
+  context_.screen->Print(centerX, 4096, connectingMsg);
+
+  // Add animated dots below the message (time-based, FPS independent)
+  auto now = std::chrono::steady_clock::now();
+  auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - connectionStartTime_).count();
+
+  // Cycle through 0-3 dots every 500ms (full cycle = 2 seconds)
+  int dotCount = (elapsed / 500) % 4;
+
+  zSTRING dots;
+  for (int i = 0; i < dotCount + 1; i++) {
+    dots += ".";
+  }
+  int dotsWidth = context_.screen->FontSize(dots);
+  int dotsCenterX = (8192 - dotsWidth) / 2;
+  context_.screen->Print(dotsCenterX, 4300, dots);
+}
+
+void ServerListState::SetupGameAfterConnection() {
+  SPDLOG_INFO("Connection successful, setting up game...");
+
+  // Handle initial network sync
+  NetGame::Instance().HandleNetwork();
+  NetGame::Instance().SyncGameTime();
+
+  // Save spawn position
+  zVEC3 spawnPosition = context_.player->GetPositionWorld();
+
+  // Enable player interface
+  Patch::PlayerInterfaceEnabled(true);
+
+  // Change level if needed
+  if (!NetGame::Instance().map.IsEmpty()) {
+    Patch::ChangeLevelEnabled(true);
+    ogame->ChangeLevel(NetGame::Instance().map, zSTRING("????"));
+    Patch::ChangeLevelEnabled(false);
   }
 
-  // If connected, proceed with game setup
-  if (NetGame::Instance().IsConnected()) {
-    SPDLOG_INFO("Connected to server: {}", context_.selectedServerIP.ToChar());
+  // Clean up NPCs and world objects
+  DeleteAllNpcsAndDisableSpawning();
+  context_.player->trafoObjToWorld.SetTranslation(spawnPosition);
+  CleanupWorldObjects(ogame->GetGameWorld());
 
-    // Handle initial network sync
-    NetGame::Instance().HandleNetwork();
-    NetGame::Instance().SyncGameTime();
+  // Join game
+  NetGame::Instance().JoinGame();
+}
 
-    // Save spawn position
-    zVEC3 spawnPosition = context_.player->GetPositionWorld();
+void ServerListState::HandleConnectionFailure() {
+  auto error = NetGame::Instance().game_client->GetConnectionError();
+  SPDLOG_ERROR("Connection failed: {}", error);
 
-    // Enable player interface
-    Patch::PlayerInterfaceEnabled(true);
+  // Reset to normal server list mode
+  context_.selectedServerIP.Clear();
+  context_.selectedServerIndex = 0;
+  enteringCustomIP_ = false;
 
-    // Change level if needed
-    if (!NetGame::Instance().map.IsEmpty()) {
-      Patch::ChangeLevelEnabled(true);
-      ogame->ChangeLevel(NetGame::Instance().map, zSTRING("????"));
-      Patch::ChangeLevelEnabled(false);
-    }
-
-    // Clean up NPCs and world objects
-    DeleteAllNpcsAndDisableSpawning();
-    context_.player->trafoObjToWorld.SetTranslation(spawnPosition);
-    CleanupWorldObjects(ogame->GetGameWorld());
-
-    // Join game
-    NetGame::Instance().JoinGame();
-
-    // shouldConnectToServer_ stays true, which will trigger transition to ExitMenuState
-    // The ExitMenuState will handle all menu cleanup
-  } else {
-    SPDLOG_ERROR("Connection failed");
-    shouldConnectToServer_ = false;
-
-    // Reset to normal server list mode on connection failure
-    context_.selectedServerIP.Clear();
-    context_.selectedServerIndex = 0;
-    enteringCustomIP_ = false;
-
-    // Refresh server list
-    if (context_.extendedServerList) {
-      context_.extendedServerList->RefreshList();
-    }
+  // Refresh server list
+  if (context_.extendedServerList) {
+    context_.extendedServerList->RefreshList();
   }
 }
 

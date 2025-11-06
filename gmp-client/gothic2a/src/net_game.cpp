@@ -63,17 +63,20 @@ extern CIngame* global_ingame;
 
 using namespace Net;
 
-NetGame::NetGame() : game_client(nullptr) {
-  game_client = std::make_unique<gmp::client::GameClient>(*this);
+NetGame::NetGame() : task_scheduler(nullptr), game_client(nullptr) {
+  task_scheduler = std::make_unique<gmp::GothicTaskScheduler>();
+  game_client = std::make_unique<gmp::client::GameClient>(*this, *task_scheduler);
+}
+
+void __stdcall NetGame::ProcessTaskScheduler() {
+  NetGame::Instance().task_scheduler->ProcessTasks();
 }
 
 bool NetGame::Connect(std::string_view full_address) {
-  if (game_client->Connect(full_address)) {
-    DownloadWBFile();
-    IsReadyToJoin = true;
-    return true;
-  }
-  return false;
+  game_client->ConnectAsync(full_address);
+  // Return true to indicate connection attempt started
+  // Actual connection status will be reported via callbacks
+  return true;
 }
 
 string NetGame::GetServerAddresForHTTPDownloader() {
@@ -275,12 +278,25 @@ void NetGame::Disconnect() {
 // EventObserver Implementation
 // ============================================================================
 
+void NetGame::OnConnectionStarted() {
+  SPDLOG_INFO("Connection attempt started...");
+}
+
 void NetGame::OnConnected() {
-  // Connection established
+  SPDLOG_INFO("Successfully connected to server");
+  // Download world file and mark ready to join
+  DownloadWBFile();
+  IsReadyToJoin = true;
+}
+
+void NetGame::OnConnectionFailed(const std::string& error) {
+  SPDLOG_ERROR("Connection failed: {}", error);
+  IsReadyToJoin = false;
+  // Could show error message to user here
 }
 
 void NetGame::OnDisconnected() {
-  // Disconnected normally
+  SPDLOG_INFO("Disconnected from server");
 }
 
 void NetGame::OnConnectionLost() {

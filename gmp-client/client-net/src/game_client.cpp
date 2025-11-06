@@ -50,7 +50,8 @@ static void SerializeAndSend(const Packet& packet, Net::PacketPriority priority,
   g_netclient->SendPacket(buffer.data(), written_size, reliable, priority);
 }
 
-GameClient::GameClient(EventObserver& eventObserver) : event_observer_(eventObserver) {
+GameClient::GameClient(EventObserver& eventObserver, gmp::TaskScheduler& taskScheduler)
+    : event_observer_(eventObserver), task_scheduler_(taskScheduler) {
   assert(g_netclient != nullptr);
   InitPacketHandlers();
   g_netclient->AddPacketHandler(*this);
@@ -58,6 +59,15 @@ GameClient::GameClient(EventObserver& eventObserver) : event_observer_(eventObse
 
 GameClient::~GameClient() {
   assert(g_netclient != nullptr);
+
+  // Clean up connection thread if still running
+  {
+    std::lock_guard<std::mutex> lock(connection_mutex_);
+    if (connection_thread_.joinable()) {
+      connection_thread_.join();
+    }
+  }
+
   g_netclient->RemovePacketHandler(*this);
 }
 
@@ -84,7 +94,52 @@ void GameClient::InitPacketHandlers() {
   packet_handlers_[Net::ID_CONNECTION_LOST] = [this](Packet p) { OnDisconnectOrLostConnection(p); };
 }
 
-bool GameClient::Connect(std::string_view full_address) {
+void GameClient::ConnectAsync(std::string_view full_address) {
+  {
+    std::lock_guard<std::mutex> lock(connection_mutex_);
+
+    // Prevent multiple simultaneous connection attempts
+    if (connection_state_ == ConnectionState::Connecting) {
+      SPDLOG_WARN("Connection already in progress");
+      return;
+    }
+
+    // Join previous thread if exists
+    if (connection_thread_.joinable()) {
+      connection_thread_.join();
+    }
+
+    connection_state_ = ConnectionState::Connecting;
+    connection_error_.clear();
+  }
+
+  // Queue the OnConnectionStarted callback for main thread execution
+  task_scheduler_.ScheduleOnMainThread([this]() { event_observer_.OnConnectionStarted(); });
+
+  // Launch connection thread
+  connection_thread_ = std::thread([this, addr = std::string(full_address)]() {
+    SPDLOG_INFO("Connection thread started for: {}", addr);
+    bool success = ConnectInternal(addr);
+
+    {
+      std::lock_guard<std::mutex> lock(connection_mutex_);
+      connection_state_ = success ? ConnectionState::Connected : ConnectionState::Failed;
+    }
+
+    // Queue callbacks for main thread execution instead of calling directly
+    if (success) {
+      SPDLOG_INFO("Connection successful");
+      task_scheduler_.ScheduleOnMainThread([this]() { event_observer_.OnConnected(); });
+    } else {
+      SPDLOG_ERROR("Connection failed: {}", connection_error_);
+      // Capture error string by value to avoid race condition
+      std::string error = connection_error_;
+      task_scheduler_.ScheduleOnMainThread([this, error]() { event_observer_.OnConnectionFailed(error); });
+    }
+  });
+}
+
+bool GameClient::ConnectInternal(std::string_view full_address) {
   // Extract port number from IP address if present
   std::string host(full_address);
   int port = 0xDEAD;
@@ -97,6 +152,8 @@ bool GameClient::Connect(std::string_view full_address) {
   }
 
   if (!g_netclient->Connect(host.c_str(), port)) {
+    std::lock_guard<std::mutex> lock(connection_mutex_);
+    connection_error_ = "Failed to establish network connection";
     return false;
   }
 
@@ -106,6 +163,15 @@ bool GameClient::Connect(std::string_view full_address) {
 }
 
 void GameClient::Disconnect() {
+  // Join connection thread if it's still running
+  {
+    std::lock_guard<std::mutex> lock(connection_mutex_);
+    if (connection_thread_.joinable()) {
+      connection_thread_.join();
+    }
+    connection_state_ = ConnectionState::Disconnected;
+  }
+
   if (IsConnected()) {
     is_in_game_ = false;
     g_netclient->Disconnect();
@@ -114,7 +180,18 @@ void GameClient::Disconnect() {
 }
 
 bool GameClient::IsConnected() const {
-  return !connection_lost_ && g_netclient->IsConnected();
+  std::lock_guard<std::mutex> lock(connection_mutex_);
+  return !connection_lost_ && connection_state_ == ConnectionState::Connected && g_netclient->IsConnected();
+}
+
+GameClient::ConnectionState GameClient::GetConnectionState() const {
+  std::lock_guard<std::mutex> lock(connection_mutex_);
+  return connection_state_;
+}
+
+std::string GameClient::GetConnectionError() const {
+  std::lock_guard<std::mutex> lock(connection_mutex_);
+  return connection_error_;
 }
 
 int GameClient::GetPing() {
@@ -122,6 +199,14 @@ int GameClient::GetPing() {
 }
 
 void GameClient::HandleNetwork() {
+  {
+    std::lock_guard<std::mutex> lock(connection_mutex_);
+    // Don't pulse if still connecting
+    if (connection_state_ == ConnectionState::Connecting) {
+      return;
+    }
+  }
+
   if (IsConnected()) {
     g_netclient->Pulse();
   }
@@ -147,8 +232,9 @@ bool GameClient::HandlePacket(unsigned char* data, std::uint32_t size) {
 // ============================================================================
 
 void GameClient::UpdatePlayerState(Player* player, const PlayerState& state) {
-  if (!player) return;
-  
+  if (!player)
+    return;
+
   player->set_position(state.position.x, state.position.y, state.position.z);
   player->set_rotation(glm::vec3(state.nrot.x, state.nrot.y, state.nrot.z));
   player->set_left_hand_item(state.left_hand_item_instance);
@@ -164,8 +250,8 @@ void GameClient::UpdatePlayerState(Player* player, const PlayerState& state) {
   player->set_ranged_weapon(state.ranged_weapon_instance);
 }
 
-void GameClient::JoinGame(const std::string& player_name, const std::string& character_name, int head_model, int skin_texture,
-                          int face_texture, int walk_style) {
+void GameClient::JoinGame(const std::string& player_name, const std::string& character_name, int head_model, int skin_texture, int face_texture,
+                          int walk_style) {
   JoinGamePacket packet;
   packet.packet_type = PT_JOIN_GAME;
   // Position, rotation, and items will need to be filled by the caller or from the local player state
@@ -262,7 +348,7 @@ void GameClient::OnInitialInfo(Packet p) {
   auto local_player = player_manager_.CreateLocalPlayer(packet.player_id);
   worlds_.clear();
   worlds_.emplace_back(packet.map_name);
-  
+
   event_observer_.OnMapChange(packet.map_name);
   event_observer_.OnLocalPlayerJoined(*local_player);
 }
@@ -402,7 +488,7 @@ void GameClient::OnMessage(Packet p) {
   Player* sender = player_manager_.GetPlayer(*packet.sender);
   std::string sender_name = sender ? sender->name() : "";
   SPDLOG_INFO("Message from player {} ({}): {}", sender_name, *packet.sender, packet.message);
-  
+
   event_observer_.OnChatMessage(*packet.sender, sender_name, packet.message);
 }
 
@@ -489,9 +575,9 @@ void GameClient::OnLeftGame(Packet p) {
   // Get player name before removing
   Player* player = player_manager_.GetPlayer(packet.disconnected_id);
   std::string player_name = player ? player->name() : "";
-  
+
   event_observer_.OnPlayerLeft(packet.disconnected_id, player_name);
-  
+
   // Remove from player manager
   player_manager_.RemovePlayer(packet.disconnected_id);
 }
@@ -503,8 +589,8 @@ void GameClient::OnDiscordActivity(Packet p) {
 
   SPDLOG_DEBUG("DiscordActivityPacket: {}", packet);
 
-  event_observer_.OnDiscordActivityUpdate(packet.state, packet.details, packet.large_image_key, packet.large_image_text,
-                                         packet.small_image_key, packet.small_image_text);
+  event_observer_.OnDiscordActivityUpdate(packet.state, packet.details, packet.large_image_key, packet.large_image_text, packet.small_image_key,
+                                          packet.small_image_text);
 }
 
 void GameClient::OnDisconnectOrLostConnection(Packet p) {

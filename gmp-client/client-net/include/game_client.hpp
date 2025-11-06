@@ -28,12 +28,16 @@ SOFTWARE.
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <mutex>
+#include <queue>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 #include "common_structs.h"
 #include "event_observer.hpp"
 #include "players.hpp"
+#include "task_scheduler.h"
 #include "world.hpp"
 #include "znet_client.h"
 
@@ -41,12 +45,16 @@ namespace gmp::client {
 
 class GameClient : public Net::NetClient::PacketHandler {
 public:
-  GameClient(EventObserver& eventObserver);
+  enum class ConnectionState { Disconnected, Connecting, Connected, Failed };
+
+  GameClient(EventObserver& eventObserver, gmp::TaskScheduler& taskScheduler);
   ~GameClient();
 
-  bool Connect(std::string_view endpoint);
+  void ConnectAsync(std::string_view endpoint);
   void Disconnect();
   bool IsConnected() const;
+  ConnectionState GetConnectionState() const;
+  std::string GetConnectionError() const;
   int GetPing();
 
   // To be called after connecting to the server and receiving the initial info packet,
@@ -65,7 +73,7 @@ public:
   void SendHPDiff(std::uint64_t player_id, std::int16_t diff);
   void SyncGameTime();
 
-  // Network handling
+  // Network handling - MUST be called from main thread
   void HandleNetwork();
 
   PlayerManager& player_manager() {
@@ -88,10 +96,13 @@ private:
 
   void InitPacketHandlers();
   bool HandlePacket(unsigned char* data, std::uint32_t size) override;
-  
+
+  // Internal blocking connect called from connection thread
+  bool ConnectInternal(std::string_view endpoint);
+
   // Helper to update player state from PlayerState struct
   void UpdatePlayerState(Player* player, const PlayerState& state);
-  
+
   // Packet handlers
   void OnInitialInfo(Packet packet);
   void OnActualStatistics(Packet packet);
@@ -114,6 +125,7 @@ private:
   void OnDisconnectOrLostConnection(Packet packet);
 
   EventObserver& event_observer_;
+  gmp::TaskScheduler& task_scheduler_;
   PlayerManager player_manager_;
 
   using PacketHandlerFunc = std::function<void(Packet)>;
@@ -124,6 +136,12 @@ private:
   std::uint32_t server_port_{0};
   bool connection_lost_{false};
   bool is_in_game_{false};
+
+  // Async connection support
+  ConnectionState connection_state_{ConnectionState::Disconnected};
+  std::thread connection_thread_;
+  mutable std::mutex connection_mutex_;
+  std::string connection_error_;
 };
 
 // Function to load the network library dynamically. Must be called

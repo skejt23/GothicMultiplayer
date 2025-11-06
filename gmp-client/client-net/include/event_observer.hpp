@@ -40,7 +40,9 @@ public:
   virtual ~EventObserver() = default;
 
   // Connection events
+  virtual void OnConnectionStarted() {}
   virtual void OnConnected() {}
+  virtual void OnConnectionFailed(const std::string& error) {}
   virtual void OnDisconnected() {}
   virtual void OnConnectionLost() {}
   

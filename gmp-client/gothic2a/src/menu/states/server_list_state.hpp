@@ -24,6 +24,8 @@ SOFTWARE.
 
 #pragma once
 
+#include <chrono>
+
 #include "menu/menu_context.hpp"
 #include "menu/states/menu_state.hpp"
 
@@ -45,6 +47,8 @@ private:
   bool shouldReturnToMainMenu_;
   bool shouldConnectToServer_;
   bool enteringCustomIP_;
+  bool connectionAttemptInProgress_;
+  std::chrono::steady_clock::time_point connectionStartTime_;
 
 public:
   explicit ServerListState(MenuContext& context);
@@ -62,11 +66,14 @@ public:
 private:
   void RenderServerList();
   void RenderCustomIPEntry();
+  void RenderConnectionProgress();
   void HandleInput();
   void HandleCommonInput();
   void HandleServerListInput();
   void HandleCustomIPInput();
   void ConnectToServer();
+  void SetupGameAfterConnection();
+  void HandleConnectionFailure();
   void UpdateTitleWeapon();
 };
 

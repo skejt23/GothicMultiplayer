@@ -27,12 +27,13 @@ SOFTWARE.
 #include <memory>
 #include <string>
 
-#include "gothic2a_player.hpp"
 #include "CSyncFuncs.h"
 #include "HooksManager.h"
 #include "ZenGin/zGothicAPI.h"
 #include "event_observer.hpp"
 #include "game_client.hpp"
+#include "gothic2a_player.hpp"
+#include "gothic_task_scheduler.h"
 
 enum FILE_REQ { WB_FILE = 1, NULL_SIZE = 255 };
 
@@ -67,6 +68,9 @@ public:
   void DownloadWBFile();
   void RestoreHealth();
 
+  // Task scheduler hook - called from render hook
+  static void __stdcall ProcessTaskScheduler();
+
   static NetGame& Instance() {
     static NetGame instance;
     return instance;
@@ -81,10 +85,13 @@ public:
   int DropItemsAllowed{0};
   int ForceHideMap{0};
   bool IsReadyToJoin{false};
+  std::unique_ptr<gmp::GothicTaskScheduler> task_scheduler;
   std::unique_ptr<gmp::client::GameClient> game_client;
 
   // EventObserver interface implementation
+  void OnConnectionStarted() override;
   void OnConnected() override;
+  void OnConnectionFailed(const std::string& error) override;
   void OnDisconnected() override;
   void OnConnectionLost() override;
   void OnMapChange(const std::string& map_name) override;
@@ -105,8 +112,7 @@ public:
   void OnServerMessage(const std::string& message) override;
   void OnRconResponse(const std::string& response, bool is_admin) override;
   void OnDiscordActivityUpdate(const std::string& state, const std::string& details, const std::string& large_image_key,
-                               const std::string& large_image_text, const std::string& small_image_key,
-                               const std::string& small_image_text) override;
+                               const std::string& large_image_text, const std::string& small_image_key, const std::string& small_image_text) override;
 
 private:
   NetGame();

@@ -393,6 +393,10 @@ void Initialize(void)
 	if(!MultiplayerLaunched){
 		MultiplayerLaunched = true;
 		HooksManager * hm = HooksManager::GetInstance();
+		
+		// Register task scheduler render hook - processes queued main-thread tasks every frame
+		hm->AddHook(HT_RENDER, (DWORD)NetGame::ProcessTaskScheduler);
+		
 		CActiveAniID *ani_ptr=new CActiveAniID();
 		if (auto original = CreateHook(kCastSpellHookAddress, (DWORD)OnCastSpell)) {
 			g_originalCastSpell = reinterpret_cast<CastSpellOriginalFn>(*original);
