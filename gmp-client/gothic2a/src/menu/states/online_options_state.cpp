@@ -55,7 +55,7 @@ void OnlineOptionsState::OnExit() {
 }
 
 StateResult OnlineOptionsState::Update() {
-  UpdateTitleWeapon();
+  context_.scene.Update();
   RenderOptionsMenu();
   HandleInput();
   return StateResult::Continue;
@@ -337,12 +337,6 @@ void OnlineOptionsState::AdjustOption(OptionItem option, int direction) {
     default:
       // Other options don't support left/right
       break;
-  }
-}
-
-void OnlineOptionsState::UpdateTitleWeapon() {
-  if (context_.titleWeapon) {
-    context_.titleWeapon->RotateWorldX(0.6f);
   }
 }
 

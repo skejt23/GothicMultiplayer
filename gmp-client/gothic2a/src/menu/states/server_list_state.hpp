@@ -74,7 +74,6 @@ private:
   void ConnectToServer();
   void SetupGameAfterConnection();
   void HandleConnectionFailure();
-  void UpdateTitleWeapon();
 };
 
 }  // namespace states

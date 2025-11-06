@@ -56,7 +56,6 @@ public:
   }
 
 private:
-  void UpdateTitleWeapon();
   void CheckForMenuExit();
   void ApplySettings();
 };

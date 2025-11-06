@@ -72,7 +72,7 @@ void OptionsMenuState::OnExit() {
 }
 
 StateResult OptionsMenuState::Update() {
-  UpdateTitleWeapon();
+  context_.scene.Update();
   CheckForMenuExit();
   return StateResult::Continue;
 }
@@ -82,12 +82,6 @@ MenuState* OptionsMenuState::CheckTransition() {
     return new MainMenuLoopState(context_);
   }
   return nullptr;
-}
-
-void OptionsMenuState::UpdateTitleWeapon() {
-  if (context_.titleWeapon) {
-    context_.titleWeapon->RotateWorldX(0.6f);
-  }
 }
 
 void OptionsMenuState::CheckForMenuExit() {

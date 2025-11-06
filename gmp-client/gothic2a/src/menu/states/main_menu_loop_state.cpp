@@ -84,8 +84,7 @@ void MainMenuLoopState::OnExit() {
 }
 
 StateResult MainMenuLoopState::Update() {
-  UpdateGameTime();
-  UpdateTitleWeapon();
+  context_.scene.Update();
   RenderMenu();
   RenderVersionInfo();
   HandleInput();
@@ -202,26 +201,6 @@ void MainMenuLoopState::ExecuteMenuItem(MenuItem item) {
       }
       break;
   }
-}
-
-void MainMenuLoopState::UpdateTitleWeapon() {
-  // Rotate title weapon for visual effect
-  if (context_.titleWeapon) {
-    context_.titleWeapon->RotateWorldX(0.6f);
-  }
-}
-
-void MainMenuLoopState::UpdateGameTime() {
-  // Speed up time for visual effect
-  int hour, minute;
-  context_.game->GetWorldTimer()->GetTime(hour, minute);
-
-  if (minute >= 59) {
-    hour++;
-  }
-  minute++;
-
-  context_.game->GetWorldTimer()->SetTime(hour, minute);
 }
 
 }  // namespace states

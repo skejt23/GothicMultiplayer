@@ -102,7 +102,7 @@ StateResult ServerListState::Update() {
 
     if (connState == gmp::client::GameClient::ConnectionState::Connecting) {
       // Still connecting - show progress UI
-      UpdateTitleWeapon();
+      context_.scene.Update();
       RenderConnectionProgress();
       return StateResult::Continue;
     } else if (connState == gmp::client::GameClient::ConnectionState::Connected) {
@@ -123,7 +123,7 @@ StateResult ServerListState::Update() {
     }
   }
 
-  UpdateTitleWeapon();
+  context_.scene.Update();
 
   // Handle common input first (Enter to connect, ESC to exit)
   HandleCommonInput();
@@ -348,12 +348,6 @@ void ServerListState::HandleConnectionFailure() {
   // Refresh server list
   if (context_.extendedServerList) {
     context_.extendedServerList->RefreshList();
-  }
-}
-
-void ServerListState::UpdateTitleWeapon() {
-  if (context_.titleWeapon) {
-    context_.titleWeapon->RotateWorldX(0.6f);
   }
 }
 

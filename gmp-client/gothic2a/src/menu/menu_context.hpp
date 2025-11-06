@@ -29,6 +29,7 @@ SOFTWARE.
 #include "ZenGin/zGothicAPI.h"
 #include "config.h"
 #include "language.h"
+#include "menu/menu_scene.h"
 
 namespace menu {
 
@@ -72,6 +73,9 @@ struct MenuContext {
   // ===== Extended Server List =====
   ExtendedServerList* extendedServerList = nullptr;
 
+  // ===== Menu Scene (for FPS-independent animations) =====
+  MenuScene scene;
+
   // ===== Player State Backup (for restoration) =====
   zVEC3 savedPlayerPosition;
   zVEC3 savedPlayerAngle;
@@ -80,7 +84,8 @@ struct MenuContext {
   int savedHealthBarY = 0;
 
   // ===== Constructor =====
-  MenuContext(Config& cfg, Language& lang, CServerList& servers) : config(cfg), language(lang), serverList(servers) {
+  MenuContext(Config& cfg, Language& lang, CServerList& servers)
+      : config(cfg), language(lang), serverList(servers), scene(ogame, nullptr) {
     // Initialize Gothic engine references
     game = ogame;
     player = Gothic_II_Addon::player;
@@ -126,6 +131,8 @@ struct MenuContext {
       if (game && game->GetWorld()) {
         game->GetWorld()->AddVob(titleWeapon);
       }
+      // Update scene to use this weapon
+      scene.SetWeapon(titleWeapon);
     }
   }
 
@@ -137,6 +144,8 @@ struct MenuContext {
       titleWeapon->RemoveVobFromWorld();
     }
     titleWeaponEnabled = false;
+    // Clear weapon from scene
+    scene.SetWeapon(nullptr);
   }
 
   // Destructor to clean up owned resources

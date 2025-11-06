@@ -85,7 +85,6 @@ private:
   void HandleInput();
   void ExecuteOption(OptionItem option);
   void AdjustOption(OptionItem option, int direction);
-  void UpdateTitleWeapon();
 };
 
 }  // namespace states

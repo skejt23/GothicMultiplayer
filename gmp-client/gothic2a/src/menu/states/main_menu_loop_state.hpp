@@ -73,8 +73,6 @@ private:
     void RenderVersionInfo();
     void HandleInput();
     void ExecuteMenuItem(MenuItem item);
-    void UpdateTitleWeapon();
-    void UpdateGameTime();
 };
 
 }  // namespace states
