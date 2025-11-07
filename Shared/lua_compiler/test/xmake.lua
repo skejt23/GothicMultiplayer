@@ -20,12 +20,12 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 -- SOFTWARE.
 
-includes("lua_compiler")
-
-target("SharedLib")
-    set_kind("static")
-    add_files("toml_wrapper.cpp", "event.cpp", "math.cpp")
-    add_includedirs("include", {public = true})
-    add_deps("common")
-    add_packages("toml11", "glm", {public = true})
-    set_default(false) -- So it's not installed by default
+target("LuaCompilerTest")
+    set_kind("binary")
+    add_files("lua_compiler_test.cpp")
+    add_deps("LuaCompiler")
+    add_packages("gtest")
+    add_tests("default")
+    set_rundir(os.projectdir())
+    -- disable the build by default
+    set_default(false)
