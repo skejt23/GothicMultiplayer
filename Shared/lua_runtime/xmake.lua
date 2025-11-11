@@ -20,31 +20,23 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 -- SOFTWARE.
 
-includes("lib/znet", "lib/znet_rak")
-
-target("Server")
+target("LuaRuntime")
     set_kind("static")
-    add_files("lib/*.cpp")
-    add_files("lib/Lua/*.cpp")
-    add_includedirs("$(builddir)/config")
-    add_includedirs("lib", {public = true})
-    add_deps("common", "SharedLib", "LuaRuntime", "znet_server")
-    add_defines("SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE")
-    add_packages("spdlog", "fmt", "toml11", "nlohmann_json", "bitsery", "glm", "sol2", "cpp-httplib", "dylib", "openssl", "libsodium", {public = true})
-    local master_endpoint = get_config("master_server_endpoint")
-    if master_endpoint and #master_endpoint > 0 then
-        add_defines(string.format("MASTER_SERVER_ENDPOINT=\"%s\"", master_endpoint))
-    end
-    set_default(false) -- So it's not installed by default
-
-target("ServerApp")
-    set_basename("gmp-server")
-    set_kind("binary")
-    add_files("app/main.cpp")
-    add_deps("Server")
-    add_packages("spdlog")
-    set_prefixdir("gmp-server", { bindir = "." })
-    add_installfiles("resources/*")
-    add_installfiles("resources/scripts/*", {prefixdir = "scripts"})
-
-includes("test")
+    
+    -- Source files
+    -- Note: script_base.h is header-only template (policy-based design)
+    add_files("spdlog_bind.cpp", "utility_bind.cpp", "timer_manager.cpp")
+    
+    -- Headers
+    add_headerfiles("*.h")
+    
+    -- Include directories
+    -- Public include allows: #include "shared/lua_runtime/script_base.h"
+    add_includedirs("$(projectdir)", {public = true})
+    
+    -- Dependencies
+    add_deps("SharedLib")
+    add_packages("sol2", "spdlog", "fmt", {public = true})
+    
+    -- Not built by default (only when needed by client/server)
+    set_default(false)

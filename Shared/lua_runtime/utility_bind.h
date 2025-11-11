@@ -21,44 +21,19 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-
-#include <algorithm>
-#include <array>
-#include <chrono>
-#include <cctype>
-#include <fstream>
-#include <iomanip>
-#include <optional>
-#include <sstream>
-#include <string>
-#include <vector>
-
-#include <openssl/md5.h>
-#include <openssl/sha.h>
-#include <spdlog/spdlog.h>
+#pragma once
 
 #include "sol/sol.hpp"
+#include "timer_manager.h"
 
-using namespace std;
+namespace lua {
+namespace bindings {
 
-namespace {
+// Bind utility functions to Lua state
+void BindUtilities(sol::state& lua);
 
-sol::optional<std::string> GetOptionalString(const sol::table& table, const char* lowerKey, const char* upperKey) {
-  if (auto value = table.get<sol::optional<std::string>>(lowerKey); value) {
-    return value;
-  }
-  return table.get<sol::optional<std::string>>(upperKey);
-}
+// Bind timer functions to Lua state
+void BindTimers(sol::state& lua, TimerManager& timer_manager);
 
-std::string BytesToHex(const unsigned char* data, std::size_t length) {
-  std::ostringstream stream;
-  stream << std::hex << std::nouppercase << std::setfill('0');
-
-  for (std::size_t i = 0; i < length; ++i) {
-    stream << std::setw(2) << static_cast<int>(data[i]);
-  }
-
-  return stream.str();
-}
-
-}  // namespace
+}  // namespace bindings
+}  // namespace lua

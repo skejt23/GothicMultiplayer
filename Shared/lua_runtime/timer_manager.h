@@ -21,44 +21,47 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+#pragma once
 
-#include <algorithm>
-#include <array>
 #include <chrono>
-#include <cctype>
-#include <fstream>
-#include <iomanip>
+#include <cstdint>
 #include <optional>
-#include <sstream>
-#include <string>
+#include <unordered_map>
 #include <vector>
-
-#include <openssl/md5.h>
-#include <openssl/sha.h>
-#include <spdlog/spdlog.h>
 
 #include "sol/sol.hpp"
 
-using namespace std;
+class TimerManager {
+public:
+  using TimerId = std::uint32_t;
 
-namespace {
+  TimerManager();
 
-sol::optional<std::string> GetOptionalString(const sol::table& table, const char* lowerKey, const char* upperKey) {
-  if (auto value = table.get<sol::optional<std::string>>(lowerKey); value) {
-    return value;
-  }
-  return table.get<sol::optional<std::string>>(upperKey);
-}
+  TimerId CreateTimer(sol::protected_function callback, std::chrono::milliseconds interval, std::uint32_t execute_times,
+                      std::vector<sol::object> arguments);
 
-std::string BytesToHex(const unsigned char* data, std::size_t length) {
-  std::ostringstream stream;
-  stream << std::hex << std::nouppercase << std::setfill('0');
+  void KillTimer(TimerId id);
 
-  for (std::size_t i = 0; i < length; ++i) {
-    stream << std::setw(2) << static_cast<int>(data[i]);
-  }
+  std::optional<std::chrono::milliseconds> GetInterval(TimerId id) const;
+  void SetInterval(TimerId id, std::chrono::milliseconds interval);
 
-  return stream.str();
-}
+  std::optional<std::uint32_t> GetExecuteTimes(TimerId id) const;
+  void SetExecuteTimes(TimerId id, std::uint32_t execute_times);
 
-}  // namespace
+  void ProcessTimers();
+  void Clear();
+
+private:
+  struct Timer {
+    TimerId id;
+    sol::protected_function callback;
+    std::vector<sol::object> arguments;
+    std::chrono::milliseconds interval;
+    std::uint32_t remaining_executions;
+    bool infinite;
+    std::chrono::steady_clock::time_point next_call;
+  };
+
+  TimerId next_id_;
+  std::unordered_map<TimerId, Timer> timers_;
+};

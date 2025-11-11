@@ -1,25 +1,20 @@
 #pragma once
 #include <vector>
+#include <string>
 
-#include "sol/sol.hpp"
+#include "shared/lua_runtime/script_base.h"
 
-#include "Lua/timer_manager.h"
-
-class Script {
-private:
-  sol::state lua;
-  TimerManager timer_manager_;
-
+// Server scripts are trusted (loaded from local disk by admin)
+// Uses TrustedScriptBase which includes TrustedPolicy at compile-time
+class Script : public lua::TrustedScriptBase {
 public:
-  Script(std::vector<std::string>);
-  ~Script();
+  Script(std::vector<std::string> scripts);
+  ~Script() = default;
 
-  void ProcessTimers();
-  TimerManager& GetTimerManager();
+protected:
+  void BindDomainSpecific() override;
 
 private:
-  void Init();
-  void BindFunctionsAndVariables();
-  void LoadScripts(std::vector<std::string>);
-  void LoadScript(std::string);
+  void LoadScripts(std::vector<std::string> scripts);
+  void LoadScript(const std::string& script);
 };
