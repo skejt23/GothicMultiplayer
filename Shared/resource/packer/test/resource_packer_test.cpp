@@ -51,6 +51,14 @@ using gmp::resource::FileMeta;
 using gmp::resource::PackOptions;
 using gmp::resource::PackResource;
 
+// Helper to initialize libsodium once
+void EnsureSodiumInitialized() {
+  static int status = sodium_init();
+  if (status < 0) {
+    throw std::runtime_error("Failed to initialize libsodium");
+  }
+}
+
 class ResourcePackerTest : public ::testing::Test {
 protected:
   void SetUp() override {
@@ -68,11 +76,6 @@ protected:
   void TearDown() override {
     std::error_code ec;
     fs::remove_all(base_dir_, ec);
-  }
-
-  static void EnsureSodiumInitialized() {
-    static int status = sodium_init();
-    ASSERT_GE(status, 0) << "Failed to initialize libsodium";
   }
 
   void WriteFile(const fs::path& relative_path, std::string_view content) {

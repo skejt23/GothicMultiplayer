@@ -24,6 +24,8 @@ SOFTWARE.
 
 #pragma once
 
+#include "resource/types.h"
+
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -31,42 +33,15 @@ SOFTWARE.
 namespace gmp {
 namespace resource {
 
-// Metadata for a single file within a resource pack
-struct FileMeta {
-  std::string path;    // Relative path within the pack (e.g., "client/main.luac")
-  std::uint64_t size;  // File size in bytes
-  std::string sha256;  // SHA-256 hash of the file content (hex string)
-  bool cache;          // Whether client should cache this file on disk
-};
-
-// Archive metadata
-struct ArchiveMeta {
-  std::string path;    // Relative path to the .pak file (e.g., "hud/hud-2025.11.07.pak")
-  std::uint64_t size;  // Archive size in bytes
-  std::string sha256;  // SHA-256 hash of the entire archive (hex string)
-};
-
-// Resource pack manifest structure
-struct Manifest {
-  std::string name;                      // Resource name (e.g., "hud")
-  std::string version;                   // Version string (e.g., "2025.11.07.1800")
-  std::string format;                    // Archive format (always "zip")
-  ArchiveMeta archive;                   // Archive metadata
-  std::vector<FileMeta> files;           // List of files in the pack
-  std::vector<std::string> entrypoints;  // Files to preload (e.g., ["client/main.luac"])
-  std::string created_utc;               // ISO 8601 timestamp
-  std::string signature;                 // Ed25519 signature (empty for v1)
-};
-
 // Options for packing a resource
 struct PackOptions {
-  std::string src_dir;         // Source directory (e.g., "resources_src/hud")
-  std::string out_dir;         // Output directory (e.g., "public/hud")
-  std::string name;            // Resource name (e.g., "hud")
-  std::string version;         // Version string (e.g., "2025.11.07.1800")
-  bool compile_lua = true;     // Whether to compile .lua files to .luac
-  bool strip_debug = true;     // Strip debug info from compiled Lua bytecode
-  int compression_level = 6;   // ZIP compression level (0-9, 0=store, 9=best)
+  std::string src_dir;        // Source directory (e.g., "resources_src/hud")
+  std::string out_dir;        // Output directory (e.g., "public/hud")
+  std::string name;           // Resource name (e.g., "hud")
+  std::string version;        // Version string (e.g., "2025.11.07.1800")
+  bool compile_lua = true;    // Whether to compile .lua files to .luac
+  bool strip_debug = true;    // Strip debug info from compiled Lua bytecode
+  int compression_level = 6;  // ZIP compression level (0-9, 0=store, 9=best)
 };
 
 // Result of packing a resource

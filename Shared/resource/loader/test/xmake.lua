@@ -20,13 +20,10 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 -- SOFTWARE.
 
-target("ResourcePacker")
-    set_kind("static")
-    add_files("src/*.cpp")
-    add_includedirs("include", {public = true})
-    add_deps("LuaCompiler", "ResourceCommon")
-    add_packages("libsodium", "nlohmann_json", "minizip", {public = true})
+target("ResourceLoaderTest")
+    set_kind("binary")
+    add_files("*.cpp")
+    add_deps("ResourceLoader", "ResourcePacker")
+    add_packages("gtest", "libsodium")
     set_default(false)
     set_languages("c++20")
-
-includes("test")
