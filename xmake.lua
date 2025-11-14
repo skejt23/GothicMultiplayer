@@ -62,6 +62,7 @@ add_requires("fmt 11.0.2",
              "sol2 3.3.*",
              "cpp-httplib 0.21.0",
              "zlib 1.3.1",
+             "minizip 1.2.13",
              "openssl 1.1.1-w",
              "libsodium 1.0.*",
              "polyhook2")

@@ -1,17 +1,17 @@
 -- MIT License
-
+--
 -- Copyright (c) 2025 Gothic Multiplayer Team.
-
+--
 -- Permission is hereby granted, free of charge, to any person obtaining a copy
 -- of this software and associated documentation files (the "Software"), to deal
 -- in the Software without restriction, including without limitation the rights
 -- to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 -- copies of the Software, and to permit persons to whom the Software is
 -- furnished to do so, subject to the following conditions:
-
+--
 -- The above copyright notice and this permission notice shall be included in all
 -- copies or substantial portions of the Software.
-
+--
 -- THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 -- IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 -- FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -20,12 +20,12 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 -- SOFTWARE.
 
-includes("lua_compiler", "lua_runtime", "resource")
-
-target("SharedLib")
-    set_kind("static")
-    add_files("toml_wrapper.cpp", "event.cpp", "math.cpp")
-    add_includedirs("include", {public = true})
-    add_deps("common")
-    add_packages("toml11", "glm", {public = true})
-    set_default(false) -- So it's not installed by default
+target("ResourcePackerTest")
+    set_kind("binary")
+    add_files("resource_packer_test.cpp")
+    add_deps("ResourcePacker")
+    add_includedirs("../include")
+    add_packages("gtest", "minizip", "libsodium")
+    add_tests("default")
+    set_rundir(os.projectdir())
+    set_default(false)

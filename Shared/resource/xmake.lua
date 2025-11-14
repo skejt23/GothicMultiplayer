@@ -20,12 +20,4 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 -- SOFTWARE.
 
-includes("lua_compiler", "lua_runtime", "resource")
-
-target("SharedLib")
-    set_kind("static")
-    add_files("toml_wrapper.cpp", "event.cpp", "math.cpp")
-    add_includedirs("include", {public = true})
-    add_deps("common")
-    add_packages("toml11", "glm", {public = true})
-    set_default(false) -- So it's not installed by default
+includes("packer")
