@@ -30,8 +30,8 @@ SOFTWARE.
 
 #include <algorithm>
 #include <array>
-#include <chrono>
 #include <cctype>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>

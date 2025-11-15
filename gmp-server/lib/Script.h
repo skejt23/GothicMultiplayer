@@ -4,17 +4,14 @@
 
 #include "shared/lua_runtime/script_base.h"
 
-// Server scripts are trusted (loaded from local disk by admin)
+// Server Lua VM - trusted (loaded from local disk by admin)
 // Uses TrustedScriptBase which includes TrustedPolicy at compile-time
-class Script : public lua::TrustedScriptBase {
+// Responsible solely for Lua state and engine bindings
+class LuaScript : public lua::TrustedScriptBase {
 public:
-  Script(std::vector<std::string> scripts);
-  ~Script() = default;
+  LuaScript();
+  ~LuaScript() = default;
 
 protected:
   void BindDomainSpecific() override;
-
-private:
-  void LoadScripts(std::vector<std::string> scripts);
-  void LoadScript(const std::string& script);
 };

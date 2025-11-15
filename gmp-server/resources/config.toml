@@ -32,9 +32,6 @@ log_file = "log.txt"
 log_to_stdout = true
 log_level = "info"
 
-# --- Scripts -----------------------------------------------------------------
-scripts = ["main.lua", "discord.lua", "events.lua", "functions.lua", "utility.lua", "timer.lua", "hash.lua"]
-
 # --- Performance -------------------------------------------------------------
 tick_rate_ms = 100
 

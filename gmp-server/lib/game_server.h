@@ -44,6 +44,7 @@ SOFTWARE.
 #include "common_structs.h"
 #include "config.h"
 #include "player_manager.h"
+#include "resource_manager.h"
 #include "znet_server.h"
 
 #define DEFAULT_ADMIN_PORT 0x404
@@ -118,7 +119,8 @@ private:
   void SendDiscordActivity(Net::ConnectionHandle connection);
 
   std::unique_ptr<BanManager> ban_manager_;
-  std::unique_ptr<Script> script;
+  std::unique_ptr<LuaScript> lua_script_;
+  std::unique_ptr<ResourceManager> resource_manager_;
   time_t last_stand_timer;
   time_t regen_time;
 

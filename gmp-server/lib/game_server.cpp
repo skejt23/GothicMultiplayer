@@ -282,7 +282,8 @@ GameServer::~GameServer() {
     main_thread.join();
   }
 
-  script.reset();
+  resource_manager_.reset();
+  lua_script_.reset();
 
   if (public_list_http_thread_future_.valid()) {
     public_list_http_thread_future_.wait();
@@ -330,7 +331,25 @@ bool GameServer::Init() {
   this->last_stand_timer = 0;
 
   SPDLOG_INFO(kFrame);
-  script = std::make_unique<Script>(config_.Get<std::vector<std::string>>("scripts"));
+
+  // Initialize Lua VM
+  lua_script_ = std::make_unique<LuaScript>();
+
+  // Initialize resource manager
+  resource_manager_ = std::make_unique<ResourceManager>();
+
+  // Set up resource-aware timer binding
+  resource_manager_->BindResourceAwareTimer(*lua_script_);
+
+  // Set up exports proxy
+  resource_manager_->CreateExportsProxy(lua_script_->GetLuaState());
+
+  // Discover and load all resources from resources/
+  auto discovered_resources = resource_manager_->DiscoverResources();
+  for (const auto& resource_name : discovered_resources) {
+    resource_manager_->LoadResource(resource_name, *lua_script_);
+  }
+
   last_update_time_ = std::chrono::steady_clock::now();
 
   main_thread_running.store(true, std::memory_order_release);
@@ -353,8 +372,8 @@ void GameServer::Run() {
   g_net_server->Pulse();
   clock_->RunClock();
 
-  if (script) {
-    script->ProcessTimers();
+  if (lua_script_) {
+    lua_script_->ProcessTimers();
   }
 
   ProcessRespawns();

@@ -29,6 +29,7 @@ SOFTWARE.
 #include <string>
 
 #include "../server_events.h"
+#include "../resource_manager.h"
 #include "lua.h"
 #include "shared/event.h"
 
@@ -126,7 +127,34 @@ void BindEvents(sol::state& lua) {
       return false;
     }
 
-    auto callback = [proxy, lua_callback](std::any event) {
+    auto* resource_manager = ResourceManager::GetActiveInstance();
+    if (resource_manager == nullptr) {
+      SPDLOG_ERROR("addEventHandler called before ResourceManager initialization for event '{}'", event_name);
+      return false;
+    }
+
+    Resource* owner = ResourceManager::GetCurrentResource();
+    if (owner == nullptr) {
+      SPDLOG_ERROR("addEventHandler: no active resource context when subscribing to event '{}'", event_name);
+      return false;
+    }
+
+    std::string owner_name = owner->GetName();
+
+    auto callback = [proxy, lua_callback, owner_name, event_name](std::any event) {
+      auto* manager = ResourceManager::GetActiveInstance();
+      if (manager == nullptr) {
+        SPDLOG_ERROR("Cannot dispatch event '{}' because ResourceManager is unavailable", event_name);
+        return;
+      }
+
+      auto resource_opt = manager->GetResource(owner_name);
+      if (!resource_opt || !resource_opt->get().IsLoaded()) {
+        SPDLOG_DEBUG("Skipping event '{}' for resource '{}' because it is not loaded", event_name, owner_name);
+        return;
+      }
+
+      ResourceManager::ScopedResourceContext ctx(resource_opt->get());
       LuaProxyArgs args;
       args.event = event;
       args.callback = lua_callback;

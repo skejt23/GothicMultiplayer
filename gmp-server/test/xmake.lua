@@ -30,3 +30,14 @@ target("BanListTest")
     set_rundir(os.projectdir())
     -- disable the build by default
     set_default(false)
+
+target("ResourceManagerTest")
+    set_kind("binary")
+    add_files("resource_manager_test.cpp")
+    add_deps("Server")
+    add_packages("spdlog", "sol2", "fmt", "toml11")
+    add_packages("gtest")
+    add_tests("default")
+    set_rundir(os.projectdir())
+    -- disable the build by default
+    set_default(false)

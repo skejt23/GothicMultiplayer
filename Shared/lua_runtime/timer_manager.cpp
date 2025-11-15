@@ -35,7 +35,7 @@ TimerManager::TimerManager() : next_id_(1) {
 }
 
 TimerManager::TimerId TimerManager::CreateTimer(sol::protected_function callback, std::chrono::milliseconds interval, std::uint32_t execute_times,
-                                                std::vector<sol::object> arguments) {
+                                                std::vector<sol::object> arguments, std::string owner_resource) {
   if (interval < kMinimumInterval) {
     interval = kMinimumInterval;
   }
@@ -48,6 +48,7 @@ TimerManager::TimerId TimerManager::CreateTimer(sol::protected_function callback
   timer.remaining_executions = execute_times;
   timer.infinite = execute_times == 0;
   timer.next_call = std::chrono::steady_clock::now() + interval;
+  timer.owner_resource = std::move(owner_resource);
 
   timers_.emplace(timer.id, std::move(timer));
   return timer.id;
@@ -55,6 +56,24 @@ TimerManager::TimerId TimerManager::CreateTimer(sol::protected_function callback
 
 void TimerManager::KillTimer(TimerId id) {
   timers_.erase(id);
+}
+
+void TimerManager::KillTimersForResource(const std::string& resource_name) {
+  std::vector<TimerId> to_remove;
+
+  for (const auto& [id, timer] : timers_) {
+    if (timer.owner_resource == resource_name) {
+      to_remove.push_back(id);
+    }
+  }
+
+  for (auto id : to_remove) {
+    timers_.erase(id);
+  }
+
+  if (!to_remove.empty()) {
+    SPDLOG_DEBUG("Killed {} timer(s) for resource '{}'", to_remove.size(), resource_name);
+  }
 }
 
 std::optional<std::chrono::milliseconds> TimerManager::GetInterval(TimerId id) const {
@@ -91,6 +110,10 @@ void TimerManager::SetExecuteTimes(TimerId id, std::uint32_t execute_times) {
   }
 }
 
+void TimerManager::SetOwnerContextExecutor(OwnerContextExecutor executor) {
+  owner_context_executor_ = std::move(executor);
+}
+
 void TimerManager::ProcessTimers() {
   if (timers_.empty()) {
     return;
@@ -106,10 +129,18 @@ void TimerManager::ProcessTimers() {
       continue;
     }
 
-    sol::protected_function_result result = timer.callback(sol::as_args(timer.arguments));
-    if (!result.valid()) {
-      sol::error error = result;
-      SPDLOG_ERROR("Timer {} callback failed: {}", id, error.what());
+    std::function<void()> invoke_callback = [&]() {
+      sol::protected_function_result result = timer.callback(sol::as_args(timer.arguments));
+      if (!result.valid()) {
+        sol::error error = result;
+        SPDLOG_ERROR("Timer {} callback failed: {}", id, error.what());
+      }
+    };
+
+    if (!timer.owner_resource.empty() && owner_context_executor_) {
+      owner_context_executor_(timer.owner_resource, invoke_callback);
+    } else {
+      invoke_callback();
     }
 
     if (!timer.infinite) {
