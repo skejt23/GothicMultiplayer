@@ -650,6 +650,11 @@ void GameServer::SomeoneJoinGame(Packet p) {
   player.selected_class = packet.selected_class;
   player.name = packet.player_name;
 
+  // Inform the joining player about already spawned players before any spawn happens
+  SendExistingPlayersPacket(player);
+
+  BroadcastPlayerJoined(player);
+
   // join
   EventManager::Instance().TriggerEvent(kEventOnPlayerConnectName, player.player_id);
 }
@@ -1031,10 +1036,40 @@ void GameServer::SendRespawnInfo(PlayerId respawned_player_id) {
   player_manager_.ForEachIngamePlayer([&](const Player& player) { SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE, player.connection, 13); });
 }
 
+void GameServer::BroadcastPlayerJoined(const Player& joining_player) {
+  JoinGamePacket packet;
+  packet.packet_type = PT_JOIN_GAME;
+  packet.selected_class = joining_player.selected_class;
+  packet.position = joining_player.state.position;
+  packet.normal = joining_player.state.nrot;
+  packet.left_hand_item_instance = joining_player.state.left_hand_item_instance;
+  packet.right_hand_item_instance = joining_player.state.right_hand_item_instance;
+  packet.equipped_armor_instance = joining_player.state.equipped_armor_instance;
+  packet.animation = joining_player.state.animation;
+  packet.head_model = joining_player.head;
+  packet.skin_texture = joining_player.skin;
+  packet.face_texture = joining_player.body;
+  packet.walk_style = joining_player.walkstyle;
+  packet.player_name = joining_player.name;
+  packet.player_id = joining_player.player_id;
+
+  player_manager_.ForEachPlayer([&](const Player& existing_player) {
+    if (existing_player.player_id == joining_player.player_id) {
+      return;
+    }
+    SerializeAndSend(packet, HIGH_PRIORITY, RELIABLE, existing_player.connection);
+  });
+}
+
 void GameServer::SendExistingPlayersPacket(const Player& target_player) {
   std::vector<ExistingPlayerInfo> existing_players;
   player_manager_.ForEachPlayer([&](const Player& existing_player) {
-    if (!existing_player.is_ingame || existing_player.player_id == target_player.player_id) {
+    if (existing_player.player_id == target_player.player_id) {
+      return;
+    }
+
+    // Skip players that have not finished the join handshake yet
+    if (existing_player.name.empty()) {
       return;
     }
 
@@ -1086,8 +1121,6 @@ bool GameServer::SpawnPlayer(PlayerId player_id, std::optional<glm::vec3> positi
   player.tod = 0;
   player.health = 100;
   player.state.health_points = player.health;
-
-  SendExistingPlayersPacket(player);
 
   player.is_ingame = 1;
 

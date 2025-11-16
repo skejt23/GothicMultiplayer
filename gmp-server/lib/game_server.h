@@ -116,6 +116,7 @@ private:
   void SendDisconnectionInfo(PlayerId player_id);
   void SendDeathInfo(PlayerId player_id);
   void SendRespawnInfo(PlayerId player_id);
+  void BroadcastPlayerJoined(const Player& joining_player);
   void SendGameInfo(Net::ConnectionHandle connection);
   void SendDiscordActivity(Net::ConnectionHandle connection);
   void SendExistingPlayersPacket(const Player& target_player);
