@@ -54,13 +54,6 @@ public:
   }
 
   // Character appearance
-  std::uint8_t selected_class() const {
-    return selected_class_;
-  }
-  void set_selected_class(std::uint8_t value) {
-    selected_class_ = value;
-  }
-
   std::uint8_t head_model() const {
     return head_model_;
   }
@@ -221,7 +214,6 @@ protected:
   std::string name_;
 
   // Character appearance
-  std::uint8_t selected_class_{0};
   std::uint8_t head_model_{0};
   std::uint8_t skin_texture_{0};
   std::uint8_t face_texture_{0};

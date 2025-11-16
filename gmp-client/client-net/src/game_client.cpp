@@ -522,7 +522,6 @@ void GameClient::OnExistingPlayers(Packet p) {
     player->set_left_hand_item(existing_player.left_hand_item_instance);
     player->set_right_hand_item(existing_player.right_hand_item_instance);
     player->set_equipped_armor(existing_player.equipped_armor_instance);
-    player->set_selected_class(existing_player.selected_class);
     player->set_head_model(existing_player.head_model);
     player->set_skin_texture(existing_player.skin_texture);
     player->set_face_texture(existing_player.face_texture);
@@ -548,7 +547,6 @@ void GameClient::OnPlayerSpawn(Packet p) {
   if (is_local_spawn) {
     auto& local_player = player_manager_.GetLocalPlayer();
     local_player.set_name(packet.player_name);
-    local_player.set_selected_class(packet.selected_class);
     local_player.set_position(packet.position.x, packet.position.y, packet.position.z);
     local_player.set_rotation(packet.normal);
     local_player.set_left_hand_item(packet.left_hand_item_instance);
@@ -574,7 +572,6 @@ void GameClient::OnPlayerSpawn(Packet p) {
   const bool was_spawned = player->has_spawned();
 
   player->set_name(packet.player_name);
-  player->set_selected_class(packet.selected_class);
   player->set_position(packet.position.x, packet.position.y, packet.position.z);
   player->set_rotation(packet.normal);
   player->set_left_hand_item(packet.left_hand_item_instance);
@@ -619,7 +616,6 @@ void GameClient::OnJoinGame(Packet p) {
   player->set_left_hand_item(packet.left_hand_item_instance);
   player->set_right_hand_item(packet.right_hand_item_instance);
   player->set_equipped_armor(packet.equipped_armor_instance);
-  player->set_selected_class(packet.selected_class);
   player->set_head_model(packet.head_model);
   player->set_skin_texture(packet.skin_texture);
   player->set_face_texture(packet.face_texture);

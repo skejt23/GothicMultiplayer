@@ -58,7 +58,6 @@ public:
     std::string name;
 
     // Character appearance
-    std::uint8_t selected_class;
     std::uint8_t head;
     std::uint8_t skin;
     std::uint8_t body;

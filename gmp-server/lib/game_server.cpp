@@ -647,7 +647,6 @@ void GameServer::SomeoneJoinGame(Packet p) {
   player.skin = packet.skin_texture;
   player.body = packet.face_texture;
   player.walkstyle = packet.walk_style;
-  player.selected_class = packet.selected_class;
   player.name = packet.player_name;
 
   // Inform the joining player about already spawned players before any spawn happens
@@ -1039,7 +1038,6 @@ void GameServer::SendRespawnInfo(PlayerId respawned_player_id) {
 void GameServer::BroadcastPlayerJoined(const Player& joining_player) {
   JoinGamePacket packet;
   packet.packet_type = PT_JOIN_GAME;
-  packet.selected_class = joining_player.selected_class;
   packet.position = joining_player.state.position;
   packet.normal = joining_player.state.nrot;
   packet.left_hand_item_instance = joining_player.state.left_hand_item_instance;
@@ -1075,7 +1073,6 @@ void GameServer::SendExistingPlayersPacket(const Player& target_player) {
 
     ExistingPlayerInfo player_packet;
     player_packet.player_id = existing_player.player_id;
-    player_packet.selected_class = existing_player.selected_class;
     player_packet.position = existing_player.state.position;
     player_packet.left_hand_item_instance = existing_player.state.left_hand_item_instance;
     player_packet.right_hand_item_instance = existing_player.state.right_hand_item_instance;
@@ -1128,7 +1125,6 @@ bool GameServer::SpawnPlayer(PlayerId player_id, std::optional<glm::vec3> positi
   packet.packet_type = PT_PLAYER_SPAWN;
   packet.player_id = player.player_id;
   packet.player_name = player.name;
-  packet.selected_class = player.selected_class;
   packet.position = player.state.position;
   packet.normal = player.state.nrot;
   packet.left_hand_item_instance = player.state.left_hand_item_instance;

@@ -51,7 +51,6 @@ void serialize(S& s, glm::vec3& vec) {
 struct ExistingPlayerInfo {
   std::uint8_t packet_type{0};
   std::uint32_t player_id{0};
-  std::uint8_t selected_class{0};
   glm::vec3 position{0.0f};
   std::int16_t left_hand_item_instance{0};
   std::int16_t right_hand_item_instance{0};
@@ -66,7 +65,6 @@ struct ExistingPlayerInfo {
 template <typename S>
 void serialize(S& s, ExistingPlayerInfo& info) {
   s.value4b(info.player_id);
-  s.value1b(info.selected_class);
   s.object(info.position);
   s.value2b(info.left_hand_item_instance);
   s.value2b(info.right_hand_item_instance);
@@ -80,9 +78,8 @@ void serialize(S& s, ExistingPlayerInfo& info) {
 
 inline std::ostream& operator<<(std::ostream& os, const ExistingPlayerInfo& packet) {
   os << "ExistingPlayerInfo {"
-     << " packet_type: " << static_cast<int>(packet.packet_type) << ", player_id: " << packet.player_id
-     << ", selected_class: " << static_cast<int>(packet.selected_class) << ", position: (" << packet.position.x << ", " << packet.position.y << ", "
-     << packet.position.z << ")"
+     << " packet_type: " << static_cast<int>(packet.packet_type) << ", player_id: " << packet.player_id << ", position: (" << packet.position.x
+     << ", " << packet.position.y << ", " << packet.position.z << ")"
      << ", left_hand_item_instance: " << packet.left_hand_item_instance << ", right_hand_item_instance: " << packet.right_hand_item_instance
      << ", equipped_armor_instance: " << packet.equipped_armor_instance << ", head_model: " << static_cast<int>(packet.head_model)
      << ", skin_texture: " << static_cast<int>(packet.skin_texture) << ", face_texture: " << static_cast<int>(packet.face_texture)
@@ -106,7 +103,6 @@ void serialize(S& s, ExistingPlayersPacket& packet) {
 
 struct JoinGamePacket {
   std::uint8_t packet_type{0};
-  std::uint8_t selected_class{0};
   glm::vec3 position{0.0f};
   glm::vec3 normal{0.0f};
   std::int16_t left_hand_item_instance{0};
@@ -125,7 +121,6 @@ struct JoinGamePacket {
 template <typename S>
 void serialize(S& s, JoinGamePacket& packet) {
   s.value1b(packet.packet_type);
-  s.value1b(packet.selected_class);
   s.object(packet.position);
   s.object(packet.normal);
   s.value2b(packet.left_hand_item_instance);
@@ -142,8 +137,8 @@ void serialize(S& s, JoinGamePacket& packet) {
 
 inline std::ostream& operator<<(std::ostream& os, const JoinGamePacket& packet) {
   os << "JoinGamePacket {"
-     << " packet_type: " << static_cast<int>(packet.packet_type) << ", selected_class: " << static_cast<int>(packet.selected_class) << ", position: ("
-     << packet.position.x << ", " << packet.position.y << ", " << packet.position.z << ")"
+     << " packet_type: " << static_cast<int>(packet.packet_type) << ", position: (" << packet.position.x << ", " << packet.position.y << ", "
+     << packet.position.z << ")"
      << ", normal: (" << packet.normal.x << ", " << packet.normal.y << ", " << packet.normal.z << ")"
      << ", left_hand_item_instance: " << packet.left_hand_item_instance << ", right_hand_item_instance: " << packet.right_hand_item_instance
      << ", equipped_armor_instance: " << packet.equipped_armor_instance << ", animation: " << packet.animation
@@ -165,7 +160,6 @@ struct fmt::formatter<JoinGamePacket> : ostream_formatter {};
 struct PlayerSpawnPacket {
   std::uint8_t packet_type{0};
   std::uint32_t player_id{0};
-  std::uint8_t selected_class{0};
   glm::vec3 position{0.0f};
   glm::vec3 normal{0.0f};
   std::int16_t left_hand_item_instance{0};
@@ -183,7 +177,6 @@ template <typename S>
 void serialize(S& s, PlayerSpawnPacket& packet) {
   s.value1b(packet.packet_type);
   s.value4b(packet.player_id);
-  s.value1b(packet.selected_class);
   s.object(packet.position);
   s.object(packet.normal);
   s.value2b(packet.left_hand_item_instance);
@@ -199,19 +192,13 @@ void serialize(S& s, PlayerSpawnPacket& packet) {
 
 inline std::ostream& operator<<(std::ostream& os, const PlayerSpawnPacket& packet) {
   os << "PlayerSpawnPacket {"
-     << " packet_type: " << static_cast<int>(packet.packet_type)
-     << ", player_id: " << packet.player_id
-     << ", selected_class: " << static_cast<int>(packet.selected_class)
-     << ", position: (" << packet.position.x << ", " << packet.position.y << ", " << packet.position.z << ")"
+     << " packet_type: " << static_cast<int>(packet.packet_type) << ", player_id: " << packet.player_id << ", position: (" << packet.position.x
+     << ", " << packet.position.y << ", " << packet.position.z << ")"
      << ", normal: (" << packet.normal.x << ", " << packet.normal.y << ", " << packet.normal.z << ")"
-     << ", left_hand_item_instance: " << packet.left_hand_item_instance
-     << ", right_hand_item_instance: " << packet.right_hand_item_instance
-     << ", equipped_armor_instance: " << packet.equipped_armor_instance
-     << ", animation: " << packet.animation
-     << ", head_model: " << static_cast<int>(packet.head_model)
-     << ", skin_texture: " << static_cast<int>(packet.skin_texture)
-     << ", face_texture: " << static_cast<int>(packet.face_texture)
-     << ", walk_style: " << static_cast<int>(packet.walk_style)
+     << ", left_hand_item_instance: " << packet.left_hand_item_instance << ", right_hand_item_instance: " << packet.right_hand_item_instance
+     << ", equipped_armor_instance: " << packet.equipped_armor_instance << ", animation: " << packet.animation
+     << ", head_model: " << static_cast<int>(packet.head_model) << ", skin_texture: " << static_cast<int>(packet.skin_texture)
+     << ", face_texture: " << static_cast<int>(packet.face_texture) << ", walk_style: " << static_cast<int>(packet.walk_style)
      << ", player_name: " << packet.player_name << " }";
   return os;
 }
