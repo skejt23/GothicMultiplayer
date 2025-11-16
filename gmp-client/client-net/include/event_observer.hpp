@@ -52,7 +52,9 @@ public:
   
   // Player events
   virtual void OnLocalPlayerJoined(gmp::client::Player& player) {}
+  virtual void OnLocalPlayerSpawned(gmp::client::Player& player) {}
   virtual void OnPlayerJoined(gmp::client::Player& player) {}
+  virtual void OnPlayerSpawned(gmp::client::Player& player) {}
   virtual void OnPlayerLeft(std::uint64_t player_id, const std::string& player_name) {}
   virtual void OnPlayerStateUpdate(std::uint64_t player_id, const PlayerState& state) {}
   virtual void OnPlayerPositionUpdate(std::uint64_t player_id, float x, float z) {}

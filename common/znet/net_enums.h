@@ -54,6 +54,7 @@ enum PacketID {
   PT_REQUEST_FILE_PART,
   PT_INITIAL_INFO,
   PT_JOIN_GAME,
+  PT_PLAYER_SPAWN,
   PT_ACTUAL_STATISTICS,  // <- chyba tutaj będe musiał dodac optymalizacje gdyż nie potrzeba nam wszystkich informacji o
                          // graczu który jest od nas dalej niż 5000.0f
   PT_EXISTING_PLAYERS,         // Packet contains information about all other players. Send to the new joining player.
@@ -113,6 +114,8 @@ inline const char* PacketIDToString(PacketID id) {
       return "PT_INITIAL_INFO";
     case PT_JOIN_GAME:
       return "PT_JOIN_GAME";
+    case PT_PLAYER_SPAWN:
+      return "PT_PLAYER_SPAWN";
     case PT_ACTUAL_STATISTICS:
       return "PT_ACTUAL_STATISTICS";
     case PT_EXISTING_PLAYERS:

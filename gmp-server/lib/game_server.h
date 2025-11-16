@@ -87,6 +87,7 @@ public:
   bool Init();
   bool IsPublic(void);
   void SendServerMessage(const std::string& message);
+  bool SpawnPlayer(PlayerId player_id, std::optional<glm::vec3> position_override = std::nullopt);
 
   PlayerManager& GetPlayerManager() { return player_manager_; }
   const PlayerManager& GetPlayerManager() const { return player_manager_; }
@@ -117,6 +118,7 @@ private:
   void SendRespawnInfo(PlayerId player_id);
   void SendGameInfo(Net::ConnectionHandle connection);
   void SendDiscordActivity(Net::ConnectionHandle connection);
+  void SendExistingPlayersPacket(const Player& target_player);
 
   std::unique_ptr<BanManager> ban_manager_;
   std::unique_ptr<LuaScript> lua_script_;

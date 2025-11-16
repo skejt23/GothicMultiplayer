@@ -32,13 +32,13 @@ SOFTWARE.
 #include "Interface.h"
 
 #include "CIngame.h"
-#include "language.h"
-#include "main_menu.h"
 #include "CMenu.h"
 #include "HooksManager.h"
-#include "net_game.h"
 #include "keyboard.h"
+#include "language.h"
+#include "main_menu.h"
 #include "mod.h"
+#include "net_game.h"
 
 bool HelpOpen = false;
 CMenu* MainMenu;

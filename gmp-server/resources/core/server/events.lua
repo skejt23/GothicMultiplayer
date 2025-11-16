@@ -16,6 +16,7 @@ end)
 
 addEventHandler('onPlayerConnect', function(id)
     LOG_INFO("Player {} connected", id)
+    spawnPlayer(id, 0, 0, 0) -- Khorinis
 end)
 
 addEventHandler('onPlayerDisconnect', function(id)

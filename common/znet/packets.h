@@ -162,6 +162,63 @@ inline std::ostream& operator<<(std::ostream& os, const JoinGamePacket& packet) 
 template <>
 struct fmt::formatter<JoinGamePacket> : ostream_formatter {};
 
+struct PlayerSpawnPacket {
+  std::uint8_t packet_type{0};
+  std::uint32_t player_id{0};
+  std::uint8_t selected_class{0};
+  glm::vec3 position{0.0f};
+  glm::vec3 normal{0.0f};
+  std::int16_t left_hand_item_instance{0};
+  std::int16_t right_hand_item_instance{0};
+  std::int16_t equipped_armor_instance{0};
+  std::int16_t animation{0};
+  std::uint8_t head_model{0};
+  std::uint8_t skin_texture{0};
+  std::uint8_t face_texture{0};
+  std::uint8_t walk_style{0};
+  std::string player_name;
+};
+
+template <typename S>
+void serialize(S& s, PlayerSpawnPacket& packet) {
+  s.value1b(packet.packet_type);
+  s.value4b(packet.player_id);
+  s.value1b(packet.selected_class);
+  s.object(packet.position);
+  s.object(packet.normal);
+  s.value2b(packet.left_hand_item_instance);
+  s.value2b(packet.right_hand_item_instance);
+  s.value2b(packet.equipped_armor_instance);
+  s.value2b(packet.animation);
+  s.value1b(packet.head_model);
+  s.value1b(packet.skin_texture);
+  s.value1b(packet.face_texture);
+  s.value1b(packet.walk_style);
+  s.text1b(packet.player_name, 255);
+}
+
+inline std::ostream& operator<<(std::ostream& os, const PlayerSpawnPacket& packet) {
+  os << "PlayerSpawnPacket {"
+     << " packet_type: " << static_cast<int>(packet.packet_type)
+     << ", player_id: " << packet.player_id
+     << ", selected_class: " << static_cast<int>(packet.selected_class)
+     << ", position: (" << packet.position.x << ", " << packet.position.y << ", " << packet.position.z << ")"
+     << ", normal: (" << packet.normal.x << ", " << packet.normal.y << ", " << packet.normal.z << ")"
+     << ", left_hand_item_instance: " << packet.left_hand_item_instance
+     << ", right_hand_item_instance: " << packet.right_hand_item_instance
+     << ", equipped_armor_instance: " << packet.equipped_armor_instance
+     << ", animation: " << packet.animation
+     << ", head_model: " << static_cast<int>(packet.head_model)
+     << ", skin_texture: " << static_cast<int>(packet.skin_texture)
+     << ", face_texture: " << static_cast<int>(packet.face_texture)
+     << ", walk_style: " << static_cast<int>(packet.walk_style)
+     << ", player_name: " << packet.player_name << " }";
+  return os;
+}
+
+template <>
+struct fmt::formatter<PlayerSpawnPacket> : ostream_formatter {};
+
 struct MessagePacket {
   std::uint8_t packet_type;
   std::string message;

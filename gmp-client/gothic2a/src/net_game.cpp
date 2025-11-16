@@ -34,6 +34,7 @@ SOFTWARE.
 #include <spdlog/spdlog.h>
 #include <wincrypt.h>
 
+#include <algorithm>
 #include <array>
 #include <ctime>
 #include <filesystem>
@@ -306,14 +307,31 @@ void NetGame::OnGameInfoReceived(std::uint32_t raw_game_time, std::uint8_t flags
 }
 
 void NetGame::OnLocalPlayerJoined(gmp::client::Player& player) {
+  SPDLOG_INFO("Local player registered with id {}", player.id());
+}
+
+void NetGame::OnLocalPlayerSpawned(gmp::client::Player& player) {
   this->IsInGame = true;
 
   Gothic2APlayer* local_player = new Gothic2APlayer(player, true);
   local_player->SetNpc(::player);
-  players.push_back(local_player);
+  zVEC3 pos(player.position().x, player.position().y, player.position().z);
+
+  SPDLOG_INFO("Local player spawned at position ({}, {}, {})", player.position().x, player.position().y, player.position().z);
+  local_player->SetPosition(pos);
+  players.insert(players.begin(), local_player);
 }
 
 void NetGame::OnPlayerJoined(gmp::client::Player& new_player) {
+  // Remote player metadata registered; actual spawn handled in OnPlayerSpawned.
+  (void)new_player;
+}
+
+void NetGame::OnPlayerSpawned(gmp::client::Player& new_player) {
+  SpawnRemotePlayer(new_player);
+}
+
+void NetGame::SpawnRemotePlayer(gmp::client::Player& new_player) {
   Gothic2APlayer* newhero = new Gothic2APlayer(new_player);
   zVEC3 pos(new_player.position().x, new_player.position().y, new_player.position().z);
   oCNpc* npc = zfactory->CreateNpc(player->GetInstance());
@@ -322,10 +340,12 @@ void NetGame::OnPlayerJoined(gmp::client::Player& new_player) {
   newhero->base_player().set_hp(static_cast<short>(newhero->GetHealth()));
   newhero->SetPosition(pos);
   newhero->SetName(new_player.name().c_str());
-  if (newhero->Type == Gothic2APlayer::NPC_HUMAN)
+  if (newhero->Type == Gothic2APlayer::NPC_HUMAN) {
     newhero->SetAppearance(new_player.head_model(), new_player.skin_texture(), new_player.face_texture());
-  if (newhero->Type > Gothic2APlayer::NPC_DRACONIAN || newhero->Type == Gothic2APlayer::NPC_HUMAN)
+  }
+  if (newhero->Type > Gothic2APlayer::NPC_DRACONIAN || newhero->Type == Gothic2APlayer::NPC_HUMAN) {
     newhero->npc->ApplyOverlay(Gothic2APlayer::GetWalkStyleFromByte(new_player.walk_style()));
+  }
 
   CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(0, 255, 0, 255), "%s%s", new_player.name().c_str(),
                                      Language::Instance()[Language::SOMEONE_JOIN_GAME].ToChar());

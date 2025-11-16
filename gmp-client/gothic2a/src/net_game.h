@@ -26,6 +26,7 @@ SOFTWARE.
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "CSyncFuncs.h"
 #include "HooksManager.h"
@@ -94,7 +95,9 @@ public:
   void OnMapChange(const std::string& map_name) override;
   void OnGameInfoReceived(std::uint32_t raw_game_time, std::uint8_t flags) override;
   void OnLocalPlayerJoined(gmp::client::Player& player) override;
+  void OnLocalPlayerSpawned(gmp::client::Player& player) override;
   void OnPlayerJoined(gmp::client::Player& player) override;
+  void OnPlayerSpawned(gmp::client::Player& player) override;
   void OnPlayerLeft(std::uint64_t player_id, const std::string& player_name) override;
   void OnPlayerStateUpdate(std::uint64_t player_id, const PlayerState& state) override;
   void OnPlayerPositionUpdate(std::uint64_t player_id, float x, float z) override;
@@ -116,4 +119,6 @@ private:
   time_t last_mp_regen;
 
   Gothic2APlayer* GetPlayerById(std::uint64_t player_id);
+  void SpawnRemotePlayer(gmp::client::Player& new_player);
+
 };

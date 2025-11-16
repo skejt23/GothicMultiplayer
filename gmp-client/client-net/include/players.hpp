@@ -194,6 +194,20 @@ public:
     enabled_ = enabled;
   }
 
+  bool has_spawned() const {
+    return has_spawned_;
+  }
+  void set_has_spawned(bool value) {
+    has_spawned_ = value;
+  }
+
+  bool has_joined() const {
+    return has_joined_;
+  }
+  void set_has_joined(bool value) {
+    has_joined_ = value;
+  }
+
   std::int16_t update_hp_packet_counter() const {
     return update_hp_packet_;
   }
@@ -235,6 +249,8 @@ protected:
   std::uint8_t head_direction_{0};
   bool enabled_{false};
   std::int16_t update_hp_packet_{0};
+  bool has_spawned_{false};
+  bool has_joined_{false};
 };
 
 class LocalPlayer : public Player {
@@ -253,6 +269,10 @@ public:
   LocalPlayer& GetLocalPlayer() {
     assert(local_player_ != nullptr);
     return *local_player_;
+  }
+
+  bool HasLocalPlayer() const {
+    return static_cast<bool>(local_player_);
   }
 
   LocalPlayer* CreateLocalPlayer(std::uint64_t id) {

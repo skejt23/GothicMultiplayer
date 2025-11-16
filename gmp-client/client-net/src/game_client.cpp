@@ -86,6 +86,7 @@ void GameClient::InitPacketHandlers() {
   packet_handlers_[PT_SRVMSG] = [this](Packet p) { OnServerMessage(p); };
   packet_handlers_[PT_COMMAND] = [this](Packet p) { OnRcon(p); };
   packet_handlers_[PT_EXISTING_PLAYERS] = [this](Packet p) { OnExistingPlayers(p); };
+  packet_handlers_[PT_PLAYER_SPAWN] = [this](Packet p) { OnPlayerSpawn(p); };
   packet_handlers_[PT_JOIN_GAME] = [this](Packet p) { OnJoinGame(p); };
   packet_handlers_[PT_GAME_INFO] = [this](Packet p) { OnGameInfo(p); };
   packet_handlers_[PT_LEFT_GAME] = [this](Packet p) { OnLeftGame(p); };
@@ -526,8 +527,68 @@ void GameClient::OnExistingPlayers(Packet p) {
     player->set_skin_texture(existing_player.skin_texture);
     player->set_face_texture(existing_player.face_texture);
     player->set_walk_style(existing_player.walk_style);
+    player->set_has_joined(true);
+    player->set_has_spawned(true);
 
     event_observer_.OnPlayerJoined(*player);
+    event_observer_.OnPlayerSpawned(*player);
+  }
+}
+
+void GameClient::OnPlayerSpawn(Packet p) {
+  PlayerSpawnPacket packet;
+  using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
+  auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
+
+  SPDLOG_INFO("PlayerSpawn packet: {}", packet);
+
+  const bool has_local_player = player_manager_.HasLocalPlayer();
+  const bool is_local_spawn = has_local_player && (player_manager_.GetLocalPlayer().id() == static_cast<std::uint64_t>(packet.player_id));
+
+  if (is_local_spawn) {
+    auto& local_player = player_manager_.GetLocalPlayer();
+    local_player.set_name(packet.player_name);
+    local_player.set_selected_class(packet.selected_class);
+    local_player.set_position(packet.position.x, packet.position.y, packet.position.z);
+    local_player.set_rotation(packet.normal);
+    local_player.set_left_hand_item(packet.left_hand_item_instance);
+    local_player.set_right_hand_item(packet.right_hand_item_instance);
+    local_player.set_equipped_armor(packet.equipped_armor_instance);
+    local_player.set_animation(packet.animation);
+    local_player.set_head_model(packet.head_model);
+    local_player.set_skin_texture(packet.skin_texture);
+    local_player.set_face_texture(packet.face_texture);
+    local_player.set_walk_style(packet.walk_style);
+    local_player.set_has_spawned(true);
+    is_in_game_ = true;
+
+    event_observer_.OnLocalPlayerSpawned(local_player);
+    return;
+  }
+
+  Player* player = player_manager_.GetPlayer(packet.player_id);
+  if (!player) {
+    player = player_manager_.CreatePlayer(packet.player_id);
+  }
+
+  const bool was_spawned = player->has_spawned();
+
+  player->set_name(packet.player_name);
+  player->set_selected_class(packet.selected_class);
+  player->set_position(packet.position.x, packet.position.y, packet.position.z);
+  player->set_rotation(packet.normal);
+  player->set_left_hand_item(packet.left_hand_item_instance);
+  player->set_right_hand_item(packet.right_hand_item_instance);
+  player->set_equipped_armor(packet.equipped_armor_instance);
+  player->set_animation(packet.animation);
+  player->set_head_model(packet.head_model);
+  player->set_skin_texture(packet.skin_texture);
+  player->set_face_texture(packet.face_texture);
+  player->set_walk_style(packet.walk_style);
+  player->set_has_spawned(true);
+
+  if (!was_spawned) {
+    event_observer_.OnPlayerSpawned(*player);
   }
 }
 
@@ -536,17 +597,25 @@ void GameClient::OnJoinGame(Packet p) {
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
 
-  if (!packet.player_id) {
-    SPDLOG_ERROR("Invalid JoinGame packet. No player id.");
+  SPDLOG_INFO("JoinGame packet: {}", packet);
+
+  if (!packet.player_id.has_value()) {
+    SPDLOG_WARN("JoinGame packet missing player id, ignoring");
     return;
   }
 
-  SPDLOG_INFO("JoinGame packet: {}", packet);
-
-  // Create Player object and populate it
-  Player* player = player_manager_.CreatePlayer(*packet.player_id);
+  Player* player = player_manager_.GetPlayer(*packet.player_id);
+  if (!player) {
+    if (player_manager_.HasLocalPlayer() && player_manager_.GetLocalPlayer().id() == static_cast<std::uint64_t>(*packet.player_id)) {
+      SPDLOG_DEBUG("Received JoinGame packet for local player");
+      return;
+    }
+    player = player_manager_.CreatePlayer(*packet.player_id);
+  }
+  const bool was_joined = player->has_joined();
   player->set_name(packet.player_name);
   player->set_position(packet.position.x, packet.position.y, packet.position.z);
+  player->set_rotation(packet.normal);
   player->set_left_hand_item(packet.left_hand_item_instance);
   player->set_right_hand_item(packet.right_hand_item_instance);
   player->set_equipped_armor(packet.equipped_armor_instance);
@@ -555,8 +624,10 @@ void GameClient::OnJoinGame(Packet p) {
   player->set_skin_texture(packet.skin_texture);
   player->set_face_texture(packet.face_texture);
   player->set_walk_style(packet.walk_style);
-
-  event_observer_.OnPlayerJoined(*player);
+  if (!was_joined) {
+    player->set_has_joined(true);
+    event_observer_.OnPlayerJoined(*player);
+  }
 }
 
 void GameClient::OnGameInfo(Packet p) {

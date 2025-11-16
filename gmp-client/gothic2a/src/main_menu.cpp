@@ -249,13 +249,6 @@ void CMainMenu::RenderMenu() {
     return;
   }
 
-  // Reset player position if needed
-  if (player->GetPositionWorld()[VX] != HeroPos[VX]) {
-    player->trafoObjToWorld.SetTranslation(HeroPos);
-    player->trafoObjToWorld.SetAtVector(Angle);
-    player->trafoObjToWorld.SetRightVector(NAngle);
-  }
-
   // Run state machine update
   bool shouldContinue = stateMachine_->Update();
 

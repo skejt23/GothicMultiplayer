@@ -22,13 +22,66 @@ SOFTWARE.
 */
 
 #include "function_bind.h"
-#include "function_helpers.cpp"
 
+#include <glm/glm.hpp>
+
+#include "function_helpers.cpp"
 #include "game_server.h"
 #include "shared/lua_runtime/timer_manager.h"
 
 using namespace std;
 
+namespace {
+
+std::optional<float> GetOptionalFloat(const sol::table& table, const char* lowerKey, const char* upperKey) {
+  if (auto value = table.get<sol::optional<float>>(lowerKey); value) {
+    return std::optional<float>(*value);
+  }
+  if (auto value = table.get<sol::optional<float>>(upperKey); value) {
+    return std::optional<float>(*value);
+  }
+  return std::nullopt;
+}
+
+std::optional<glm::vec3> ParseSpawnPosition(sol::variadic_args args) {
+  if (args.size() == 0) {
+    return std::nullopt;
+  }
+
+  if (args.size() == 1) {
+    sol::object arg = args[0];
+    if (arg.get_type() == sol::type::table) {
+      sol::table tbl = arg;
+      auto x = GetOptionalFloat(tbl, "x", "X");
+      auto y = GetOptionalFloat(tbl, "y", "Y");
+      auto z = GetOptionalFloat(tbl, "z", "Z");
+      if (x && y && z) {
+        return glm::vec3(*x, *y, *z);
+      }
+      SPDLOG_WARN("spawnPlayer table argument must contain x, y, z fields");
+      return std::nullopt;
+    }
+    SPDLOG_WARN("spawnPlayer expects a table with coordinates or three numeric arguments");
+    return std::nullopt;
+  }
+
+  if (args.size() == 3) {
+    try {
+      float x = args[0].as<float>();
+      float y = args[1].as<float>();
+      float z = args[2].as<float>();
+      return glm::vec3(x, y, z);
+    } catch (const sol::error& err) {
+      SPDLOG_ERROR("spawnPlayer received invalid coordinate arguments: {}", err.what());
+      return std::nullopt;
+    }
+  }
+
+  SPDLOG_WARN("spawnPlayer called with unsupported arguments");
+  return std::nullopt;
+}
+
+}  // namespace
 
 // Functions
 int Function_Log(std::string name, std::string text) {
@@ -110,6 +163,15 @@ std::string Function_HashSha512(const std::string& input) {
   return BytesToHex(digest, SHA512_DIGEST_LENGTH);
 }
 
+bool Function_SpawnPlayer(std::uint32_t player_id, sol::variadic_args args) {
+  if (!g_server) {
+    SPDLOG_WARN("Cannot spawn player before the server is initialized");
+    return false;
+  }
+
+  auto position_override = ParseSpawnPosition(args);
+  return g_server->SpawnPlayer(player_id, position_override);
+}
 
 // Register Functions
 void lua::bindings::BindFunctions(sol::state& lua, TimerManager& timer_manager) {
@@ -117,6 +179,7 @@ void lua::bindings::BindFunctions(sol::state& lua, TimerManager& timer_manager) 
 
   lua["SetDiscordActivity"] = Function_SetDiscordActivity;
   lua["SendServerMessage"] = Function_SendServerMessage;
+  lua["spawnPlayer"] = Function_SpawnPlayer;
 
   lua["md5"] = Function_HashMd5;
   lua["sha1"] = Function_HashSha1;

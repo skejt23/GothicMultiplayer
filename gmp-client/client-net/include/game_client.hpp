@@ -118,6 +118,7 @@ private:
   void OnServerMessage(Packet packet);
   void OnRcon(Packet packet);
   void OnExistingPlayers(Packet packet);
+  void OnPlayerSpawn(Packet packet);
   void OnJoinGame(Packet packet);
   void OnGameInfo(Packet packet);
   void OnLeftGame(Packet packet);

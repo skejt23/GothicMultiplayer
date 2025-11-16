@@ -637,11 +637,6 @@ void GameServer::SomeoneJoinGame(Packet p) {
   auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
   SPDLOG_TRACE("{} from {}", packet, p.id);
 
-  bool was_dead = player.tod != 0;
-  player.tod = 0;
-  player.health = 100;
-  player.state.health_points = player.health;
-
   player.state.position = packet.position;
   player.state.nrot = packet.normal;
   player.state.left_hand_item_instance = packet.left_hand_item_instance;
@@ -652,54 +647,8 @@ void GameServer::SomeoneJoinGame(Packet p) {
   player.skin = packet.skin_texture;
   player.body = packet.face_texture;
   player.walkstyle = packet.walk_style;
+  player.selected_class = packet.selected_class;
   player.name = packet.player_name;
-
-  // Update the packet we received with his ID, so we can send it to others.
-  packet.player_id = player.player_id;
-
-  std::vector<ExistingPlayerInfo> existing_players;
-  existing_players.reserve(player_manager_.GetPlayerCount());
-
-  // Informing other players about new player
-  player_manager_.ForEachPlayer([&](const Player& existing_player) {
-    if (existing_player.player_id != player.player_id) {
-      if (existing_player.is_ingame) {
-        SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE, existing_player.connection);
-      }
-
-      ExistingPlayerInfo player_packet;
-      player_packet.player_id = existing_player.player_id;
-      player_packet.position = existing_player.state.position;
-      player_packet.left_hand_item_instance = existing_player.state.left_hand_item_instance;
-      player_packet.right_hand_item_instance = existing_player.state.right_hand_item_instance;
-      player_packet.equipped_armor_instance = existing_player.state.equipped_armor_instance;
-      player_packet.head_model = existing_player.head;
-      player_packet.skin_texture = existing_player.skin;
-      player_packet.face_texture = existing_player.body;
-      player_packet.walk_style = existing_player.walkstyle;
-      player_packet.player_name = existing_player.name;
-      existing_players.push_back(std::move(player_packet));
-    }
-  });
-
-  if (!existing_players.empty()) {
-    // Previously, we were splitting this into mulitple packets. Find out if this is still necessary.
-    ExistingPlayersPacket existing_players_packet;
-    existing_players_packet.packet_type = PT_EXISTING_PLAYERS;
-    existing_players_packet.existing_players = std::move(existing_players);
-    SerializeAndSend(existing_players_packet, IMMEDIATE_PRIORITY, RELIABLE, p.id);
-  }
-
-  player.is_ingame = 1;
-
-  SendDiscordActivity(player.connection);
-
-  // spawn
-  if (was_dead) {
-    EventManager::Instance().TriggerEvent(kEventOnPlayerRespawnName, OnPlayerRespawnEvent{player.player_id, player.state.position});
-  }
-
-  EventManager::Instance().TriggerEvent(kEventOnPlayerSpawnName, OnPlayerSpawnEvent{player.player_id, player.state.position});
 
   // join
   EventManager::Instance().TriggerEvent(kEventOnPlayerConnectName, player.player_id);
@@ -1080,6 +1029,101 @@ void GameServer::SendRespawnInfo(PlayerId respawned_player_id) {
   packet.player_id = respawned_player_id;
 
   player_manager_.ForEachIngamePlayer([&](const Player& player) { SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE, player.connection, 13); });
+}
+
+void GameServer::SendExistingPlayersPacket(const Player& target_player) {
+  std::vector<ExistingPlayerInfo> existing_players;
+  player_manager_.ForEachPlayer([&](const Player& existing_player) {
+    if (!existing_player.is_ingame || existing_player.player_id == target_player.player_id) {
+      return;
+    }
+
+    ExistingPlayerInfo player_packet;
+    player_packet.player_id = existing_player.player_id;
+    player_packet.selected_class = existing_player.selected_class;
+    player_packet.position = existing_player.state.position;
+    player_packet.left_hand_item_instance = existing_player.state.left_hand_item_instance;
+    player_packet.right_hand_item_instance = existing_player.state.right_hand_item_instance;
+    player_packet.equipped_armor_instance = existing_player.state.equipped_armor_instance;
+    player_packet.head_model = existing_player.head;
+    player_packet.skin_texture = existing_player.skin;
+    player_packet.face_texture = existing_player.body;
+    player_packet.walk_style = existing_player.walkstyle;
+    player_packet.player_name = existing_player.name;
+    existing_players.push_back(std::move(player_packet));
+  });
+
+  if (existing_players.empty()) {
+    return;
+  }
+
+  ExistingPlayersPacket existing_players_packet;
+  existing_players_packet.packet_type = PT_EXISTING_PLAYERS;
+  existing_players_packet.existing_players = std::move(existing_players);
+  SerializeAndSend(existing_players_packet, IMMEDIATE_PRIORITY, RELIABLE, target_player.connection);
+}
+
+bool GameServer::SpawnPlayer(PlayerId player_id, std::optional<glm::vec3> position_override) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("spawnPlayer called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  if (player.is_ingame) {
+    SPDLOG_WARN("spawnPlayer called for already spawned player {}", player_id);
+    return false;
+  }
+
+  if (position_override.has_value()) {
+    player.state.position = *position_override;
+  }
+
+  const bool was_dead = player.tod != 0;
+
+  player.flags = 0;
+  player.tod = 0;
+  player.health = 100;
+  player.state.health_points = player.health;
+
+  SendExistingPlayersPacket(player);
+
+  player.is_ingame = 1;
+
+  PlayerSpawnPacket packet;
+  packet.packet_type = PT_PLAYER_SPAWN;
+  packet.player_id = player.player_id;
+  packet.player_name = player.name;
+  packet.selected_class = player.selected_class;
+  packet.position = player.state.position;
+  packet.normal = player.state.nrot;
+  packet.left_hand_item_instance = player.state.left_hand_item_instance;
+  packet.right_hand_item_instance = player.state.right_hand_item_instance;
+  packet.equipped_armor_instance = player.state.equipped_armor_instance;
+  packet.animation = player.state.animation;
+  packet.head_model = player.head;
+  packet.skin_texture = player.skin;
+  packet.face_texture = player.body;
+  packet.walk_style = player.walkstyle;
+
+  SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE, player.connection);
+
+  player_manager_.ForEachIngamePlayer([&](const Player& existing_player) {
+    if (existing_player.player_id == player.player_id) {
+      return;
+    }
+    SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE, existing_player.connection);
+  });
+
+  SendDiscordActivity(player.connection);
+
+  if (was_dead) {
+    EventManager::Instance().TriggerEvent(kEventOnPlayerRespawnName, OnPlayerRespawnEvent{player.player_id, player.state.position});
+  }
+
+  EventManager::Instance().TriggerEvent(kEventOnPlayerSpawnName, OnPlayerSpawnEvent{player.player_id, player.state.position});
+  return true;
 }
 
 std::uint32_t GameServer::GetPort() const {
