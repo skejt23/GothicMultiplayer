@@ -35,6 +35,7 @@ SOFTWARE.
 #include <vector>
 
 #include "common_structs.h"
+#include "packets.h"
 #include "event_observer.hpp"
 #include "players.hpp"
 #include "task_scheduler.h"
@@ -137,6 +138,7 @@ private:
   std::uint32_t server_port_{0};
   bool connection_lost_{false};
   bool is_in_game_{false};
+  std::vector<ClientResourceInfoEntry> announced_resources_;
 
   // Async connection support
   ConnectionState connection_state_{ConnectionState::Disconnected};

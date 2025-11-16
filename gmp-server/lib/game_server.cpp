@@ -346,6 +346,14 @@ bool GameServer::Init() {
 
   // Discover and load all resources from resources/
   auto discovered_resources = resource_manager_->DiscoverResources();
+
+  try {
+    client_resource_descriptors_ = ClientResourcePackager::Build(resource_manager_->GetDiscoveredResourceInfo());
+  } catch (const std::exception& ex) {
+    SPDLOG_ERROR("Failed to pack client resources: {}", ex.what());
+    return false;
+  }
+
   for (const auto& resource_name : discovered_resources) {
     resource_manager_->LoadResource(resource_name, *lua_script_);
   }
@@ -508,6 +516,18 @@ bool GameServer::HandlePacket(Net::ConnectionHandle connectionHandle, unsigned c
       packet.packet_type = PT_INITIAL_INFO;
       packet.map_name = config_.Get<std::string>("map");
       packet.player_id = new_player_id;
+      packet.client_resources.reserve(client_resource_descriptors_.size());
+      for (const auto& descriptor : client_resource_descriptors_) {
+        ClientResourceInfoEntry entry;
+        entry.name = descriptor.name;
+        entry.version = descriptor.version;
+        entry.manifest_path = descriptor.manifest_path;
+        entry.manifest_sha256 = descriptor.manifest_sha256;
+        entry.archive_path = descriptor.archive_path;
+        entry.archive_sha256 = descriptor.archive_sha256;
+        entry.archive_size = descriptor.archive_size;
+        packet.client_resources.push_back(std::move(entry));
+      }
       SerializeAndSend(packet, HIGH_PRIORITY, RELIABLE, p.id, 9);
     }
       SPDLOG_INFO("ID_NEW_INCOMING_CONNECTION from {} with connection {}. Now we have {} connected users.", g_net_server->GetPlayerIp(p.id), p.id,

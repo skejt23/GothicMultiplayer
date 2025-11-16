@@ -447,11 +447,39 @@ inline std::ostream& operator<<(std::ostream& os, const PlayerRespawnInfoPacket&
   return os;
 }
 
+struct ClientResourceInfoEntry {
+  std::string name;
+  std::string version;
+  std::string manifest_path;
+  std::string manifest_sha256;
+  std::string archive_path;
+  std::string archive_sha256;
+  std::uint64_t archive_size{0};
+};
+
+template <typename S>
+void serialize(S& s, ClientResourceInfoEntry& entry) {
+  s.text1b(entry.name, 64);
+  s.text1b(entry.version, 64);
+  s.text1b(entry.manifest_path, 255);
+  s.text1b(entry.manifest_sha256, 64);
+  s.text1b(entry.archive_path, 255);
+  s.text1b(entry.archive_sha256, 64);
+  s.value8b(entry.archive_size);
+}
+
+inline std::ostream& operator<<(std::ostream& os, const ClientResourceInfoEntry& entry) {
+  os << "ClientResourceInfoEntry { name: " << entry.name << ", version: " << entry.version << ", manifest_path: " << entry.manifest_path
+     << ", archive_path: " << entry.archive_path << ", archive_size: " << entry.archive_size << " }";
+  return os;
+}
+
 // Server informs the client about the map name and the ID assigned to the player
 struct InitialInfoPacket {
   std::uint8_t packet_type;
   std::string map_name;
   std::uint32_t player_id;
+  std::vector<ClientResourceInfoEntry> client_resources;
 };
 
 template <typename S>
@@ -459,11 +487,13 @@ void serialize(S& s, InitialInfoPacket& packet) {
   s.value1b(packet.packet_type);
   s.text1b(packet.map_name, 64);
   s.value4b(packet.player_id);
+  s.container(packet.client_resources, 128);
 }
 
 inline std::ostream& operator<<(std::ostream& os, const InitialInfoPacket& packet) {
   os << "InitialInfoPacket {"
-     << " packet_type: " << static_cast<int>(packet.packet_type) << ", map_name: " << packet.map_name << ", player_id: " << packet.player_id << " }";
+     << " packet_type: " << static_cast<int>(packet.packet_type) << ", map_name: " << packet.map_name << ", player_id: " << packet.player_id
+     << ", resources: " << packet.client_resources.size() << " }";
   return os;
 }
 

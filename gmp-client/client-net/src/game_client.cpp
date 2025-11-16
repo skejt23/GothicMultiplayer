@@ -346,6 +346,11 @@ void GameClient::OnInitialInfo(Packet p) {
     return;
   }
 
+  announced_resources_ = std::move(packet.client_resources);
+  if (!announced_resources_.empty()) {
+    SPDLOG_INFO("Server announced {} client resource pack(s)", announced_resources_.size());
+  }
+
   auto local_player = player_manager_.CreateLocalPlayer(packet.player_id);
   worlds_.clear();
   worlds_.emplace_back(packet.map_name);

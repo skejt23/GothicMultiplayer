@@ -41,6 +41,7 @@ SOFTWARE.
 
 #include "Script.h"
 #include "ban_manager.h"
+#include "client_resource_packager.h"
 #include "common_structs.h"
 #include "config.h"
 #include "player_manager.h"
@@ -142,6 +143,7 @@ private:
   std::atomic<bool> main_thread_running = false;
   DiscordActivityState discord_activity_{};
   bool discord_activity_initialized_{false};
+  std::vector<ClientResourceDescriptor> client_resource_descriptors_;
 };
 
 inline GameServer* g_server = nullptr;

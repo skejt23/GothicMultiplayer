@@ -24,6 +24,7 @@ SOFTWARE.
 
 #pragma once
 
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
@@ -42,6 +43,18 @@ class TimerManager;
 // Handles discovery, loading, unloading, and the exports proxy system
 class ResourceManager {
 public:
+  struct ResourceMetadata {
+    std::string version;
+    std::optional<std::string> author;
+    std::optional<std::string> description;
+  };
+
+  struct DiscoveredResource {
+    std::string name;
+    std::filesystem::path root_path;
+    std::optional<ResourceMetadata> metadata;
+  };
+
   ResourceManager();
   ~ResourceManager();
 
@@ -72,6 +85,11 @@ public:
     return resources_;
   }
 
+  // Detailed discovery output (resource path + metadata if present)
+  const std::vector<DiscoveredResource>& GetDiscoveredResourceInfo() const {
+    return discovered_resources_;
+  }
+
   // RAII guard for setting current resource context
   class ScopedResourceContext {
   public:
@@ -99,6 +117,7 @@ private:
   static void SetCurrentResource(Resource* resource);  // Non-owning
 
   std::unordered_map<std::string, std::unique_ptr<Resource>> resources_;
+  std::vector<DiscoveredResource> discovered_resources_;
   static thread_local Resource* current_resource_;  // Non-owning execution context tracker
   static ResourceManager* active_instance_;
 };

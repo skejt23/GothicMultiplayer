@@ -28,11 +28,60 @@ SOFTWARE.
 
 #include <algorithm>
 #include <filesystem>
+#include <toml.hpp>
 
 #include "Script.h"
 #include "shared/lua_runtime/timer_manager.h"
 
 namespace fs = std::filesystem;
+
+namespace {
+
+constexpr const char* kResourcesDirectory = "resources";
+constexpr const char* kMetadataFileName = "resource.toml";
+
+std::optional<ResourceManager::ResourceMetadata> LoadResourceMetadata(const fs::path& resource_root, const std::string& resource_name) {
+  const fs::path metadata_path = resource_root / kMetadataFileName;
+  if (!fs::exists(metadata_path)) {
+    SPDLOG_DEBUG("Resource '{}' has no {} metadata", resource_name, kMetadataFileName);
+    return std::nullopt;
+  }
+
+  try {
+    const toml::value metadata = toml::parse(metadata_path.string());
+    if (!metadata.contains("version")) {
+      SPDLOG_WARN("Resource '{}' metadata is missing a non-empty 'version' field; skipping client pack", resource_name);
+      return std::nullopt;
+    }
+
+    ResourceManager::ResourceMetadata meta;
+    meta.version = toml::find<std::string>(metadata, "version");
+    if (meta.version.empty()) {
+      SPDLOG_WARN("Resource '{}' metadata declared an empty version; skipping client pack", resource_name);
+      return std::nullopt;
+    }
+
+    const std::string author = toml::find_or(metadata, "author", std::string{});
+    if (!author.empty()) {
+      meta.author = author;
+    }
+
+    const std::string description = toml::find_or(metadata, "description", std::string{});
+    if (!description.empty()) {
+      meta.description = description;
+    }
+
+    return meta;
+  } catch (const toml::syntax_error& err) {
+    SPDLOG_ERROR("Failed to parse metadata for resource '{}': {}", resource_name, err.what());
+  } catch (const std::exception& ex) {
+    SPDLOG_ERROR("Unexpected error while reading metadata for resource '{}': {}", resource_name, ex.what());
+  }
+
+  return std::nullopt;
+}
+
+}  // namespace
 
 thread_local Resource* ResourceManager::current_resource_ = nullptr;
 ResourceManager* ResourceManager::active_instance_ = nullptr;
@@ -49,7 +98,8 @@ ResourceManager::~ResourceManager() {
 
 std::vector<std::string> ResourceManager::DiscoverResources() {
   std::vector<std::string> discovered;
-  const std::string base_path = "resources";
+  discovered_resources_.clear();
+  const std::string base_path = kResourcesDirectory;
 
   if (!fs::exists(base_path) || !fs::is_directory(base_path)) {
     SPDLOG_WARN("resources directory does not exist");
@@ -59,15 +109,26 @@ std::vector<std::string> ResourceManager::DiscoverResources() {
   SPDLOG_INFO("Discovering resources from '{}'...", base_path);
 
   for (const auto& entry : fs::directory_iterator(base_path)) {
-    if (entry.is_directory()) {
-      std::string resource_name = entry.path().filename().string();
-      discovered.push_back(resource_name);
-      SPDLOG_DEBUG("  Found resource: '{}'", resource_name);
+    if (!entry.is_directory()) {
+      continue;
     }
+
+    std::string resource_name = entry.path().filename().string();
+    DiscoveredResource descriptor;
+    descriptor.name = resource_name;
+    descriptor.root_path = entry.path();
+    descriptor.metadata = LoadResourceMetadata(descriptor.root_path, descriptor.name);
+
+    discovered_resources_.push_back(descriptor);
+    discovered.push_back(resource_name);
+    SPDLOG_DEBUG("  Found resource: '{}'{}", resource_name, descriptor.metadata ? " (metadata detected)" : "");
   }
 
   // Sort for consistent load order
   std::sort(discovered.begin(), discovered.end());
+  std::sort(discovered_resources_.begin(), discovered_resources_.end(), [](const DiscoveredResource& lhs, const DiscoveredResource& rhs) {
+    return lhs.name < rhs.name;
+  });
 
   SPDLOG_INFO("Discovered {} resource(s)", discovered.size());
   return discovered;

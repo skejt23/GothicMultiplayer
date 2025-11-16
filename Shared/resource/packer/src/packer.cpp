@@ -376,7 +376,8 @@ PackResult PackResource(const PackOptions& opts) {
     throw;
   }
 
-  result.manifest.archive.path = opts.name + "/" + pak_path.filename().string();
+  const fs::path relative_archive_path = fs::path(opts.name) / pak_path.filename();
+  result.manifest.archive.path = NormalizePath(relative_archive_path);
   result.manifest.archive.size = fs::file_size(pak_path);
   result.manifest.archive.sha256 = ComputeFileSHA256(pak_path);
   result.pak_path = pak_path.string();
