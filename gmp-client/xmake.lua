@@ -1,1 +1,1 @@
-includes("client-net", "gothic2a")
+includes("client-net", "client-resources", "gothic2a")

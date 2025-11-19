@@ -24,6 +24,7 @@ SOFTWARE.
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 
@@ -45,6 +46,10 @@ public:
   virtual void OnConnectionFailed(const std::string& error) {}
   virtual void OnDisconnected() {}
   virtual void OnConnectionLost() {}
+  virtual bool RequestResourceDownloadConsent(std::size_t resource_count, std::uint64_t total_bytes) { return true; }
+  virtual void OnResourceDownloadProgress(const std::string& resource_name, std::uint64_t downloaded_bytes, std::uint64_t total_bytes) {}
+  virtual void OnResourceDownloadFailed(const std::string& reason) {}
+  virtual void OnResourcesReady() {}
   
   // World/map events
   virtual void OnMapChange(const std::string& map_name) {}

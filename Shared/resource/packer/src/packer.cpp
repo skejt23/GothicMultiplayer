@@ -38,7 +38,9 @@ SOFTWARE.
 #include <nlohmann/json.hpp>
 #include <sstream>
 #include <stdexcept>
+#include <string_view>
 #include <system_error>
+#include <vector>
 
 namespace fs = std::filesystem;
 
@@ -116,6 +118,40 @@ std::string BytesToHex(const std::vector<std::uint8_t>& bytes) {
     oss << std::setw(2) << static_cast<int>(byte);
   }
   return oss.str();
+}
+
+bool StartsWith(std::string_view value, std::string_view prefix) {
+  return value.size() >= prefix.size() && value.substr(0, prefix.size()) == prefix;
+}
+
+bool EndsWith(std::string_view value, std::string_view suffix) {
+  return value.size() >= suffix.size() && value.substr(value.size() - suffix.size()) == suffix;
+}
+
+std::vector<std::string> DeriveEntrypoints(const std::vector<FileMeta>& files) {
+  std::vector<std::string> entrypoints;
+
+  auto has_path = [&](std::string_view candidate) {
+    return std::any_of(files.begin(), files.end(), [&](const FileMeta& meta) { return meta.path == candidate; });
+  };
+
+  const std::array<const char*, 2> preferred = {"client/main.luac", "client/main.lua"};
+  for (const auto* candidate : preferred) {
+    if (has_path(candidate)) {
+      entrypoints.emplace_back(candidate);
+      break;
+    }
+  }
+
+  if (entrypoints.empty()) {
+    for (const auto& meta : files) {
+      if (StartsWith(meta.path, "client/") && (EndsWith(meta.path, ".luac") || EndsWith(meta.path, ".lua"))) {
+        entrypoints.push_back(meta.path);
+      }
+    }
+  }
+
+  return entrypoints;
 }
 
 // Compute SHA-256 hash of a file
@@ -314,6 +350,9 @@ void WriteManifest(const PackResult& result, const fs::path& manifest_path) {
   }
 
   manifest_json["entrypoints"] = nlohmann::json::array();
+  for (const auto& entrypoint : result.manifest.entrypoints) {
+    manifest_json["entrypoints"].push_back(entrypoint);
+  }
   manifest_json["created_utc"] = result.manifest.created_utc;
   manifest_json["signature"] = nullptr;
 
@@ -366,6 +405,7 @@ PackResult PackResource(const PackOptions& opts) {
   result.manifest.signature.clear();
 
   result.manifest.files = StageSourceFiles(opts, src_path, staging_dir);
+  result.manifest.entrypoints = DeriveEntrypoints(result.manifest.files);
 
   const fs::path pak_path = out_path / (opts.name + "-" + opts.version + ".pak");
   try {

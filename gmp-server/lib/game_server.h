@@ -30,14 +30,22 @@ SOFTWARE.
 
 #include <atomic>
 #include <ctime>
+#include <filesystem>
 #include <functional>
 #include <future>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <thread>
 #include <unordered_map>
 #include <vector>
+
+namespace httplib {
+class Server;
+struct Request;
+struct Response;
+}  // namespace httplib
 
 #include "Script.h"
 #include "ban_manager.h"
@@ -46,6 +54,7 @@ SOFTWARE.
 #include "config.h"
 #include "player_manager.h"
 #include "resource_manager.h"
+#include "resource_server.h"
 #include "znet_server.h"
 
 #define DEFAULT_ADMIN_PORT 0x404
@@ -90,8 +99,12 @@ public:
   void SendServerMessage(const std::string& message);
   bool SpawnPlayer(PlayerId player_id, std::optional<glm::vec3> position_override = std::nullopt);
 
-  PlayerManager& GetPlayerManager() { return player_manager_; }
-  const PlayerManager& GetPlayerManager() const { return player_manager_; }
+  PlayerManager& GetPlayerManager() {
+    return player_manager_;
+  }
+  const PlayerManager& GetPlayerManager() const {
+    return player_manager_;
+  }
 
   void UpdateDiscordActivity(const DiscordActivityState& activity);
   const DiscordActivityState& GetDiscordActivity() const;
@@ -144,6 +157,8 @@ private:
   DiscordActivityState discord_activity_{};
   bool discord_activity_initialized_{false};
   std::vector<ClientResourceDescriptor> client_resource_descriptors_;
+
+  std::unique_ptr<ResourceServer> resource_server_;
 };
 
 inline GameServer* g_server = nullptr;

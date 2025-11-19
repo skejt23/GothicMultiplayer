@@ -63,13 +63,20 @@ extern CIngame* global_ingame;
 
 using namespace Net;
 
-NetGame::NetGame() : task_scheduler(nullptr), game_client(nullptr) {
+NetGame::NetGame() : task_scheduler(nullptr), game_client(nullptr), resource_runtime(nullptr) {
   task_scheduler = std::make_unique<gmp::GothicTaskScheduler>();
   game_client = std::make_unique<gmp::client::GameClient>(*this, *task_scheduler);
+  resource_runtime = std::make_unique<ClientResourceRuntime>();
 }
 
 void __stdcall NetGame::ProcessTaskScheduler() {
-  NetGame::Instance().task_scheduler->ProcessTasks();
+  NetGame& instance = NetGame::Instance();
+  if (instance.task_scheduler) {
+    instance.task_scheduler->ProcessTasks();
+  }
+  if (instance.resource_runtime) {
+    instance.resource_runtime->ProcessTimers();
+  }
 }
 
 bool NetGame::Connect(std::string_view full_address) {
@@ -237,6 +244,7 @@ void NetGame::SyncGameTime() {
 void NetGame::Disconnect() {
   if (game_client->IsConnected()) {
     IsInGame = false;
+    IsReadyToJoin = false;
     if (global_ingame) {
       global_ingame->IgnoreFirstSync = true;
     }
@@ -250,6 +258,10 @@ void NetGame::Disconnect() {
       global_ingame->WhisperingTo.clear();
     }
   }
+
+  if (resource_runtime) {
+    resource_runtime->UnloadResources();
+  }
 }
 
 // ============================================================================
@@ -262,8 +274,6 @@ void NetGame::OnConnectionStarted() {
 
 void NetGame::OnConnected() {
   SPDLOG_INFO("Successfully connected to server");
-  // Mark ready to join
-  IsReadyToJoin = true;
 }
 
 void NetGame::OnConnectionFailed(const std::string& error) {
@@ -274,6 +284,10 @@ void NetGame::OnConnectionFailed(const std::string& error) {
 
 void NetGame::OnDisconnected() {
   SPDLOG_INFO("Disconnected from server");
+  IsReadyToJoin = false;
+  if (resource_runtime) {
+    resource_runtime->UnloadResources();
+  }
 }
 
 void NetGame::OnConnectionLost() {
@@ -284,6 +298,59 @@ void NetGame::OnConnectionLost() {
   IsInGame = false;
   IsReadyToJoin = false;
   CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(255, 0, 0, 255), "%s", Language::Instance()[Language::DISCONNECTED].ToChar());
+}
+
+bool NetGame::RequestResourceDownloadConsent(std::size_t resource_count, std::uint64_t total_bytes) {
+  if (resource_count == 0 || total_bytes == 0) {
+    return true;
+  }
+
+  const double total_mb = static_cast<double>(total_bytes) / (1024.0 * 1024.0);
+  SPDLOG_INFO("Server requires downloading {} resource pack(s) ({:.2f} MiB)", resource_count, total_mb);
+  CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(0, 200, 255, 255),
+                                     "Server requires downloading %.2f MiB of client resources", total_mb);
+  return true;
+}
+
+void NetGame::OnResourceDownloadProgress(const std::string& resource_name, std::uint64_t downloaded_bytes, std::uint64_t total_bytes) {
+  if (total_bytes == 0) {
+    return;
+  }
+  const double percent = (static_cast<double>(downloaded_bytes) / static_cast<double>(total_bytes)) * 100.0;
+  SPDLOG_INFO("Downloading resources... {} ({:.2f}% complete)", resource_name, percent);
+}
+
+void NetGame::OnResourceDownloadFailed(const std::string& reason) {
+  SPDLOG_ERROR("Resource download failed: {}", reason);
+  IsReadyToJoin = false;
+  CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(255, 0, 0, 255), "Resource download failed: %s", reason.c_str());
+  Disconnect();
+}
+
+void NetGame::OnResourcesReady() {
+  SPDLOG_INFO("Client signaled that resources are ready; consuming payloads");
+  auto payloads = game_client->ConsumeDownloadedResources();
+
+  if (!resource_runtime) {
+    SPDLOG_ERROR("Client resource runtime is unavailable; disconnecting");
+    OnResourceDownloadFailed("Client resource runtime unavailable");
+    return;
+  }
+
+  SPDLOG_INFO("Loading {} resource payload(s) into runtime", payloads.size());
+  std::string error_message;
+  if (!resource_runtime->LoadResources(std::move(payloads), error_message)) {
+    if (error_message.empty()) {
+      error_message = "Failed to initialize client resources";
+    }
+    OnResourceDownloadFailed(error_message);
+    return;
+  }
+
+  SPDLOG_INFO("Client resources ready; player may join");
+  SPDLOG_INFO("All required client resources downloaded and loaded");
+  IsReadyToJoin = true;
+  CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(0, 255, 0, 255), "Client resources ready. You may join the server.");
 }
 
 void NetGame::OnMapChange(const std::string& map_name) {

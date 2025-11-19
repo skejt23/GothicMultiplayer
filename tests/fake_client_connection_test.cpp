@@ -33,7 +33,7 @@ SOFTWARE.
 
 using namespace testing;
 
-class ConnectionTest : public Test {
+class FakeClientConnectionTest : public Test {
   void SetUp() override {
     ASSERT_TRUE(server.Init());
   }
@@ -42,7 +42,7 @@ public:
   GameServer server;
 };
 
-TEST_F(ConnectionTest, MultipleClientsJoin_VerifyPacketsTellingAboutPlayers) {
+TEST_F(FakeClientConnectionTest, MultipleClientsJoin_VerifyPacketsTellingAboutPlayers) {
   FakeObserverMock observer1;
   FakeObserverMock observer2;
   FakeClient client1("TestUser", &observer1);

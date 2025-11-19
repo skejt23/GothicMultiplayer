@@ -27,14 +27,21 @@ SOFTWARE.
 
 #include <bitsery/adapter/buffer.h>
 #include <bitsery/bitsery.h>
+#include <httplib.h>
+#include <sodium.h>
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <cassert>
+#include <cctype>
 #include <dylib.hpp>
+#include <iomanip>
 #include <sstream>
+#include <stdexcept>
 
 #include "net_enums.h"
 #include "packets.h"
+#include "shared/crypto_utils.h"
 #include "znet_client.h"
 
 namespace gmp::client {
@@ -51,7 +58,7 @@ static void SerializeAndSend(const Packet& packet, Net::PacketPriority priority,
 }
 
 GameClient::GameClient(EventObserver& eventObserver, gmp::TaskScheduler& taskScheduler)
-    : event_observer_(eventObserver), task_scheduler_(taskScheduler) {
+    : event_observer_(eventObserver), task_scheduler_(taskScheduler), resource_downloader_(eventObserver, taskScheduler) {
   assert(g_netclient != nullptr);
   InitPacketHandlers();
   g_netclient->AddPacketHandler(*this);
@@ -67,6 +74,8 @@ GameClient::~GameClient() {
       connection_thread_.join();
     }
   }
+
+  resource_downloader_.StopDownload();
 
   g_netclient->RemovePacketHandler(*this);
 }
@@ -114,6 +123,8 @@ void GameClient::ConnectAsync(std::string_view full_address) {
     connection_error_.clear();
   }
 
+  resource_downloader_.Reset();
+
   // Queue the OnConnectionStarted callback for main thread execution
   task_scheduler_.ScheduleOnMainThread([this]() { event_observer_.OnConnectionStarted(); });
 
@@ -160,6 +171,7 @@ bool GameClient::ConnectInternal(std::string_view full_address) {
 
   server_ip_ = host;
   server_port_ = port;
+  resource_downloader_.SetServerEndpoint(host, port);
   return true;
 }
 
@@ -211,6 +223,10 @@ void GameClient::HandleNetwork() {
   if (IsConnected()) {
     g_netclient->Pulse();
   }
+}
+
+std::vector<GameClient::ResourcePayload> GameClient::ConsumeDownloadedResources() {
+  return resource_downloader_.ConsumeDownloadedResources();
 }
 
 bool GameClient::HandlePacket(unsigned char* data, std::uint32_t size) {
@@ -346,10 +362,12 @@ void GameClient::OnInitialInfo(Packet p) {
     return;
   }
 
-  announced_resources_ = std::move(packet.client_resources);
-  if (!announced_resources_.empty()) {
-    SPDLOG_INFO("Server announced {} client resource pack(s)", announced_resources_.size());
-  }
+  SPDLOG_INFO("Initial info received: map='{}', base_path='{}', resources={}", packet.map_name,
+              packet.resource_base_path.empty() ? "/public" : packet.resource_base_path, packet.client_resources.size());
+
+  resource_downloader_.SetDownloadToken(packet.resource_token);
+  resource_downloader_.SetBasePath(packet.resource_base_path.empty() ? "/public" : packet.resource_base_path);
+  resource_downloader_.AnnounceResources(std::move(packet.client_resources));
 
   auto local_player = player_manager_.CreateLocalPlayer(packet.player_id);
   worlds_.clear();
@@ -357,6 +375,8 @@ void GameClient::OnInitialInfo(Packet p) {
 
   event_observer_.OnMapChange(packet.map_name);
   event_observer_.OnLocalPlayerJoined(*local_player);
+
+  resource_downloader_.BeginDownload();
 }
 
 void GameClient::OnActualStatistics(Packet p) {

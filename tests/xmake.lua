@@ -22,8 +22,8 @@
 
 target("ConnectionTest")
     set_kind("binary")
-    add_files("fake_client.cpp", "connection_test.cpp")
-    add_deps("Server", "zNetInterface")
+    add_files("fake_client.cpp", "fake_client_connection_test.cpp", "real_client_connection_test.cpp")
+    add_deps("Server", "zNetInterface", "Client.Net", "ClientRakNetShared")
     add_packages("spdlog", "dylib", "bitsery")
     add_packages("gtest")
     add_tests("default")

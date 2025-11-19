@@ -88,6 +88,11 @@ void ServerListState::OnExit() {
 }
 
 StateResult ServerListState::Update() {
+  if (connectionAttemptInProgress_) {
+    // Pump RakNet so pending packets (initial info, resources) are processed while still in menus
+    NetGame::Instance().HandleNetwork();
+  }
+
   // Check if we should initiate connection (for fast join or user selection)
   if (shouldConnectToServer_) {
     ConnectToServer();

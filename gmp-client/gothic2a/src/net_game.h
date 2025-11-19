@@ -35,6 +35,7 @@ SOFTWARE.
 #include "game_client.hpp"
 #include "gothic2a_player.hpp"
 #include "gothic_task_scheduler.h"
+#include "client_resources/client_resource_runtime.h"
 
 struct MD5Sum {
   BYTE data[16];
@@ -85,6 +86,7 @@ public:
   bool IsReadyToJoin{false};
   std::unique_ptr<gmp::GothicTaskScheduler> task_scheduler;
   std::unique_ptr<gmp::client::GameClient> game_client;
+  std::unique_ptr<ClientResourceRuntime> resource_runtime;
 
   // EventObserver interface implementation
   void OnConnectionStarted() override;
@@ -92,6 +94,10 @@ public:
   void OnConnectionFailed(const std::string& error) override;
   void OnDisconnected() override;
   void OnConnectionLost() override;
+  bool RequestResourceDownloadConsent(std::size_t resource_count, std::uint64_t total_bytes) override;
+  void OnResourceDownloadProgress(const std::string& resource_name, std::uint64_t downloaded_bytes, std::uint64_t total_bytes) override;
+  void OnResourceDownloadFailed(const std::string& reason) override;
+  void OnResourcesReady() override;
   void OnMapChange(const std::string& map_name) override;
   void OnGameInfoReceived(std::uint32_t raw_game_time, std::uint8_t flags) override;
   void OnLocalPlayerJoined(gmp::client::Player& player) override;

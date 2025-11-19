@@ -4,6 +4,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
 
@@ -102,6 +103,15 @@ TEST_F(ClientResourcePackagerTest, ProducesDescriptorWhenScriptsExist) {
   EXPECT_GT(descriptor.archive_size, 0u);
   EXPECT_FALSE(descriptor.archive_sha256.empty());
   EXPECT_FALSE(descriptor.manifest_sha256.empty());
+
+  std::ifstream manifest_stream(manifest_path);
+  ASSERT_TRUE(manifest_stream.is_open());
+  nlohmann::json manifest_json;
+  manifest_stream >> manifest_json;
+  ASSERT_TRUE(manifest_json.contains("entrypoints"));
+  ASSERT_TRUE(manifest_json["entrypoints"].is_array());
+  ASSERT_FALSE(manifest_json["entrypoints"].empty());
+  EXPECT_EQ("client/main.luac", manifest_json["entrypoints"].front().get<std::string>());
 }
 
 }  // namespace

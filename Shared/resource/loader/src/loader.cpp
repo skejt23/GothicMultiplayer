@@ -24,12 +24,14 @@ SOFTWARE.
 
 #include "resource/loader.h"
 
+#include <minizip/ioapi.h>
 #include <minizip/unzip.h>
 #include <sodium.h>
 
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -39,6 +41,7 @@ SOFTWARE.
 #include <sstream>
 #include <stdexcept>
 #include <unordered_map>
+#include <vector>
 
 namespace fs = std::filesystem;
 
@@ -46,6 +49,86 @@ namespace gmp {
 namespace resource {
 
 namespace {
+
+struct MemoryZipSource {
+  const unsigned char* base{nullptr};
+  uLong size{0};
+  uLong limit{0};
+  uLong offset{0};
+};
+
+voidpf ZCALLBACK MemOpenFunc(voidpf opaque, const char*, int) {
+  auto* source = static_cast<MemoryZipSource*>(opaque);
+  source->offset = 0;
+  return opaque;
+}
+
+uLong ZCALLBACK MemReadFunc(voidpf opaque, voidpf, void* buf, uLong size) {
+  auto* source = static_cast<MemoryZipSource*>(opaque);
+  if (source->offset >= source->size) {
+    return 0;
+  }
+
+  const uLong remaining = source->size - source->offset;
+  const uLong to_copy = size > remaining ? remaining : size;
+  if (to_copy > 0) {
+    std::memcpy(buf, source->base + source->offset, to_copy);
+    source->offset += to_copy;
+  }
+  return to_copy;
+}
+
+uLong ZCALLBACK MemWriteFunc(voidpf, voidpf, const void*, uLong) {
+  return 0;
+}
+
+long ZCALLBACK MemTellFunc(voidpf opaque, voidpf) {
+  auto* source = static_cast<MemoryZipSource*>(opaque);
+  return static_cast<long>(source->offset);
+}
+
+long ZCALLBACK MemSeekFunc(voidpf opaque, voidpf, uLong offset, int origin) {
+  auto* source = static_cast<MemoryZipSource*>(opaque);
+  uLong new_offset = 0;
+  switch (origin) {
+    case ZLIB_FILEFUNC_SEEK_CUR:
+      new_offset = source->offset + offset;
+      break;
+    case ZLIB_FILEFUNC_SEEK_END:
+      new_offset = source->size + offset;
+      break;
+    case ZLIB_FILEFUNC_SEEK_SET:
+    default:
+      new_offset = offset;
+      break;
+  }
+
+  if (new_offset > source->size) {
+    return -1;
+  }
+
+  source->offset = new_offset;
+  return 0;
+}
+
+int ZCALLBACK MemCloseFunc(voidpf, voidpf) {
+  return 0;
+}
+
+int ZCALLBACK MemErrorFunc(voidpf, voidpf) {
+  return 0;
+}
+
+void SetupMemoryFileFunc(zlib_filefunc_def& funcs, MemoryZipSource& source) {
+  funcs.zopen_file = MemOpenFunc;
+  funcs.zread_file = MemReadFunc;
+  funcs.zwrite_file = MemWriteFunc;
+  funcs.ztell_file = MemTellFunc;
+  funcs.zseek_file = MemSeekFunc;
+  funcs.zclose_file = MemCloseFunc;
+  funcs.zerror_file = MemErrorFunc;
+  funcs.opaque = &source;
+}
 
 constexpr std::size_t kIOBufferSize = 64 * 1024;
 
@@ -128,20 +211,34 @@ private:
   unzFile handle_;
 };
 
-// Read a JSON manifest from file
-Manifest ReadManifest(const fs::path& manifest_path) {
-  std::ifstream file(manifest_path);
-  if (!file) {
-    throw std::runtime_error("Failed to open manifest file: " + manifest_path.string());
+class MemoryUnzipHandle {
+public:
+  explicit MemoryUnzipHandle(const std::vector<std::uint8_t>& buffer) {
+    source_.base = buffer.empty() ? nullptr : buffer.data();
+    source_.size = static_cast<uLong>(buffer.size());
+    source_.limit = source_.size;
+    source_.offset = 0;
+    SetupMemoryFileFunc(filefunc_, source_);
+    handle_ = unzOpen2(nullptr, &filefunc_);
   }
 
-  nlohmann::json json;
-  try {
-    file >> json;
-  } catch (const std::exception& e) {
-    throw std::runtime_error("Failed to parse manifest JSON: " + std::string(e.what()));
+  ~MemoryUnzipHandle() {
+    if (handle_) {
+      unzClose(handle_);
+    }
   }
 
+  unzFile get() const {
+    return handle_;
+  }
+
+private:
+  MemoryZipSource source_{};
+  zlib_filefunc_def filefunc_{};
+  unzFile handle_{nullptr};
+};
+
+Manifest ParseManifestJson(const nlohmann::json& json) {
   Manifest manifest;
   try {
     manifest.name = json.at("name").get<std::string>();
@@ -179,6 +276,30 @@ Manifest ReadManifest(const fs::path& manifest_path) {
   return manifest;
 }
 
+Manifest ParseManifestString(const std::string& manifest_json) {
+  try {
+    return ParseManifestJson(nlohmann::json::parse(manifest_json));
+  } catch (const std::exception& e) {
+    throw std::runtime_error("Failed to parse manifest JSON: " + std::string(e.what()));
+  }
+}
+
+Manifest ReadManifest(const fs::path& manifest_path) {
+  std::ifstream file(manifest_path);
+  if (!file) {
+    throw std::runtime_error("Failed to open manifest file: " + manifest_path.string());
+  }
+
+  nlohmann::json json;
+  try {
+    file >> json;
+  } catch (const std::exception& e) {
+    throw std::runtime_error("Failed to parse manifest JSON: " + std::string(e.what()));
+  }
+
+  return ParseManifestJson(json);
+}
+
 // Verify archive integrity
 void VerifyArchiveIntegrity(const fs::path& pak_path, const std::string& expected_hash) {
   const std::string computed_hash = ComputeFileSHA256(pak_path);
@@ -193,6 +314,8 @@ struct ResourcePack::Impl {
   Manifest manifest;
   fs::path pak_path;
   std::unordered_map<std::string, const FileMeta*> file_map;
+  std::vector<std::uint8_t> pak_memory;
+  bool in_memory{false};
 };
 
 ResourcePack::ResourcePack() : impl_(std::make_unique<Impl>()) {
@@ -226,60 +349,69 @@ LoadedFile ResourcePack::LoadFile(const std::string& path, bool verify_hash) con
   }
 
   const FileMeta* meta = it->second;
+  auto read_from_zip = [&](unzFile zip) {
+    if (unzLocateFile(zip, path.c_str(), 0) != UNZ_OK) {
+      throw std::runtime_error("File not found in archive: " + path);
+    }
 
-  UnzipFileHandle unz(unzOpen(impl_->pak_path.string().c_str()));
-  if (!unz.get()) {
+    unz_file_info file_info;
+    if (unzGetCurrentFileInfo(zip, &file_info, nullptr, 0, nullptr, 0, nullptr, 0) != UNZ_OK) {
+      throw std::runtime_error("Failed to get file info: " + path);
+    }
+
+    if (unzOpenCurrentFile(zip) != UNZ_OK) {
+      throw std::runtime_error("Failed to open file in archive: " + path);
+    }
+
+    std::vector<std::uint8_t> buffer(file_info.uncompressed_size);
+    std::size_t total_read = 0;
+    while (total_read < buffer.size()) {
+      const auto remaining = static_cast<unsigned int>(buffer.size() - total_read);
+      const int chunk = unzReadCurrentFile(zip, buffer.data() + total_read, remaining);
+      if (chunk < 0) {
+        unzCloseCurrentFile(zip);
+        throw std::runtime_error("Failed to read file from archive: " + path);
+      }
+      if (chunk == 0) {
+        break;
+      }
+      total_read += static_cast<std::size_t>(chunk);
+    }
+
+    unzCloseCurrentFile(zip);
+
+    if (total_read != buffer.size()) {
+      throw std::runtime_error("File size mismatch for " + path + ": expected " + std::to_string(meta->size) + ", got " + std::to_string(total_read));
+    }
+
+    if (verify_hash) {
+      const std::string computed_hash = ComputeBufferSHA256(buffer);
+      if (computed_hash != meta->sha256) {
+        throw std::runtime_error("File integrity check failed for " + path + ": expected " + meta->sha256 + ", got " + computed_hash);
+      }
+    }
+
+    LoadedFile result;
+    result.path = path;
+    result.data = std::move(buffer);
+    result.size = meta->size;
+    result.sha256 = meta->sha256;
+    return result;
+  };
+
+  if (impl_->in_memory) {
+    MemoryUnzipHandle handle(impl_->pak_memory);
+    if (!handle.get()) {
+      throw std::runtime_error("Failed to open in-memory archive for resource: " + impl_->manifest.name);
+    }
+    return read_from_zip(handle.get());
+  }
+
+  UnzipFileHandle handle(unzOpen(impl_->pak_path.string().c_str()));
+  if (!handle.get()) {
     throw std::runtime_error("Failed to open archive: " + impl_->pak_path.string());
   }
-
-  if (unzLocateFile(unz.get(), path.c_str(), 0) != UNZ_OK) {
-    throw std::runtime_error("File not found in archive: " + path);
-  }
-
-  unz_file_info file_info;
-  if (unzGetCurrentFileInfo(unz.get(), &file_info, nullptr, 0, nullptr, 0, nullptr, 0) != UNZ_OK) {
-    throw std::runtime_error("Failed to get file info: " + path);
-  }
-
-  if (unzOpenCurrentFile(unz.get()) != UNZ_OK) {
-    throw std::runtime_error("Failed to open file in archive: " + path);
-  }
-
-  std::vector<std::uint8_t> buffer(file_info.uncompressed_size);
-  std::size_t total_read = 0;
-  while (total_read < buffer.size()) {
-    const auto remaining = static_cast<unsigned int>(buffer.size() - total_read);
-    const int chunk = unzReadCurrentFile(unz.get(), buffer.data() + total_read, remaining);
-    if (chunk < 0) {
-      unzCloseCurrentFile(unz.get());
-      throw std::runtime_error("Failed to read file from archive: " + path);
-    }
-    if (chunk == 0) {
-      break;  // Reached EOF before expected number of bytes
-    }
-    total_read += static_cast<std::size_t>(chunk);
-  }
-
-  unzCloseCurrentFile(unz.get());
-
-  if (total_read != buffer.size()) {
-    throw std::runtime_error("File size mismatch for " + path + ": expected " + std::to_string(meta->size) + ", got " + std::to_string(total_read));
-  }
-
-  if (verify_hash) {
-    const std::string computed_hash = ComputeBufferSHA256(buffer);
-    if (computed_hash != meta->sha256) {
-      throw std::runtime_error("File integrity check failed for " + path + ": expected " + meta->sha256 + ", got " + computed_hash);
-    }
-  }
-
-  LoadedFile result;
-  result.path = path;
-  result.data = std::move(buffer);
-  result.size = meta->size;
-  result.sha256 = meta->sha256;
-
-  return result;
+  return read_from_zip(handle.get());
 }
 
 std::vector<std::string> ResourcePack::GetFilePaths() const {
@@ -328,6 +460,41 @@ ResourcePack ResourcePackLoader::Load(const std::string& manifest_path, bool ver
   ResourcePack pack;
   pack.impl_->manifest = std::move(manifest);
   pack.impl_->pak_path = std::move(pak_file_path);
+
+  pack.impl_->file_map.reserve(pack.impl_->manifest.files.size());
+  for (const auto& file : pack.impl_->manifest.files) {
+    pack.impl_->file_map.emplace(file.path, &file);
+  }
+
+  return pack;
+}
+
+ResourcePack ResourcePackLoader::LoadFromMemory(std::string manifest_json, std::vector<std::uint8_t> archive_bytes, bool verify_integrity) {
+  if (manifest_json.empty()) {
+    throw std::runtime_error("Manifest JSON payload is empty");
+  }
+
+  Manifest manifest = ParseManifestString(manifest_json);
+  if (manifest.format != "zip") {
+    throw std::runtime_error("Unsupported archive format: " + manifest.format);
+  }
+
+  if (manifest.archive.size != archive_bytes.size()) {
+    throw std::runtime_error("Archive size mismatch: expected " + std::to_string(manifest.archive.size) + ", got " + std::to_string(archive_bytes.size()));
+  }
+
+  if (verify_integrity) {
+    const std::string computed_hash = ComputeBufferSHA256(archive_bytes);
+    if (computed_hash != manifest.archive.sha256) {
+      throw std::runtime_error("Archive integrity check failed: expected " + manifest.archive.sha256 + ", got " + computed_hash);
+    }
+  }
+
+  ResourcePack pack;
+  pack.impl_->manifest = std::move(manifest);
+  pack.impl_->pak_memory = std::move(archive_bytes);
+  pack.impl_->pak_path.clear();
+  pack.impl_->in_memory = true;
 
   pack.impl_->file_map.reserve(pack.impl_->manifest.files.size());
   for (const auto& file : pack.impl_->manifest.files) {

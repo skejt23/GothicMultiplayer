@@ -91,6 +91,9 @@ public:
     return true;
   }
 
+  // Clears all registered events and listeners.
+  void Reset();
+
   static EventManager& Instance();
 
 private:

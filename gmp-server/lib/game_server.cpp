@@ -32,14 +32,20 @@ SOFTWARE.
 #include <spdlog/spdlog.h>
 #include <version.h>
 
+#include <array>
 #include <charconv>
 #include <chrono>
 #include <dylib.hpp>
+#include <filesystem>
+#include <fstream>
 #include <future>
+#include <iomanip>
 #include <iterator>
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <optional>
+#include <random>
+#include <sstream>
 #include <stack>
 #include <string>
 #include <string_view>
@@ -282,6 +288,9 @@ GameServer::~GameServer() {
     main_thread.join();
   }
 
+  resource_server_.reset();
+
+  EventManager::Instance().Reset();
   resource_manager_.reset();
   lua_script_.reset();
 
@@ -351,6 +360,11 @@ bool GameServer::Init() {
     client_resource_descriptors_ = ClientResourcePackager::Build(resource_manager_->GetDiscoveredResourceInfo());
   } catch (const std::exception& ex) {
     SPDLOG_ERROR("Failed to pack client resources: {}", ex.what());
+    return false;
+  }
+
+  resource_server_ = std::make_unique<ResourceServer>(config_.Get<std::int32_t>("port"), std::filesystem::absolute("public"));
+  if (!resource_server_->Start()) {
     return false;
   }
 
@@ -516,6 +530,8 @@ bool GameServer::HandlePacket(Net::ConnectionHandle connectionHandle, unsigned c
       packet.packet_type = PT_INITIAL_INFO;
       packet.map_name = config_.Get<std::string>("map");
       packet.player_id = new_player_id;
+      packet.resource_token = resource_server_->IssueToken(p.id);
+      packet.resource_base_path = "/public";
       packet.client_resources.reserve(client_resource_descriptors_.size());
       for (const auto& descriptor : client_resource_descriptors_) {
         ClientResourceInfoEntry entry;
@@ -608,6 +624,8 @@ void GameServer::DeleteFromPlayerList(PlayerId player_id) {
 }
 
 void GameServer::HandlePlayerDisconnect(Net::ConnectionHandle connection) {
+  resource_server_->RevokeToken(connection);
+
   auto player_opt = player_manager_.GetPlayerByConnection(connection);
   if (player_opt.has_value()) {
     auto& player = player_opt.value().get();
@@ -646,6 +664,7 @@ void GameServer::SomeoneJoinGame(Packet p) {
 
   if (!allow_modification) {
     if (!player.passed_crc_test) {
+      resource_server_->RevokeToken(p.id);
       player_manager_.RemovePlayerByConnection(p.id);
       g_net_server->AddToBanList(p.id, 3600000);  // i dorzucamy banana na 1h
       return;

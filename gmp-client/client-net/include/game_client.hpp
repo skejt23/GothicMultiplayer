@@ -25,11 +25,13 @@ SOFTWARE.
 
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <map>
 #include <mutex>
 #include <queue>
+#include <string>
 #include <string_view>
 #include <thread>
 #include <vector>
@@ -41,12 +43,15 @@ SOFTWARE.
 #include "task_scheduler.h"
 #include "world.hpp"
 #include "znet_client.h"
+#include "resource_downloader.h"
 
 namespace gmp::client {
 
 class GameClient : public Net::NetClient::PacketHandler {
 public:
   enum class ConnectionState { Disconnected, Connecting, Connected, Failed };
+
+  using ResourcePayload = ResourceDownloader::ResourcePayload;
 
   GameClient(EventObserver& eventObserver, gmp::TaskScheduler& taskScheduler);
   ~GameClient();
@@ -88,6 +93,8 @@ public:
   std::uint32_t GetServerPort() const {
     return server_port_;
   }
+
+  std::vector<ResourcePayload> ConsumeDownloadedResources();
 
 private:
   struct Packet {
@@ -138,7 +145,8 @@ private:
   std::uint32_t server_port_{0};
   bool connection_lost_{false};
   bool is_in_game_{false};
-  std::vector<ClientResourceInfoEntry> announced_resources_;
+
+  ResourceDownloader resource_downloader_;
 
   // Async connection support
   ConnectionState connection_state_{ConnectionState::Disconnected};

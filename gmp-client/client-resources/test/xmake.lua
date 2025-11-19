@@ -6,8 +6,7 @@
 -- of this software and associated documentation files (the "Software"), to deal
 -- in the Software without restriction, including without limitation the rights
 -- to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
--- copies of the Software, and to permit persons to whom the Software is
--- furnished to do so, subject to the following conditions:
+-- copies of the Software, and to permit persons to do so, subject to the following conditions:
 
 -- The above copyright notice and this permission notice shall be included in all
 -- copies or substantial portions of the Software.
@@ -20,12 +19,13 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 -- SOFTWARE.
 
-includes("lua_compiler", "lua_runtime", "resource")
-
-target("SharedLib")
-    set_kind("static")
-    add_files("toml_wrapper.cpp", "event.cpp", "math.cpp", "crypto_utils.cpp")
-    add_includedirs("include", {public = true})
-    add_deps("common")
-    add_packages("toml11", "glm", "libsodium", {public = true})
-    set_default(false) -- So it's not installed by default
+target("ClientResourceRuntimeTest")
+    set_kind("binary")
+    add_files("client_resource_runtime_test.cpp")
+    add_deps("Client.Resources", "ResourcePacker")
+    add_packages("gtest", "libsodium")
+    add_cxflags("/utf-8")
+    add_tests("default")
+    set_rundir(os.projectdir())
+    set_default(false)
+    set_languages("c++20")

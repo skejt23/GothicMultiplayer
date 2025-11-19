@@ -63,6 +63,10 @@ bool EventManager::TriggerEvent(const std::string& eventName) {
   return true;
 }
 
+void EventManager::Reset() {
+  events_.clear();
+}
+
 EventManager& EventManager::Instance() {
   static EventManager instance;
   return instance;

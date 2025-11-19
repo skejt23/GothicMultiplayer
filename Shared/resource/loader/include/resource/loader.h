@@ -101,6 +101,12 @@ public:
   // Returns a ResourcePack handle to the loaded resource
   // Throws std::runtime_error on failure (file not found, integrity check failure, etc.)
   static ResourcePack Load(const std::string& manifest_path, bool verify_integrity = true);
+
+  // Load a resource pack directly from manifest JSON content and archive bytes in memory
+  // - manifest_json: Raw JSON text of the manifest file
+  // - archive_bytes: Contents of the .pak archive
+  // - verify_integrity: If true, verifies SHA-256 hash of the archive bytes
+  static ResourcePack LoadFromMemory(std::string manifest_json, std::vector<std::uint8_t> archive_bytes, bool verify_integrity = true);
 };
 
 }  // namespace resource
