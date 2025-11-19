@@ -128,11 +128,16 @@ public:
         resources_ready_future_(resources_ready_promise_.get_future()),
         local_join_future_(local_join_promise_.get_future()),
         local_spawn_future_(local_spawn_promise_.get_future()),
-        failure_future_(failure_promise_.get_future()) {
+        failure_future_(failure_promise_.get_future()),
+        disconnected_future_(disconnected_promise_.get_future()) {
   }
 
   std::future<void>& ConnectedFuture() {
     return connected_future_;
+  }
+
+  std::future<void>& DisconnectedFuture() {
+    return disconnected_future_;
   }
 
   std::future<void>& ResourcesReadyFuture() {
@@ -161,6 +166,10 @@ public:
 
   void OnConnected() override {
     Fulfill(connected_promise_, connected_flag_);
+  }
+
+  void OnDisconnected() override {
+    Fulfill(disconnected_promise_, disconnected_flag_);
   }
 
   void OnConnectionFailed(const std::string& error) override {
@@ -200,18 +209,21 @@ private:
   std::promise<std::uint64_t> local_join_promise_;
   std::promise<std::uint64_t> local_spawn_promise_;
   std::promise<std::string> failure_promise_;
+  std::promise<void> disconnected_promise_;
 
   std::future<void> connected_future_;
   std::future<void> resources_ready_future_;
   std::future<std::uint64_t> local_join_future_;
   std::future<std::uint64_t> local_spawn_future_;
   std::future<std::string> failure_future_;
+  std::future<void> disconnected_future_;
 
   std::once_flag connected_flag_;
   std::once_flag resources_flag_;
   std::once_flag local_join_flag_;
   std::once_flag local_spawn_flag_;
   std::once_flag failure_flag_;
+  std::once_flag disconnected_flag_;
 
   std::atomic<std::size_t> last_resource_count_{0};
   std::atomic<std::uint64_t> last_resource_bytes_{0};
@@ -233,8 +245,7 @@ bool WaitForFutureWithPump(Future& future, gmp::client::GameClient& client, std:
       return true;
     }
 
-    if (failure_future && failure_future->valid() &&
-        failure_future->wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
+    if (failure_future && failure_future->valid() && failure_future->wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
       return false;
     }
 
@@ -286,11 +297,11 @@ TEST_F(RealClientConnectionTest, GameClientDownloadsResourcesAndJoinsServer) {
       << BuildFailureMessage("connection", failure_future);
   connected_future.get();
 
-    ASSERT_TRUE(WaitForFutureWithPump(resources_future, *client_, std::chrono::seconds(15), &failure_future))
+  ASSERT_TRUE(WaitForFutureWithPump(resources_future, *client_, std::chrono::seconds(15), &failure_future))
       << BuildFailureMessage("resource preparation", failure_future);
   resources_future.get();
-    EXPECT_GT(observer_.LastResourceCount(), 0u);
-    EXPECT_GT(observer_.LastResourceBytes(), 0u);
+  EXPECT_GT(observer_.LastResourceCount(), 0u);
+  EXPECT_GT(observer_.LastResourceBytes(), 0u);
 
   client_->JoinGame("RealClientUser", "RealClientUser", 0, 0, 0, 0);
 
@@ -298,10 +309,52 @@ TEST_F(RealClientConnectionTest, GameClientDownloadsResourcesAndJoinsServer) {
       << BuildFailureMessage("join acknowledgment", failure_future);
   auto local_player_id = joined_future.get();
 
-    ASSERT_TRUE(WaitForFutureWithPump(spawned_future, *client_, std::chrono::seconds(10), &failure_future))
+  ASSERT_TRUE(WaitForFutureWithPump(spawned_future, *client_, std::chrono::seconds(10), &failure_future))
       << BuildFailureMessage("spawn event", failure_future);
   auto spawned_player_id = spawned_future.get();
 
   EXPECT_EQ(local_player_id, spawned_player_id);
   EXPECT_EQ(server_.GetPlayerManager().GetPlayerCount(), 1u);
+}
+
+TEST_F(RealClientConnectionTest, GameClientDisconnectsCorrectly) {
+  client_ = std::make_unique<gmp::client::GameClient>(observer_, scheduler_);
+
+  std::ostringstream endpoint;
+  endpoint << "127.0.0.1:" << server_.GetPort();
+
+  auto& failure_future = observer_.FailureFuture();
+  auto& connected_future = observer_.ConnectedFuture();
+  auto& disconnected_future = observer_.DisconnectedFuture();
+
+  client_->ConnectAsync(endpoint.str());
+
+  ASSERT_TRUE(WaitForFutureWithPump(connected_future, *client_, std::chrono::seconds(5), &failure_future))
+      << BuildFailureMessage("connection", failure_future);
+  connected_future.get();
+
+  // Wait a bit to ensure server sees the connection
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  EXPECT_EQ(server_.GetPlayerManager().GetPlayerCount(), 1u);
+
+  client_->Disconnect();
+
+  ASSERT_TRUE(WaitForFutureWithPump(disconnected_future, *client_, std::chrono::seconds(5), &failure_future))
+      << BuildFailureMessage("disconnection", failure_future);
+  disconnected_future.get();
+
+  EXPECT_FALSE(client_->IsConnected());
+
+  // Wait for server to process disconnection
+  auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+  bool server_saw_disconnect = false;
+  while (std::chrono::steady_clock::now() < deadline) {
+    if (server_.GetPlayerManager().GetPlayerCount() == 0) {
+      server_saw_disconnect = true;
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+
+  EXPECT_TRUE(server_saw_disconnect) << "Server did not register disconnection";
 }

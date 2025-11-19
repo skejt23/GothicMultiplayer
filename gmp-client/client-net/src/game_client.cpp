@@ -176,6 +176,8 @@ bool GameClient::ConnectInternal(std::string_view full_address) {
 }
 
 void GameClient::Disconnect() {
+  bool was_connected = IsConnected();
+
   // Join connection thread if it's still running
   {
     std::lock_guard<std::mutex> lock(connection_mutex_);
@@ -185,7 +187,7 @@ void GameClient::Disconnect() {
     connection_state_ = ConnectionState::Disconnected;
   }
 
-  if (IsConnected()) {
+  if (was_connected) {
     is_in_game_ = false;
     g_netclient->Disconnect();
     event_observer_.OnDisconnected();
