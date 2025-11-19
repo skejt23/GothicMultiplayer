@@ -53,14 +53,14 @@ add_requires("spdlog 1.15.1", {configs = {fmt_external = true}})
 -- Pulling in gtest_main doesn't work, due to a runtime conflict MT (static) vs MD (dynamic), so we still have to define it ourselves
 add_requires("gtest 1.16.*", {configs = {main = true}})
 add_requires("fmt 11.0.2",
-             "toml11 4.3.*", 
+             "toml11 4.4.*", 
              "lua 5.4.7",
              "dylib 2.2.*",
-             "nlohmann_json 3.11.*",
+             "nlohmann_json 3.12.*",
              "bitsery 5.2.*",
              "glm 1.0.*",
              "sol2 3.3.*",
-             "cpp-httplib 0.21.0",
+             "cpp-httplib 0.22.0",
              "zlib 1.3.1",
              "minizip 1.2.13",
              "openssl 1.1.1-w",
