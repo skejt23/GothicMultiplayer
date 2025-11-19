@@ -274,30 +274,12 @@ void Config::DeriveKeysFromSeed() {
 
 void Config::SaveConfigToFile() {
   try {
-    std::ifstream input("config.toml");
-    if (!input.is_open()) {
-      SPDLOG_ERROR("Failed to open config.toml for reading");
-      return;
-    }
-
-    std::stringstream buffer;
-    buffer << input.rdbuf();
-    input.close();
-
-    auto data = toml::parse("config.toml");
+    auto config = TomlWrapper::CreateFromFile("config.toml");
 
     // Update the server seed in the TOML data
-    data["server_identity_seed"] = Get<std::string>("server_identity_seed");
+    config["server_identity_seed"] = Get<std::string>("server_identity_seed");
 
-    // Write back to file
-    std::ofstream output("config.toml");
-    if (!output.is_open()) {
-      SPDLOG_ERROR("Failed to open config.toml for writing");
-      return;
-    }
-
-    output << data;
-    output.close();
+    config.Serialize("config.toml");
 
     SPDLOG_INFO("Saved server identity seed to config.toml");
   } catch (const std::exception& ex) {

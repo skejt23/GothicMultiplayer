@@ -62,10 +62,10 @@ public:
 
   // Value by key accessor.
   // Will create an empty table value if the value with the given key didn't exist.
-  toml::value& operator[](const std::string& key) {
+  toml::ordered_value& operator[](const std::string& key) {
     return data_[key];
   }
-  toml::value& operator[](const char* key) {
+  toml::ordered_value& operator[](const char* key) {
     return data_[key];
   }
 
@@ -80,5 +80,5 @@ public:
   static TomlWrapper CreateFromFile(std::string_view file_path);
 
 private:
-  toml::value data_;
+  toml::ordered_value data_;
 };

@@ -26,17 +26,58 @@ SOFTWARE.
 #include "shared/toml_wrapper.h"
 
 #include <fstream>
+#include <sstream>
 #include <stdexcept>
+
+namespace {
+std::string FormatOutputWithSectionSpacing(const std::string& content) {
+  std::string output;
+  output.reserve(content.size() + 512);
+
+  std::istringstream input_ss(content);
+  std::string line;
+  bool first_line = true;
+  bool previous_was_empty = false;
+
+  while (std::getline(input_ss, line)) {
+    if (!line.empty() && line.back() == '\r') {
+      line.pop_back();
+    }
+
+    // Check if this is a section header (starts with "# ---")
+    // and if we need to insert a blank line before it.
+    if (line.find("# ---") == 0) {
+      if (!first_line && !previous_was_empty) {
+        output += '\n';
+      }
+    }
+
+    output += line;
+    output += '\n';
+
+    first_line = false;
+    previous_was_empty = line.empty();
+  }
+
+  return output;
+}
+}  // namespace
 
 TomlWrapper TomlWrapper::CreateFromFile(std::string_view file_path) {
   TomlWrapper val;
-  val.data_ = toml::parse(std::string(file_path));
+  val.data_ = toml::parse<toml::ordered_type_config>(std::string(file_path));
   return val;
 }
 
 void TomlWrapper::Serialize(std::string_view file_path) const {
   if (!data_.is_empty()) {
-    std::ofstream ofs(std::string(file_path), std::ios_base::out);
-    ofs << data_;
+    std::stringstream ss;
+    ss << data_;
+    std::string content = ss.str();
+
+    std::string output = FormatOutputWithSectionSpacing(content);
+
+    std::ofstream ofs(std::string(file_path), std::ios_base::out | std::ios_base::binary);
+    ofs << output;
   }
 }
