@@ -1,4 +1,5 @@
 #include "client_resources/client_resource_runtime.h"
+#include "client_resources/event_bind.h"
 
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
@@ -85,6 +86,7 @@ void ClientResourceRuntime::UnloadResources() {
   }
 
   script_.GetTimerManager().Clear();
+  gmp::client::lua::bindings::ResetEvents();
 }
 
 void ClientResourceRuntime::ProcessTimers() {
@@ -92,12 +94,15 @@ void ClientResourceRuntime::ProcessTimers() {
 }
 
 std::optional<sol::table> ClientResourceRuntime::GetExports(const std::string& resource_name) const {
-  for (const auto& instance : resources_) {
-    if (instance.name == resource_name && instance.exports.valid()) {
-      return instance.exports;
-    }
+  auto it = std::find_if(resources_.begin(), resources_.end(), [&](const auto& r) { return r.name == resource_name; });
+  if (it != resources_.end()) {
+    return it->exports;
   }
   return std::nullopt;
+}
+
+sol::state& ClientResourceRuntime::GetLuaState() {
+  return script_.GetLuaState();
 }
 
 void ClientResourceRuntime::SetupRequire(ResourceInstance& instance) {

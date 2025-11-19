@@ -20,6 +20,8 @@ public:
 
   std::optional<sol::table> GetExports(const std::string& resource_name) const;
 
+  sol::state& GetLuaState();
+
 private:
   struct ResourceInstance {
     std::string name;

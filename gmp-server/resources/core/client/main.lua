@@ -1,18 +1,7 @@
-CoreShared = CoreShared or {}
+LOG_INFO('[Core][Client] Core client-side resources initialized.')
 
-local welcome = "Welcome adventurer"
-if CoreShared.GetWelcomeMessage then
-  welcome = CoreShared.GetWelcomeMessage()
-end
-
-if LOG_INFO then
-  LOG_INFO('[Core][Client] {}', welcome)
-end
-
-function CoreClientNotify(message)
-  if LOG_INFO then
-    LOG_INFO('[Core][Client] {}', message)
-  end
-end
-
-CoreClientNotify("Client-side helpers initialized.")
+addEventHandler("onRender", function()
+    if KeyToggled(Key.F4) then
+        LOG_INFO("F4 key toggled!")
+    end
+end)

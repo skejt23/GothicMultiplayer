@@ -1,4 +1,3 @@
-
 /*
 MIT License
 
@@ -55,6 +54,9 @@ SOFTWARE.
 #include "packets.h"
 #include "patch.h"
 #include "player_name_utils.hpp"
+#include "scripting/gothic_bindings.h"
+#include "shared/event.h"
+#include "client_resources/client_events.h"
 
 const char* LANG_DIR = ".\\Multiplayer\\Localization\\";
 
@@ -67,6 +69,7 @@ NetGame::NetGame() : task_scheduler(nullptr), game_client(nullptr), resource_run
   task_scheduler = std::make_unique<gmp::GothicTaskScheduler>();
   game_client = std::make_unique<gmp::client::GameClient>(*this, *task_scheduler);
   resource_runtime = std::make_unique<ClientResourceRuntime>();
+  gmp::gothic::BindGothicSpecific(resource_runtime->GetLuaState());
 }
 
 void __stdcall NetGame::ProcessTaskScheduler() {
@@ -77,6 +80,7 @@ void __stdcall NetGame::ProcessTaskScheduler() {
   if (instance.resource_runtime) {
     instance.resource_runtime->ProcessTimers();
   }
+  EventManager::Instance().TriggerEvent(gmp::client::kEventOnRenderName, 0);
 }
 
 bool NetGame::Connect(std::string_view full_address) {
@@ -307,8 +311,7 @@ bool NetGame::RequestResourceDownloadConsent(std::size_t resource_count, std::ui
 
   const double total_mb = static_cast<double>(total_bytes) / (1024.0 * 1024.0);
   SPDLOG_INFO("Server requires downloading {} resource pack(s) ({:.2f} MiB)", resource_count, total_mb);
-  CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(0, 200, 255, 255),
-                                     "Server requires downloading %.2f MiB of client resources", total_mb);
+  CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(0, 200, 255, 255), "Server requires downloading %.2f MiB of client resources", total_mb);
   return true;
 }
 
