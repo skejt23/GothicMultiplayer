@@ -65,6 +65,7 @@ GameClient::GameClient(EventObserver& eventObserver, gmp::TaskScheduler& taskSch
 }
 
 GameClient::~GameClient() {
+  Disconnect();
   assert(g_netclient != nullptr);
 
   // Clean up connection thread if still running

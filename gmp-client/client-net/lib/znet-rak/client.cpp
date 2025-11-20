@@ -102,7 +102,7 @@ void RakNetClient::Disconnect() {
   }
 
   isConnected_ = false;
-  peer_->CloseConnection(serverAddress_, true, 11, ::IMMEDIATE_PRIORITY);
+  peer_->Shutdown(300, 0, ::IMMEDIATE_PRIORITY);
   RakNet::RakPeerInterface::DestroyInstance(peer_);
 }
 
