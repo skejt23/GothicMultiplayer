@@ -40,6 +40,7 @@ SOFTWARE.
 #include <stdexcept>
 #include <string_view>
 #include <system_error>
+#include <unordered_set>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -130,24 +131,38 @@ bool EndsWith(std::string_view value, std::string_view suffix) {
 
 std::vector<std::string> DeriveEntrypoints(const std::vector<FileMeta>& files) {
   std::vector<std::string> entrypoints;
+  std::unordered_set<std::string> seen;
 
   auto has_path = [&](std::string_view candidate) {
     return std::any_of(files.begin(), files.end(), [&](const FileMeta& meta) { return meta.path == candidate; });
   };
 
+  auto add_if_present = [&](std::string_view candidate) {
+    if (has_path(candidate) && seen.insert(std::string(candidate)).second) {
+      entrypoints.emplace_back(candidate);
+      return true;
+    }
+    return false;
+  };
+
   const std::array<const char*, 2> preferred = {"client/main.luac", "client/main.lua"};
   for (const auto* candidate : preferred) {
-    if (has_path(candidate)) {
-      entrypoints.emplace_back(candidate);
+    if (add_if_present(candidate)) {
       break;
     }
   }
 
-  if (entrypoints.empty()) {
-    for (const auto& meta : files) {
-      if (StartsWith(meta.path, "client/") && (EndsWith(meta.path, ".luac") || EndsWith(meta.path, ".lua"))) {
-        entrypoints.push_back(meta.path);
-      }
+  for (const auto& meta : files) {
+    if (!StartsWith(meta.path, "client/")) {
+      continue;
+    }
+
+    if (!EndsWith(meta.path, ".luac") && !EndsWith(meta.path, ".lua")) {
+      continue;
+    }
+
+    if (seen.insert(meta.path).second) {
+      entrypoints.push_back(meta.path);
     }
   }
 

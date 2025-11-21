@@ -55,6 +55,7 @@ SOFTWARE.
 #include "patch.h"
 #include "player_name_utils.hpp"
 #include "scripting/gothic_bindings.h"
+#include "client_resources/process_input.h"
 #include "shared/event.h"
 #include "client_resources/client_events.h"
 
@@ -79,6 +80,9 @@ void __stdcall NetGame::ProcessTaskScheduler() {
   }
   if (instance.resource_runtime) {
     instance.resource_runtime->ProcessTimers();
+  }
+  if (zinput) {
+    gmp::gothic::ProcessInput(zinput);
   }
   EventManager::Instance().TriggerEvent(gmp::client::kEventOnRenderName, 0);
 }
@@ -144,6 +148,9 @@ void NetGame::JoinGame() {
     // LocalPlayer->npc->SetMovLock(0);
     // this->players.push_back(LocalPlayer);
     // this->HeroLastHp = player->attribute[NPC_ATR_HITPOINTS];
+
+    
+    EventManager::Instance().TriggerEvent(gmp::client::kEventOnInitName, 0);
   }
 }
 
@@ -264,6 +271,8 @@ void NetGame::Disconnect() {
   }
 
   if (resource_runtime) {
+    EventManager::Instance().TriggerEvent(gmp::client::kEventOnExitName, 0);
+    gmp::gothic::CleanupGothicViews();
     resource_runtime->UnloadResources();
   }
 }
@@ -290,6 +299,8 @@ void NetGame::OnDisconnected() {
   SPDLOG_INFO("Disconnected from server");
   IsReadyToJoin = false;
   if (resource_runtime) {
+    EventManager::Instance().TriggerEvent(gmp::client::kEventOnExitName, 0);
+    gmp::gothic::CleanupGothicViews();
     resource_runtime->UnloadResources();
   }
 }
@@ -390,6 +401,8 @@ void NetGame::OnLocalPlayerSpawned(gmp::client::Player& player) {
   SPDLOG_INFO("Local player spawned at position ({}, {}, {})", player.position().x, player.position().y, player.position().z);
   local_player->SetPosition(pos);
   players.insert(players.begin(), local_player);
+  EventManager::Instance().TriggerEvent(gmp::client::kEventOnPlayerCreateName,
+                                        gmp::client::PlayerLifecycleEvent{player.id()});
 }
 
 void NetGame::OnPlayerJoined(gmp::client::Player& new_player) {
@@ -430,6 +443,8 @@ void NetGame::OnPlayerLeft(std::uint64_t player_id, const std::string& player_na
       CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(255, 0, 0, 255), "%s%s", this->players[i]->GetName(),
                                          Language::Instance()[Language::SOMEONEDISCONNECT_FROM_SERVER].ToChar());
       this->players[i]->LeaveGame();
+      EventManager::Instance().TriggerEvent(gmp::client::kEventOnPlayerDestroyName,
+                                            gmp::client::PlayerLifecycleEvent{player_id});
       delete this->players[i];
       this->players.erase(this->players.begin() + i);
       break;

@@ -24,11 +24,62 @@ SOFTWARE.
 
 #pragma once
 
+#include <string>
+#include <unordered_set>
+
+#include "ZenGin/zGothicAPI.h"
 #include "sol/sol.hpp"
 
 namespace gmp::gothic {
 
-void BindGothicSpecific(sol::state& lua);
-void CleanupGothicViews();
+class LuaDrawView;
+
+  class LuaDraw {
+ public:
+  LuaDraw();
+  LuaDraw(int x, int y, const std::string& text);
+  ~LuaDraw();
+
+  static void CleanupViews();
+
+  void setPosition(int x, int y);
+  void setPositionPx(int x, int y);
+  sol::table getPosition(sol::this_state s);
+  sol::table getPositionPx(sol::this_state s);
+
+  void setText(const std::string& text);
+  std::string getText() const;
+
+  void setFont(const std::string& fontName);
+  std::string getFont() const;
+
+  void setColor(int r, int g, int b);
+  sol::table getColor(sol::this_state s);
+
+  void setAlpha(int a);
+  int getAlpha() const;
+
+  void setVisible(bool visible);
+  bool getVisible() const;
+
+  void render();
+
+ private:
+  friend class LuaDrawView;
+
+  void Blit();
+  void Initialize();
+
+  LuaDrawView* view_;
+  std::string text_;
+  std::string fontName_;
+  int posX_;
+  int posY_;
+  Gothic_II_Addon::zCOLOR color_;
+  bool visible_;
+  bool attached_to_screen_;
+
+  static std::unordered_set<LuaDraw*> active_draws_;
+};
 
 }  // namespace gmp::gothic
