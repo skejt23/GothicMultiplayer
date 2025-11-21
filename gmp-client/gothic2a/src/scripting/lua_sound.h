@@ -24,11 +24,47 @@ SOFTWARE.
 
 #pragma once
 
-#include "sol/sol.hpp"
+#include <string>
+
+#include "ZenGin/zGothicAPI.h"
 
 namespace gmp::gothic {
 
-void BindGothicSpecific(sol::state& lua);
-void CleanupGothicViews();
+class LuaSound {
+ public:
+  explicit LuaSound(const std::string& filename);
+  ~LuaSound();
+
+  void play();
+  void stop();
+  bool isPlaying() const;
+
+  std::string getFile() const;
+  void setFile(const std::string& filename);
+
+  float getPlayingTime() const;
+
+  float getVolume() const;
+  void setVolume(float volume);
+
+  bool getLooping() const;
+  void setLooping(bool looping);
+
+  float getBalance() const;
+  void setBalance(float balance);
+
+ private:
+  void ReloadSound();
+  void ApplyProperties();
+  void StopIfNeeded();
+
+  std::string file_;
+  float volume_;
+  bool looping_;
+  float balance_;
+  int handle_;
+
+  Gothic_II_Addon::zCSoundFX* sound_fx_;
+};
 
 }  // namespace gmp::gothic

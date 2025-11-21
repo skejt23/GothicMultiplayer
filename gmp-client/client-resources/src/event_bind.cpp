@@ -20,9 +20,31 @@ struct LuaProxyArgs {
 static std::map<std::string, std::function<void(LuaProxyArgs)>> kLuaEventProxies;
 
 void RegisterProxies() {
+  kLuaEventProxies[kEventOnInitName] = {[](LuaProxyArgs args) {
+    args.callback();
+  }};
+  kLuaEventProxies[kEventOnExitName] = {[](LuaProxyArgs args) {
+    args.callback();
+  }};
   kLuaEventProxies[kEventOnRenderName] = {[](LuaProxyArgs args) {
     // onRender has no arguments for now
     args.callback();
+  }};
+  kLuaEventProxies[kEventOnKeyDownName] = {[](LuaProxyArgs args) {
+    OnKeyEvent event = std::any_cast<OnKeyEvent>(args.event);
+    args.callback(event.key);
+  }};
+  kLuaEventProxies[kEventOnKeyUpName] = {[](LuaProxyArgs args) {
+    OnKeyEvent event = std::any_cast<OnKeyEvent>(args.event);
+    args.callback(event.key);
+  }};
+  kLuaEventProxies[kEventOnPlayerCreateName] = {[](LuaProxyArgs args) {
+    PlayerLifecycleEvent event = std::any_cast<PlayerLifecycleEvent>(args.event);
+    args.callback(event.player_id);
+  }};
+  kLuaEventProxies[kEventOnPlayerDestroyName] = {[](LuaProxyArgs args) {
+    PlayerLifecycleEvent event = std::any_cast<PlayerLifecycleEvent>(args.event);
+    args.callback(event.player_id);
   }};
 }
 
@@ -36,7 +58,13 @@ void BindEvents(sol::state& lua) {
   RegisterProxies();
 
   // Ensure events are registered in EventManager
+  EventManager::Instance().RegisterEvent(kEventOnInitName);
+  EventManager::Instance().RegisterEvent(kEventOnExitName);
   EventManager::Instance().RegisterEvent(kEventOnRenderName);
+  EventManager::Instance().RegisterEvent(kEventOnKeyDownName);
+  EventManager::Instance().RegisterEvent(kEventOnKeyUpName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerCreateName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerDestroyName);
 
   lua.set_function("addEventHandler", [](std::string event_name, sol::protected_function lua_callback) -> bool {
     SPDLOG_TRACE("addEventHandler({})", event_name);
@@ -60,7 +88,13 @@ void BindEvents(sol::state& lua) {
 
 void ResetEvents() {
   EventManager::Instance().Reset();
+  EventManager::Instance().RegisterEvent(kEventOnInitName);
+  EventManager::Instance().RegisterEvent(kEventOnExitName);
   EventManager::Instance().RegisterEvent(kEventOnRenderName);
+  EventManager::Instance().RegisterEvent(kEventOnKeyDownName);
+  EventManager::Instance().RegisterEvent(kEventOnKeyUpName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerCreateName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerDestroyName);
 }
 
 } // namespace gmp::client::lua::bindings

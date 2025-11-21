@@ -27,5 +27,5 @@ target("SharedLib")
     add_files("toml_wrapper.cpp", "event.cpp", "math.cpp", "crypto_utils.cpp")
     add_includedirs("include", {public = true})
     add_deps("common")
-    add_packages("toml11", "glm", "libsodium", {public = true})
+    add_packages("toml11", "glm", "libsodium", "openssl", {public = true})
     set_default(false) -- So it's not installed by default
