@@ -46,6 +46,10 @@ struct LuaProxyArgs {
 static std::map<std::string, std::function<void(LuaProxyArgs)>> kLuaEventProxies;
 
 void RegisterProxies() {
+  kLuaEventProxies[kEventOnPacketName] = {[](LuaProxyArgs args) {
+    OnPacketEvent packet_event = std::any_cast<OnPacketEvent>(args.event);
+    args.callback(packet_event.player_id, packet_event.packet);
+  }};
   kLuaEventProxies[kEventOnGameTimeName] = {[](LuaProxyArgs args) {
     OnGameTimeEvent gametime_event = std::any_cast<OnGameTimeEvent>(args.event);
     args.callback(gametime_event.day, gametime_event.hour, gametime_event.min);

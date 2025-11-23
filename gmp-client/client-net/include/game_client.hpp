@@ -38,6 +38,7 @@ SOFTWARE.
 
 #include "common_structs.h"
 #include "packets.h"
+#include "packet.h"
 #include "event_observer.hpp"
 #include "players.hpp"
 #include "task_scheduler.h"
@@ -97,11 +98,6 @@ public:
   std::vector<ResourcePayload> ConsumeDownloadedResources();
 
 private:
-  struct Packet {
-    unsigned char* data = nullptr;
-    std::uint32_t length = 0;
-  };
-
   void InitPacketHandlers();
   bool HandlePacket(unsigned char* data, std::uint32_t size) override;
 

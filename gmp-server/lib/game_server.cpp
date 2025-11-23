@@ -266,6 +266,7 @@ GameServer::GameServer() {
   g_server = this;
 
   // Register server-side events.
+  EventManager::Instance().RegisterEvent(kEventOnPacketName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerConnectName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerDisconnectName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerMessageName);
@@ -508,9 +509,17 @@ void GameServer::ProcessRespawns() {
 }
 
 bool GameServer::HandlePacket(Net::ConnectionHandle connectionHandle, unsigned char* data, std::uint32_t size) {
-  Packet p{data, size, connectionHandle};
+  Packet p(data, size, connectionHandle);
 
   unsigned char packetIdentifier = GetPacketIdentifier(p);
+
+  if (packetIdentifier == PT_EXTENDED_4_SCRIPTS) {
+    if (auto player_id = player_manager_.GetPlayerId(connectionHandle)) {
+      Packet script_packet(p.data + 1, p.length > 0 ? p.length - 1 : 0, connectionHandle);
+      EventManager::Instance().TriggerEvent(kEventOnPacketName, OnPacketEvent{*player_id, script_packet});
+    }
+    return true;
+  }
   switch (packetIdentifier) {
     case ID_DISCONNECTION_NOTIFICATION: {
       auto player_opt = player_manager_.GetPlayerByConnection(p.id);

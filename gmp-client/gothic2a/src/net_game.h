@@ -119,6 +119,7 @@ public:
   void OnRconResponse(const std::string& response, bool is_admin) override;
   void OnDiscordActivityUpdate(const std::string& state, const std::string& details, const std::string& large_image_key,
                                const std::string& large_image_text, const std::string& small_image_key, const std::string& small_image_text) override;
+  void OnPacket(const gmp::client::Packet& packet) override;
 
 private:
   NetGame();

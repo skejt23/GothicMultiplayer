@@ -52,6 +52,7 @@ struct Response;
 #include "client_resource_packager.h"
 #include "common_structs.h"
 #include "config.h"
+#include "packet.h"
 #include "player_manager.h"
 #include "resource_manager.h"
 #include "resource_server.h"
@@ -63,13 +64,6 @@ class CLog;
 class GothicClock;
 
 enum CONFIG_FLAGS { HIDE_MAP = 0x04 };
-
-struct Packet {
-  // Not owning.
-  unsigned char* data = nullptr;
-  std::uint32_t length = 0;
-  Net::ConnectionHandle id;
-};
 
 class GameServer : public Net::PacketHandler {
 public:

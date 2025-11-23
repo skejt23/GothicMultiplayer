@@ -29,8 +29,10 @@ SOFTWARE.
 #include <optional>
 #include <string>
 
+#include "packet.h"
 #include <glm/glm.hpp>
 
+inline const std::string kEventOnPacketName = "onPacket";
 inline const std::string kEventOnGameTimeName = "onGameTime";
 inline const std::string kEventOnPlayerConnectName = "onPlayerConnect";
 inline const std::string kEventOnPlayerDisconnectName = "onPlayerDisconnect";
@@ -45,6 +47,11 @@ inline const std::string kEventOnPlayerCastSpellName = "onPlayerCastSpell";
 inline const std::string kEventOnPlayerSpawnName = "onPlayerSpawn";
 inline const std::string kEventOnPlayerRespawnName = "onPlayerRespawn";
 inline const std::string kEventOnPlayerHitName = "onPlayerHit";
+
+struct OnPacketEvent {
+  std::uint64_t player_id;
+  Packet packet;
+};
 
 struct OnGameTimeEvent {
   std::uint16_t day;

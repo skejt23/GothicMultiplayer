@@ -882,3 +882,7 @@ void NetGame::OnDiscordActivityUpdate(const std::string& state, const std::strin
   SPDLOG_DEBUG("Discord activity update: {} - {}", state, details);
   DiscordRichPresence::Instance().UpdateActivity(state, details, 0, 0, large_image_key, large_image_text, small_image_key, small_image_text);
 }
+
+void NetGame::OnPacket(const gmp::client::Packet& packet) {
+  EventManager::Instance().TriggerEvent(gmp::client::kEventOnPacketName, gmp::client::OnPacketEvent{packet});
+}

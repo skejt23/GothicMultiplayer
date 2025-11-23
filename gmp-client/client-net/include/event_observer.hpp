@@ -29,6 +29,7 @@ SOFTWARE.
 #include <string>
 
 #include "common_structs.h"
+#include "packet.h"
 
 namespace gmp::client {
 
@@ -84,6 +85,9 @@ public:
   virtual void OnDiscordActivityUpdate(const std::string& state, const std::string& details, 
                                        const std::string& large_image_key, const std::string& large_image_text,
                                        const std::string& small_image_key, const std::string& small_image_text) {}
+
+  // Raw packet event
+  virtual void OnPacket(const Packet& packet) {}
 };
 
 }  // namespace gmp::client
