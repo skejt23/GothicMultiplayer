@@ -427,7 +427,7 @@ void GameClient::OnMapOnly(Packet p) {
     return;
   }
 
-  event_observer_.OnPlayerPositionUpdate(*packet.player_id, packet.position.x, packet.position.z);
+  event_observer_.OnPlayerPositionUpdate(*packet.player_id, packet.position.x, packet.position.y, packet.position.z);
 }
 
 void GameClient::OnDoDie(Packet p) {

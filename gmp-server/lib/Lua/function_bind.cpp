@@ -113,6 +113,34 @@ bool Function_SpawnPlayer(std::uint32_t player_id, sol::variadic_args args) {
   return g_server->SpawnPlayer(player_id, position_override);
 }
 
+bool Function_SetPlayerPosition(std::uint32_t player_id, float x, float y, float z) {
+  if (!g_server) {
+    SPDLOG_WARN("Cannot set player position before the server is initialized");
+    return false;
+  }
+
+  return g_server->SetPlayerPosition(player_id, glm::vec3{x, y, z});
+}
+
+sol::object Function_GetPlayerPosition(std::uint32_t player_id, sol::this_state ts) {
+  if (!g_server) {
+    SPDLOG_WARN("Cannot get player position before the server is initialized");
+    return sol::nil;
+  }
+
+  auto position = g_server->GetPlayerPosition(player_id);
+  if (!position.has_value()) {
+    return sol::nil;
+  }
+
+  sol::state_view lua(ts);
+  sol::table position_table = lua.create_table();
+  position_table["x"] = position->x;
+  position_table["y"] = position->y;
+  position_table["z"] = position->z;
+  return position_table;
+}
+
 // Register Functions
 void lua::bindings::BindFunctions(sol::state& lua, TimerManager& timer_manager) {
   lua["Log"] = Function_Log;
@@ -131,5 +159,9 @@ void lua::bindings::BindFunctions(sol::state& lua, TimerManager& timer_manager) 
 
 
   lua["SendServerMessage"] = Function_SendServerMessage;
+
   lua["spawnPlayer"] = Function_SpawnPlayer;
+
+  lua["setPlayerPosition"] = Function_SetPlayerPosition;
+  lua["getPlayerPosition"] = Function_GetPlayerPosition;
 }

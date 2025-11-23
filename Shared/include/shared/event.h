@@ -54,13 +54,13 @@ public:
   // Triggers an event with arguments.
   // Returns true if the event was triggered, false if it doesn't exist.
   template <typename... Args>
-  bool TriggerEvent(const std::string& eventName, Args&&... args) {
+  bool TriggerEvent(const std::string& eventName, Args... args) {
     if (!EventExists(eventName)) {
       return false;
     }
 
     for (auto& callback : events_[eventName]) {
-      callback(std::forward<Args>(args)...);
+      callback(args...);
     }
 
     return true;

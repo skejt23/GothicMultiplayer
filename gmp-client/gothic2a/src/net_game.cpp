@@ -769,10 +769,10 @@ void NetGame::OnPlayerStateUpdate(std::uint64_t player_id, const PlayerState& st
   }
 }
 
-void NetGame::OnPlayerPositionUpdate(std::uint64_t player_id, float x, float z) {
+void NetGame::OnPlayerPositionUpdate(std::uint64_t player_id, float x, float y, float z) {
   Gothic2APlayer* cplayer = GetPlayerById(player_id);
   if (cplayer) {
-    cplayer->npc->trafoObjToWorld.SetTranslation(zVEC3(x, cplayer->npc->GetPositionWorld()[VY], z));
+    cplayer->npc->trafoObjToWorld.SetTranslation(zVEC3(x, y, z));
     cplayer->DisablePlayer();
   }
 }

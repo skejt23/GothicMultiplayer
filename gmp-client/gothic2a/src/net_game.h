@@ -106,7 +106,7 @@ public:
   void OnPlayerSpawned(gmp::client::Player& player) override;
   void OnPlayerLeft(std::uint64_t player_id, const std::string& player_name) override;
   void OnPlayerStateUpdate(std::uint64_t player_id, const PlayerState& state) override;
-  void OnPlayerPositionUpdate(std::uint64_t player_id, float x, float z) override;
+  void OnPlayerPositionUpdate(std::uint64_t player_id, float x, float y, float z) override;
   void OnPlayerDied(std::uint64_t player_id) override;
   void OnPlayerRespawned(std::uint64_t player_id) override;
   void OnItemDropped(std::uint64_t player_id, std::uint16_t item_instance, std::uint16_t amount) override;

@@ -70,15 +70,6 @@ public:
   using PlayerId = PlayerManager::PlayerId;
   using Player = PlayerManager::Player;
 
-  struct DiscordActivityState {
-    std::string state;
-    std::string details;
-    std::string large_image_key;
-    std::string large_image_text;
-    std::string small_image_key;
-    std::string small_image_text;
-  };
-
   using BanEntry = BanManager::BanEntry;
 
   GameServer();
@@ -92,6 +83,8 @@ public:
   bool IsPublic(void);
   void SendServerMessage(const std::string& message);
   bool SpawnPlayer(PlayerId player_id, std::optional<glm::vec3> position_override = std::nullopt);
+  bool SetPlayerPosition(PlayerId player_id, const glm::vec3& position);
+  std::optional<glm::vec3> GetPlayerPosition(PlayerId player_id) const;
 
   PlayerManager& GetPlayerManager() {
     return player_manager_;
@@ -99,9 +92,6 @@ public:
   const PlayerManager& GetPlayerManager() const {
     return player_manager_;
   }
-
-  void UpdateDiscordActivity(const DiscordActivityState& activity);
-  const DiscordActivityState& GetDiscordActivity() const;
 
   std::uint32_t GetPort() const;
 
@@ -126,7 +116,6 @@ private:
   void SendRespawnInfo(PlayerId player_id);
   void BroadcastPlayerJoined(const Player& joining_player);
   void SendGameInfo(Net::ConnectionHandle connection);
-  void SendDiscordActivity(Net::ConnectionHandle connection);
   void SendExistingPlayersPacket(const Player& target_player);
 
   std::unique_ptr<BanManager> ban_manager_;
@@ -148,8 +137,6 @@ private:
   std::chrono::time_point<std::chrono::steady_clock> last_update_time_{};
   std::thread main_thread;
   std::atomic<bool> main_thread_running = false;
-  DiscordActivityState discord_activity_{};
-  bool discord_activity_initialized_{false};
   std::vector<ClientResourceDescriptor> client_resource_descriptors_;
 
   std::unique_ptr<ResourceServer> resource_server_;

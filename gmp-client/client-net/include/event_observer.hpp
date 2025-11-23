@@ -63,7 +63,7 @@ public:
   virtual void OnPlayerSpawned(gmp::client::Player& player) {}
   virtual void OnPlayerLeft(std::uint64_t player_id, const std::string& player_name) {}
   virtual void OnPlayerStateUpdate(std::uint64_t player_id, const PlayerState& state) {}
-  virtual void OnPlayerPositionUpdate(std::uint64_t player_id, float x, float z) {}
+  virtual void OnPlayerPositionUpdate(std::uint64_t player_id, float x, float y, float z) {}
   virtual void OnPlayerDied(std::uint64_t player_id) {}
   virtual void OnPlayerRespawned(std::uint64_t player_id) {}
   

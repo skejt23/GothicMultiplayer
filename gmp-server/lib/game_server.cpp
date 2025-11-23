@@ -214,18 +214,6 @@ void SerializeAndSend(const Packet& packet, Net::PacketPriority priority, Net::P
   g_net_server->Send(buffer.data(), written_size, priority, reliable, channel, id);
 }
 
-DiscordActivityPacket MakeDiscordActivityPacket(const GameServer::DiscordActivityState& activity) {
-  DiscordActivityPacket packet;
-  packet.packet_type = PT_DISCORD_ACTIVITY;
-  packet.state = activity.state;
-  packet.details = activity.details;
-  packet.large_image_key = activity.large_image_key;
-  packet.large_image_text = activity.large_image_text;
-  packet.small_image_key = activity.small_image_key;
-  packet.small_image_text = activity.small_image_text;
-  return packet;
-}
-
 void LoadNetworkLibrary() {
   try {
     static dylib lib("znet_server");
@@ -806,7 +794,7 @@ void GameServer::HandleNormalMsg(Packet p) {
     auto command = packet.message.substr(1);
     if (!command.empty()) {
       SPDLOG_INFO("{} issued command: {}", player.name, command);
-      EventManager::Instance().TriggerEvent(kEventOnPlayerCommandName, OnPlayerCommandEvent{player.player_id, std::move(command)});
+      EventManager::Instance().TriggerEvent(kEventOnPlayerCommandName, OnPlayerCommandEvent{player.player_id, command});
     }
     return;
   }
@@ -1013,29 +1001,6 @@ void GameServer::SendGameInfo(Net::ConnectionHandle who) {
   SerializeAndSend(packet, MEDIUM_PRIORITY, RELIABLE, who, 9);
 }
 
-void GameServer::UpdateDiscordActivity(const DiscordActivityState& activity) {
-  discord_activity_ = activity;
-  discord_activity_initialized_ = true;
-
-  SPDLOG_INFO("Discord activity updated: state='{}', details='{}'", discord_activity_.state, discord_activity_.details);
-
-  auto packet = MakeDiscordActivityPacket(discord_activity_);
-  player_manager_.ForEachIngamePlayer([&](const Player& player) { SerializeAndSend(packet, LOW_PRIORITY, RELIABLE, player.connection); });
-}
-
-const GameServer::DiscordActivityState& GameServer::GetDiscordActivity() const {
-  return discord_activity_;
-}
-
-void GameServer::SendDiscordActivity(Net::ConnectionHandle handle) {
-  if (!discord_activity_initialized_) {
-    return;
-  }
-
-  auto packet = MakeDiscordActivityPacket(discord_activity_);
-  SerializeAndSend(packet, LOW_PRIORITY, RELIABLE, handle);
-}
-
 void GameServer::HandleMapNameReq(Packet p) {
 }
 
@@ -1193,14 +1158,44 @@ bool GameServer::SpawnPlayer(PlayerId player_id, std::optional<glm::vec3> positi
     SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE, existing_player.connection);
   });
 
-  SendDiscordActivity(player.connection);
-
   if (was_dead) {
     EventManager::Instance().TriggerEvent(kEventOnPlayerRespawnName, OnPlayerRespawnEvent{player.player_id, player.state.position});
   }
 
   EventManager::Instance().TriggerEvent(kEventOnPlayerSpawnName, OnPlayerSpawnEvent{player.player_id, player.state.position});
   return true;
+}
+
+bool GameServer::SetPlayerPosition(PlayerId player_id, const glm::vec3& position) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("setPlayerPosition called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  player.state.position = position;
+
+  PlayerPositionUpdatePacket packet{};
+  packet.packet_type = PT_MAP_ONLY;
+  packet.player_id = player.player_id;
+  packet.position = position;
+
+  player_manager_.ForEachIngamePlayer([&](const Player& existing_player) {
+    SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE, existing_player.connection);
+  });
+
+  return true;
+}
+
+std::optional<glm::vec3> GameServer::GetPlayerPosition(PlayerId player_id) const {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    return std::nullopt;
+  }
+
+  const auto& player = player_opt->get();
+  return player.state.position;
 }
 
 std::uint32_t GameServer::GetPort() const {
