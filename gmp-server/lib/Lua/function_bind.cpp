@@ -23,6 +23,7 @@ SOFTWARE.
 
 #include "function_bind.h"
 
+#include <algorithm>
 #include <glm/glm.hpp>
 
 #include "game_server.h"
@@ -32,6 +33,10 @@ SOFTWARE.
 using namespace std;
 
 namespace {
+
+std::uint8_t ClampColorComponent(int value) {
+  return static_cast<std::uint8_t>(std::clamp(value, 0, 255));
+}
 
 std::optional<float> GetOptionalFloat(const sol::table& table, const char* lowerKey, const char* upperKey) {
   if (auto value = table.get<sol::optional<float>>(lowerKey); value) {
@@ -94,13 +99,47 @@ int Function_Log(std::string name, std::string text) {
   return 0;
 }
 
-void Function_SendServerMessage(const std::string& message) {
+
+bool Function_SendMessageToAll(int r, int g, int b, const std::string& text) {
   if (!g_server) {
-    SPDLOG_WARN("Cannot send server message before the server is initialized");
-    return;
+    SPDLOG_WARN("Cannot send message before the server is initialized");
+    return false;
   }
 
-  g_server->SendServerMessage(message);
+  g_server->SendMessageToAll(ClampColorComponent(r), ClampColorComponent(g), ClampColorComponent(b), text);
+  return true;
+}
+
+bool Function_SendMessageToPlayer(std::uint32_t player_id, int r, int g, int b, const std::string& text) {
+  if (!g_server) {
+    SPDLOG_WARN("Cannot send message before the server is initialized");
+    return false;
+  }
+
+  g_server->SendMessageToPlayer(player_id, ClampColorComponent(r), ClampColorComponent(g), ClampColorComponent(b), text);
+  return true;
+}
+
+bool Function_SendPlayerMessageToAll(std::uint32_t sender_id, int r, int g, int b, const std::string& text) {
+  if (!g_server) {
+    SPDLOG_WARN("Cannot send player message before the server is initialized");
+    return false;
+  }
+
+  g_server->SendPlayerMessageToAll(sender_id, ClampColorComponent(r), ClampColorComponent(g), ClampColorComponent(b), text);
+  return true;
+}
+
+bool Function_SendPlayerMessageToPlayer(std::uint32_t sender_id, std::uint32_t receiver_id, int r, int g, int b,
+                                        const std::string& text) {
+  if (!g_server) {
+    SPDLOG_WARN("Cannot send player message before the server is initialized");
+    return false;
+  }
+
+  g_server->SendPlayerMessageToPlayer(sender_id, receiver_id, ClampColorComponent(r), ClampColorComponent(g),
+                                      ClampColorComponent(b), text);
+  return true;
 }
 
 bool Function_SpawnPlayer(std::uint32_t player_id, sol::variadic_args args) {
@@ -157,8 +196,10 @@ void lua::bindings::BindFunctions(sol::state& lua, TimerManager& timer_manager) 
                            "readUInt32", &Packet::readUInt32, "readFloat", &Packet::readFloat, 
                            "readString", &Packet::readString, "readBlob", &Packet::readBlob);
 
-
-  lua["SendServerMessage"] = Function_SendServerMessage;
+  lua["sendMessageToAll"] = Function_SendMessageToAll;
+  lua["sendMessageToPlayer"] = Function_SendMessageToPlayer;
+  lua["sendPlayerMessageToAll"] = Function_SendPlayerMessageToAll;
+  lua["sendPlayerMessageToPlayer"] = Function_SendPlayerMessageToPlayer;
 
   lua["spawnPlayer"] = Function_SpawnPlayer;
 

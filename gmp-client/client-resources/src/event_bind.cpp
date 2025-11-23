@@ -50,6 +50,12 @@ void RegisterProxies() {
     PlayerLifecycleEvent event = std::any_cast<PlayerLifecycleEvent>(args.event);
     args.callback(event.player_id);
   }};
+  kLuaEventProxies[kEventOnPlayerMessageName] = {[](LuaProxyArgs args) {
+    OnPlayerMessageEvent event = std::any_cast<OnPlayerMessageEvent>(args.event);
+    sol::state_view lua(args.callback.lua_state());
+    sol::object sender = event.sender_id.has_value() ? sol::make_object(lua, event.sender_id.value()) : sol::lua_nil;
+    args.callback(sender, event.r, event.g, event.b, event.message);
+  }};
 }
 
 std::optional<std::function<void(LuaProxyArgs)>> GetProxy(std::string event_name) {
@@ -70,6 +76,7 @@ void BindEvents(sol::state& lua) {
   EventManager::Instance().RegisterEvent(kEventOnKeyUpName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerCreateName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerDestroyName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerMessageName);
 
   lua.new_usertype<gmp::client::Packet>("Packet", sol::constructors<gmp::client::Packet()>(), 
                                         "reset", &gmp::client::Packet::reset, "send", &gmp::client::Packet::send,
@@ -114,6 +121,7 @@ void ResetEvents() {
   EventManager::Instance().RegisterEvent(kEventOnKeyUpName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerCreateName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerDestroyName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerMessageName);
 }
 
 } // namespace gmp::client::lua::bindings

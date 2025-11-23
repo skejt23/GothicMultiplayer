@@ -26,6 +26,7 @@ SOFTWARE.
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 
 #include "common_structs.h"
@@ -76,9 +77,9 @@ public:
   virtual void OnSpellCastOnTarget(std::uint64_t caster_id, std::uint64_t target_id, std::uint16_t spell_id) {}
   
   // Chat/messaging events
-  virtual void OnChatMessage(std::uint64_t sender_id, const std::string& sender_name, const std::string& message) {}
+  virtual void OnPlayerMessage(std::optional<std::uint64_t> sender_id, std::uint8_t r, std::uint8_t g, std::uint8_t b,
+                               const std::string& message) {}
   virtual void OnWhisperReceived(std::uint64_t sender_id, const std::string& sender_name, const std::string& message) {}
-  virtual void OnServerMessage(const std::string& message) {}
   virtual void OnRconResponse(const std::string& response, bool is_admin) {}
   
   // Discord integration

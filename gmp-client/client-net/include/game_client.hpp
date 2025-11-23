@@ -119,7 +119,6 @@ private:
   void OnTakeItem(Packet packet);
   void OnWhisper(Packet packet);
   void OnMessage(Packet packet);
-  void OnServerMessage(Packet packet);
   void OnRcon(Packet packet);
   void OnExistingPlayers(Packet packet);
   void OnPlayerSpawn(Packet packet);

@@ -81,7 +81,13 @@ public:
   void Run();
   bool Init();
   bool IsPublic(void);
-  void SendServerMessage(const std::string& message);
+  void SendMessageToAll(std::uint8_t r, std::uint8_t g, std::uint8_t b, const std::string& text);
+  void SendMessageToPlayer(PlayerId player_id, std::uint8_t r, std::uint8_t g, std::uint8_t b,
+                           const std::string& text);
+  void SendPlayerMessageToAll(PlayerId sender_id, std::uint8_t r, std::uint8_t g, std::uint8_t b,
+                              const std::string& text);
+  void SendPlayerMessageToPlayer(PlayerId sender_id, PlayerId receiver_id, std::uint8_t r, std::uint8_t g,
+                                 std::uint8_t b, const std::string& text);
   bool SpawnPlayer(PlayerId player_id, std::optional<glm::vec3> position_override = std::nullopt);
   bool SetPlayerPosition(PlayerId player_id, const glm::vec3& position);
   std::optional<glm::vec3> GetPlayerPosition(PlayerId player_id) const;

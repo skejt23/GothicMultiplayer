@@ -209,6 +209,9 @@ struct fmt::formatter<PlayerSpawnPacket> : ostream_formatter {};
 struct MessagePacket {
   std::uint8_t packet_type;
   std::string message;
+  std::uint8_t r{255};
+  std::uint8_t g{255};
+  std::uint8_t b{255};
   std::optional<std::uint32_t> sender;
   std::optional<std::uint32_t> recipient;
 };
@@ -217,13 +220,17 @@ template <typename S>
 void serialize(S& s, MessagePacket& packet) {
   s.value1b(packet.packet_type);
   s.text1b(packet.message, 1024);
+  s.value1b(packet.r);
+  s.value1b(packet.g);
+  s.value1b(packet.b);
   s.ext4b(packet.sender, bitsery::ext::StdOptional{});
   s.ext4b(packet.recipient, bitsery::ext::StdOptional{});
 }
 
 inline std::ostream& operator<<(std::ostream& os, const MessagePacket& packet) {
   os << "MessagePacket {"
-     << " packet_type: " << static_cast<int>(packet.packet_type) << ", message: " << packet.message;
+     << " packet_type: " << static_cast<int>(packet.packet_type) << ", message: " << packet.message
+     << ", color: (" << static_cast<int>(packet.r) << ", " << static_cast<int>(packet.g) << ", " << static_cast<int>(packet.b) << ")";
   if (packet.sender) {
     os << ", sender: " << *packet.sender;
   }

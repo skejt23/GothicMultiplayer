@@ -33,6 +33,7 @@ SOFTWARE.
 #include <version.h>
 
 #include <array>
+#include <algorithm>
 #include <charconv>
 #include <chrono>
 #include <dylib.hpp>
@@ -183,6 +184,24 @@ std::string SanitizeServerText(std::string text) {
     }
   }
   return text;
+}
+
+std::uint8_t ClampColorComponent(int value) {
+  return static_cast<std::uint8_t>(std::clamp(value, 0, 255));
+}
+
+MessagePacket CreateMessagePacket(std::optional<std::uint32_t> sender_id, std::optional<std::uint32_t> recipient_id,
+                                  std::uint8_t r, std::uint8_t g, std::uint8_t b, std::string text,
+                                  std::uint8_t packet_type = PT_MSG) {
+  MessagePacket packet{};
+  packet.packet_type = packet_type;
+  packet.message = SanitizeServerText(std::move(text));
+  packet.r = ClampColorComponent(static_cast<int>(r));
+  packet.g = ClampColorComponent(static_cast<int>(g));
+  packet.b = ClampColorComponent(static_cast<int>(b));
+  packet.sender = sender_id;
+  packet.recipient = recipient_id;
+  return packet;
 }
 
 void LogServerBanner() {
@@ -790,11 +809,25 @@ void GameServer::HandleNormalMsg(Packet p) {
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
 
+  packet.message = SanitizeServerText(packet.message);
+  packet.r = 255;
+  packet.g = 255;
+  packet.b = 255;
+  
   if (!packet.message.empty() && packet.message.front() == '/') {
-    auto command = packet.message.substr(1);
-    if (!command.empty()) {
-      SPDLOG_INFO("{} issued command: {}", player.name, command);
-      EventManager::Instance().TriggerEvent(kEventOnPlayerCommandName, OnPlayerCommandEvent{player.player_id, command});
+    auto command_line = packet.message.substr(1);
+    auto command_start = command_line.find_first_not_of(' ');
+    if (command_start != std::string::npos) {
+      command_line = command_line.substr(command_start);
+      auto space_pos = command_line.find(' ');
+      auto command = command_line.substr(0, space_pos);
+      if (!command.empty()) {
+        auto params_start = command_line.find_first_not_of(' ', space_pos);
+        std::string params = params_start == std::string::npos ? std::string{} : command_line.substr(params_start);
+        SPDLOG_INFO("{} issued command: /{} {}", player.name, command, params);
+        EventManager::Instance().TriggerEvent(kEventOnPlayerCommandName,
+                                             OnPlayerCommandEvent{player.player_id, command, params});
+      }
     }
     return;
   }
@@ -818,6 +851,11 @@ void GameServer::HandleWhisp(Packet p) {
   MessagePacket packet;
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
+
+  packet.message = SanitizeServerText(packet.message);
+  packet.r = 255;
+  packet.g = 255;
+  packet.b = 255;
 
   if (!packet.recipient.has_value()) {
     SPDLOG_ERROR("No recipient in whisper packet!");
@@ -1020,16 +1058,69 @@ bool GameServer::IsPublic() {
   return (config_.Get<bool>("public")) ? true : false;
 }
 
-void GameServer::SendServerMessage(const std::string& message) {
-  if (message.empty()) {
+void GameServer::SendMessageToAll(std::uint8_t r, std::uint8_t g, std::uint8_t b, const std::string& text) {
+  if (text.empty()) {
     return;
   }
 
-  MessagePacket packet;
-  packet.packet_type = PT_SRVMSG;
-  packet.message = message;
+  auto packet = CreateMessagePacket(std::nullopt, std::nullopt, r, g, b, text);
+  player_manager_.ForEachIngamePlayer(
+      [&](const Player& player) { SerializeAndSend(packet, LOW_PRIORITY, RELIABLE_ORDERED, player.connection); });
+}
 
-  player_manager_.ForEachIngamePlayer([&](const Player& player) { SerializeAndSend(packet, MEDIUM_PRIORITY, RELIABLE, player.connection, 11); });
+void GameServer::SendMessageToPlayer(PlayerId player_id, std::uint8_t r, std::uint8_t g, std::uint8_t b,
+                                     const std::string& text) {
+  if (text.empty()) {
+    return;
+  }
+
+  auto target_player = player_manager_.GetPlayer(player_id);
+  if (!target_player.has_value() || !target_player->get().is_ingame) {
+    SPDLOG_WARN("Cannot send message to player {} because they are not connected", player_id);
+    return;
+  }
+
+  auto packet = CreateMessagePacket(std::nullopt, player_id, r, g, b, text);
+  SerializeAndSend(packet, LOW_PRIORITY, RELIABLE_ORDERED, target_player->get().connection);
+}
+
+void GameServer::SendPlayerMessageToAll(PlayerId sender_id, std::uint8_t r, std::uint8_t g, std::uint8_t b,
+                                        const std::string& text) {
+  if (text.empty()) {
+    return;
+  }
+
+  auto sender = player_manager_.GetPlayer(sender_id);
+  if (!sender.has_value() || !sender->get().is_ingame) {
+    SPDLOG_WARN("Cannot broadcast message from invalid sender {}", sender_id);
+    return;
+  }
+
+  auto packet = CreateMessagePacket(sender_id, std::nullopt, r, g, b, text);
+  player_manager_.ForEachIngamePlayer(
+      [&](const Player& player) { SerializeAndSend(packet, LOW_PRIORITY, RELIABLE_ORDERED, player.connection); });
+}
+
+void GameServer::SendPlayerMessageToPlayer(PlayerId sender_id, PlayerId receiver_id, std::uint8_t r, std::uint8_t g,
+                                           std::uint8_t b, const std::string& text) {
+  if (text.empty()) {
+    return;
+  }
+
+  auto sender = player_manager_.GetPlayer(sender_id);
+  if (!sender.has_value() || !sender->get().is_ingame) {
+    SPDLOG_WARN("Cannot send player message from invalid sender {}", sender_id);
+    return;
+  }
+
+  auto receiver = player_manager_.GetPlayer(receiver_id);
+  if (!receiver.has_value() || !receiver->get().is_ingame) {
+    SPDLOG_WARN("Cannot send player message to invalid receiver {}", receiver_id);
+    return;
+  }
+
+  auto packet = CreateMessagePacket(sender_id, receiver_id, r, g, b, text);
+  SerializeAndSend(packet, LOW_PRIORITY, RELIABLE_ORDERED, receiver->get().connection);
 }
 
 void GameServer::SendDeathInfo(PlayerId dead_player_id) {

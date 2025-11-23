@@ -67,6 +67,7 @@ struct OnPlayerMessageEvent {
 struct OnPlayerCommandEvent {
   std::uint64_t pid;
   std::string command;
+  std::string params;
 };
 
 struct OnPlayerWhisperEvent {

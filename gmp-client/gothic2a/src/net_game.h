@@ -26,6 +26,7 @@ SOFTWARE.
 
 #include <memory>
 #include <string>
+#include <optional>
 #include <vector>
 
 #include "CSyncFuncs.h"
@@ -113,9 +114,9 @@ public:
   void OnItemTaken(std::uint64_t player_id, std::uint16_t item_instance) override;
   void OnSpellCast(std::uint64_t caster_id, std::uint16_t spell_id) override;
   void OnSpellCastOnTarget(std::uint64_t caster_id, std::uint64_t target_id, std::uint16_t spell_id) override;
-  void OnChatMessage(std::uint64_t sender_id, const std::string& sender_name, const std::string& message) override;
+  void OnPlayerMessage(std::optional<std::uint64_t> sender_id, std::uint8_t r, std::uint8_t g, std::uint8_t b,
+                       const std::string& message) override;
   void OnWhisperReceived(std::uint64_t sender_id, const std::string& sender_name, const std::string& message) override;
-  void OnServerMessage(const std::string& message) override;
   void OnRconResponse(const std::string& response, bool is_admin) override;
   void OnDiscordActivityUpdate(const std::string& state, const std::string& details, const std::string& large_image_key,
                                const std::string& large_image_text, const std::string& small_image_key, const std::string& small_image_text) override;

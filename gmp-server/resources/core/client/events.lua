@@ -37,3 +37,11 @@ end)
 addEventHandler("onRender", function()
     -- Called every frame; place lightweight UI logic here if needed.
 end)
+
+addEventHandler("onPlayerMessage", function(id, r, g, b, message)
+    if(id) then
+        print(string.format("Message from player %d: [%d, %d, %d] %s", id, r, g, b, message))
+    else
+        print(string.format("Message from server: [%d, %d, %d] %s", r, g, b, message))
+    end
+end)

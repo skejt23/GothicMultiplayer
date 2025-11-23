@@ -41,6 +41,7 @@ SOFTWARE.
 #include <list>
 #include <sstream>
 #include <string>
+#include <optional>
 #include <vector>
 
 #include "CChat.h"
@@ -851,23 +852,29 @@ void NetGame::OnSpellCastOnTarget(std::uint64_t caster_id, std::uint64_t target_
   }
 }
 
-void NetGame::OnChatMessage(std::uint64_t sender_id, const std::string& sender_name, const std::string& message) {
-  Gothic2APlayer* sender = GetPlayerById(sender_id);
-  if (sender) {
-    SPDLOG_INFO("Message from player: {} ({}): {}", sender->npc->GetName().ToChar(), sender->GetName(), message);
-    CChat::GetInstance()->WriteMessage(NORMAL, false, "%s: %s", sender->npc->GetName().ToChar(), message.c_str());
+void NetGame::OnPlayerMessage(std::optional<std::uint64_t> sender_id, std::uint8_t r, std::uint8_t g, std::uint8_t b,
+                              const std::string& message) {
+  zCOLOR color(r, g, b, 255);
+
+  if (sender_id) {
+    Gothic2APlayer* sender = GetPlayerById(*sender_id);
+    if (sender) {
+      SPDLOG_INFO("Message from player: {} ({}): {}", sender->npc->GetName().ToChar(), sender->GetName(), message);
+      CChat::GetInstance()->WriteMessage(NORMAL, false, color, "%s", message.c_str());
+    }
+  } else {
+    CChat::GetInstance()->WriteMessage(NORMAL, false, color, "%s", message.c_str());
   }
+
+  EventManager::Instance().TriggerEvent(gmp::client::kEventOnPlayerMessageName,
+                                        gmp::client::OnPlayerMessageEvent{sender_id, r, g, b, message});
 }
 
 void NetGame::OnWhisperReceived(std::uint64_t sender_id, const std::string& sender_name, const std::string& message) {
   Gothic2APlayer* sender = GetPlayerById(sender_id);
   if (sender) {
-    CChat::GetInstance()->WriteMessage(WHISPER, true, zCOLOR(0, 255, 255, 255), "%s-> %s", sender->npc->GetName().ToChar(), message.c_str());
+    CChat::GetInstance()->WriteMessage(WHISPER, true, zCOLOR(0, 255, 255, 255), "%s -> %s", sender->npc->GetName().ToChar(), message.c_str());
   }
-}
-
-void NetGame::OnServerMessage(const std::string& message) {
-  CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(255, 128, 0, 255), "(SERVER): %s", message.c_str());
 }
 
 void NetGame::OnRconResponse(const std::string& response, bool is_admin) {

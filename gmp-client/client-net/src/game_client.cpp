@@ -94,7 +94,6 @@ void GameClient::InitPacketHandlers() {
   packet_handlers_[PT_TAKEITEM] = [this](Packet p) { OnTakeItem(p); };
   packet_handlers_[PT_WHISPER] = [this](Packet p) { OnWhisper(p); };
   packet_handlers_[PT_MSG] = [this](Packet p) { OnMessage(p); };
-  packet_handlers_[PT_SRVMSG] = [this](Packet p) { OnServerMessage(p); };
   packet_handlers_[PT_COMMAND] = [this](Packet p) { OnRcon(p); };
   packet_handlers_[PT_EXISTING_PLAYERS] = [this](Packet p) { OnExistingPlayers(p); };
   packet_handlers_[PT_PLAYER_SPAWN] = [this](Packet p) { OnPlayerSpawn(p); };
@@ -297,6 +296,9 @@ void GameClient::SendChatMessage(const std::string& msg) {
   MessagePacket packet;
   packet.packet_type = PT_MSG;
   packet.message = msg;
+  packet.r = 255;
+  packet.g = 255;
+  packet.b = 255;
   SerializeAndSend(packet, MEDIUM_PRIORITY, RELIABLE);
 }
 
@@ -304,6 +306,9 @@ void GameClient::SendWhisper(std::uint64_t recipient_id, const std::string& msg)
   MessagePacket packet;
   packet.packet_type = PT_WHISPER;
   packet.message = msg;
+  packet.r = 255;
+  packet.g = 255;
+  packet.b = 255;
   packet.recipient = recipient_id;
   SerializeAndSend(packet, HIGH_PRIORITY, RELIABLE_ORDERED);
 }
@@ -518,24 +523,16 @@ void GameClient::OnMessage(Packet p) {
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
 
-  if (!packet.sender) {
-    SPDLOG_ERROR("Invalid Message packet. No sender id.");
-    return;
+  Player* sender = packet.sender ? player_manager_.GetPlayer(*packet.sender) : nullptr;
+  std::string sender_name = sender ? sender->name() : "";
+
+  if (packet.sender) {
+    SPDLOG_INFO("Message from player {} ({}): {}", sender_name, *packet.sender, packet.message);
+  } else {
+    SPDLOG_INFO("Server chat message: {}", packet.message);
   }
 
-  Player* sender = player_manager_.GetPlayer(*packet.sender);
-  std::string sender_name = sender ? sender->name() : "";
-  SPDLOG_INFO("Message from player {} ({}): {}", sender_name, *packet.sender, packet.message);
-
-  event_observer_.OnChatMessage(*packet.sender, sender_name, packet.message);
-}
-
-void GameClient::OnServerMessage(Packet p) {
-  MessagePacket packet;
-  using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
-  auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
-
-  event_observer_.OnServerMessage(packet.message);
+  event_observer_.OnPlayerMessage(packet.sender, packet.r, packet.g, packet.b, packet.message);
 }
 
 void GameClient::OnRcon(Packet p) {
