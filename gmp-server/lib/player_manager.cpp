@@ -60,6 +60,15 @@ bool PlayerManager::RemovePlayer(PlayerId player_id) {
   }
 
   Net::ConnectionHandle connection = it->second.connection;
+  
+  for (auto& [other_id, other_player] : players_) {
+    if (other_id == player_id) {
+      continue;
+    }
+
+    other_player.spawned_players.erase(player_id);
+    other_player.streamed_by_players.erase(player_id);
+  }
 
   players_.erase(it);
   player_to_connection_.erase(player_id);

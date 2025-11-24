@@ -57,6 +57,7 @@ struct Response;
 #include "resource_manager.h"
 #include "resource_server.h"
 #include "znet_server.h"
+#include "gothic_clock.h"
 
 #define DEFAULT_ADMIN_PORT 0x404
 
@@ -91,6 +92,16 @@ public:
   bool SpawnPlayer(PlayerId player_id, std::optional<glm::vec3> position_override = std::nullopt);
   bool SetPlayerPosition(PlayerId player_id, const glm::vec3& position);
   std::optional<glm::vec3> GetPlayerPosition(PlayerId player_id) const;
+  std::string GetHostname() const;
+  std::uint32_t GetMaxSlots() const;
+  bool SetServerWorld(const std::string& world);
+  std::string GetServerWorld() const;
+  std::vector<PlayerId> FindNearbyPlayers(const glm::vec3& position, float radius, const std::string& world,
+                                          std::int32_t virtual_world) const;
+  std::vector<PlayerId> GetSpawnedPlayersForPlayer(PlayerId player_id) const;
+  std::vector<PlayerId> GetStreamedPlayersByPlayer(PlayerId player_id) const;
+  bool SetTime(std::int32_t hour, std::int32_t min, std::int32_t day = 0);
+  GothicClock::Time GetTime() const;
 
   PlayerManager& GetPlayerManager() {
     return player_manager_;
@@ -122,7 +133,7 @@ private:
   void SendRespawnInfo(PlayerId player_id);
   void BroadcastPlayerJoined(const Player& joining_player);
   void SendGameInfo(Net::ConnectionHandle connection);
-  void SendExistingPlayersPacket(const Player& target_player);
+  void SendExistingPlayersPacket(Player& target_player);
 
   std::unique_ptr<BanManager> ban_manager_;
   std::unique_ptr<LuaScript> lua_script_;
@@ -139,6 +150,7 @@ private:
   bool allow_modification = false;
   Config config_;
   std::unique_ptr<GothicClock> clock_;
+  std::string server_world_;
   std::future<void> public_list_http_thread_future_;
   std::chrono::time_point<std::chrono::steady_clock> last_update_time_{};
   std::thread main_thread;

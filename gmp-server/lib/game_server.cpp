@@ -79,6 +79,7 @@ using namespace Net;
 
 namespace {
 
+constexpr std::size_t kMaxWorldNameLength = 32;
 constexpr const char* kBanListFileName = "bans.json";
 constexpr std::string_view kFrame = "-========================================-";
 
@@ -156,6 +157,15 @@ std::optional<MasterServerEndpointInfo> ParseMasterServerEndpoint(std::string_vi
   }
 
   return info;
+}
+
+std::string SanitizeWorldName(std::string world) {
+  if (world.size() > kMaxWorldNameLength) {
+    SPDLOG_WARN("World name '{}' is longer than {} characters and will be truncated", world, kMaxWorldNameLength);
+    world.resize(kMaxWorldNameLength);
+  }
+
+  return world;
 }
 
 std::unique_ptr<httplib::Client> CreateMasterServerClient(const MasterServerEndpointInfo& info) {
@@ -270,6 +280,8 @@ GameServer::GameServer() {
   InitializeLogger(config_);
   LogServerBanner();
   config_.LogConfigValues();
+  server_world_ = SanitizeWorldName(config_.Get<std::string>("map"));
+  config_.Set<std::string>("map", server_world_);
   g_server = this;
 
   // Register server-side events.
@@ -540,12 +552,18 @@ bool GameServer::HandlePacket(Net::ConnectionHandle connectionHandle, unsigned c
     case ID_NEW_INCOMING_CONNECTION: {
       // Add player to the manager
       PlayerId new_player_id = player_manager_.AddPlayer(p.id, "");
+      if (auto new_player = player_manager_.GetPlayer(new_player_id)) {
+        new_player->get().world = server_world_;
+        new_player->get().virtual_world = 0;
+      }
 
       // Send packet with initial information.
       InitialInfoPacket packet;
       packet.packet_type = PT_INITIAL_INFO;
-      packet.map_name = config_.Get<std::string>("map");
+      packet.map_name = server_world_;
       packet.player_id = new_player_id;
+      packet.server_name = GetHostname();
+      packet.max_slots = static_cast<std::uint16_t>(GetMaxSlots());
       packet.resource_token = resource_server_->IssueToken(p.id);
       packet.resource_base_path = "/public";
       packet.client_resources.reserve(client_resource_descriptors_.size());
@@ -1163,9 +1181,9 @@ void GameServer::BroadcastPlayerJoined(const Player& joining_player) {
   });
 }
 
-void GameServer::SendExistingPlayersPacket(const Player& target_player) {
+void GameServer::SendExistingPlayersPacket(Player& target_player) {
   std::vector<ExistingPlayerInfo> existing_players;
-  player_manager_.ForEachPlayer([&](const Player& existing_player) {
+  player_manager_.ForEachPlayer([&](Player& existing_player) {
     if (existing_player.player_id == target_player.player_id) {
       return;
     }
@@ -1174,6 +1192,9 @@ void GameServer::SendExistingPlayersPacket(const Player& target_player) {
     if (existing_player.name.empty()) {
       return;
     }
+
+    target_player.spawned_players.insert(existing_player.player_id);
+    existing_player.streamed_by_players.insert(target_player.player_id);
 
     ExistingPlayerInfo player_packet;
     player_packet.player_id = existing_player.player_id;
@@ -1242,10 +1263,14 @@ bool GameServer::SpawnPlayer(PlayerId player_id, std::optional<glm::vec3> positi
 
   SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE, player.connection);
 
-  player_manager_.ForEachIngamePlayer([&](const Player& existing_player) {
+  player_manager_.ForEachIngamePlayer([&](Player& existing_player) {
     if (existing_player.player_id == player.player_id) {
       return;
     }
+
+    existing_player.spawned_players.insert(player.player_id);
+    player.streamed_by_players.insert(existing_player.player_id);
+
     SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE, existing_player.connection);
   });
 
@@ -1287,6 +1312,114 @@ std::optional<glm::vec3> GameServer::GetPlayerPosition(PlayerId player_id) const
 
   const auto& player = player_opt->get();
   return player.state.position;
+}
+
+std::string GameServer::GetHostname() const {
+  return config_.Get<std::string>("name");
+}
+
+std::uint32_t GameServer::GetMaxSlots() const {
+  return static_cast<std::uint32_t>(config_.Get<std::int32_t>("slots"));
+}
+
+bool GameServer::SetServerWorld(const std::string& world) {
+  auto sanitized_world = SanitizeWorldName(world);
+  server_world_ = sanitized_world;
+  config_.Set<std::string>("map", sanitized_world);
+  return true;
+}
+
+std::string GameServer::GetServerWorld() const {
+  return server_world_;
+}
+
+std::vector<GameServer::PlayerId> GameServer::FindNearbyPlayers(const glm::vec3& position, float radius,
+                                                                const std::string& world,
+                                                                std::int32_t virtual_world) const {
+  std::vector<PlayerId> nearby_players;
+  if (radius < 0.0f) {
+    return nearby_players;
+  }
+
+  const auto sanitized_world = SanitizeWorldName(world);
+  const float radius_squared = radius * radius;
+  nearby_players.reserve(player_manager_.GetPlayerCount());
+
+  player_manager_.ForEachIngamePlayer([&](const Player& player) {
+    if (!sanitized_world.empty() && player.world != sanitized_world) {
+      return;
+    }
+
+    if (player.virtual_world != virtual_world) {
+      return;
+    }
+
+    const auto delta = player.state.position - position;
+    if (glm::dot(delta, delta) <= radius_squared) {
+      nearby_players.push_back(player.player_id);
+    }
+  });
+
+  return nearby_players;
+}
+
+std::vector<GameServer::PlayerId> GameServer::GetSpawnedPlayersForPlayer(PlayerId player_id) const {
+  std::vector<PlayerId> spawned_players;
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value() || !player_opt->get().is_ingame) {
+    return spawned_players;
+  }
+
+  const auto& player = player_opt->get();
+  spawned_players.reserve(player.spawned_players.size());
+  spawned_players.insert(spawned_players.end(), player.spawned_players.begin(), player.spawned_players.end());
+
+  return spawned_players;
+}
+
+std::vector<GameServer::PlayerId> GameServer::GetStreamedPlayersByPlayer(PlayerId player_id) const {
+  std::vector<PlayerId> streaming_players;
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value() || !player_opt->get().is_ingame) {
+    return streaming_players;
+  }
+
+  const auto& player = player_opt->get();
+  streaming_players.reserve(player.streamed_by_players.size());
+  streaming_players.insert(streaming_players.end(), player.streamed_by_players.begin(),
+                           player.streamed_by_players.end());
+
+  return streaming_players;
+}
+
+bool GameServer::SetTime(std::int32_t hour, std::int32_t min, std::int32_t day) {
+  if (!clock_) {
+    return false;
+  }
+
+  if (hour < 0 || hour > 23 || min < 0 || min > 59 || day < 0) {
+    SPDLOG_WARN("setTime called with invalid parameters: day={}, hour={}, min={}", day, hour, min);
+    return false;
+  }
+
+  auto current_time = clock_->GetTime();
+  GothicClock::Time new_time{static_cast<std::uint16_t>(day == 0 ? current_time.day_ : day),
+                             static_cast<std::uint8_t>(hour), static_cast<std::uint8_t>(min)};
+  clock_->UpdateTime(new_time);
+
+  EventManager::Instance().TriggerEvent(kEventOnGameTimeName,
+                                        OnGameTimeEvent{new_time.day_, new_time.hour_, new_time.min_});
+
+  player_manager_.ForEachIngamePlayer([&](const Player& player) { SendGameInfo(player.connection); });
+  return true;
+}
+
+GothicClock::Time GameServer::GetTime() const {
+  if (!clock_) {
+    return GothicClock::Time{};
+  }
+
+  return clock_->GetTime();
 }
 
 std::uint32_t GameServer::GetPort() const {

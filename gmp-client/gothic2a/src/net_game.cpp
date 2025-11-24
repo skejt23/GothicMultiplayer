@@ -71,6 +71,7 @@ NetGame::NetGame() : task_scheduler(nullptr), game_client(nullptr), resource_run
   task_scheduler = std::make_unique<gmp::GothicTaskScheduler>();
   game_client = std::make_unique<gmp::client::GameClient>(*this, *task_scheduler);
   resource_runtime = std::make_unique<ClientResourceRuntime>();
+  resource_runtime->SetServerInfoProvider(*game_client);
   gmp::gothic::BindGothicSpecific(resource_runtime->GetLuaState());
 }
 

@@ -379,7 +379,11 @@ void GameClient::OnInitialInfo(Packet p) {
     return;
   }
 
-  SPDLOG_INFO("Initial info received: map='{}', base_path='{}', resources={}", packet.map_name,
+  server_name_ = packet.server_name;
+  max_slots_ = packet.max_slots;
+
+  SPDLOG_INFO("Initial info received: map='{}', server='{}', base_path='{}', resources={}", packet.map_name,
+              server_name_.empty() ? "<unknown>" : server_name_,
               packet.resource_base_path.empty() ? "/public" : packet.resource_base_path, packet.client_resources.size());
 
   resource_downloader_.SetDownloadToken(packet.resource_token);

@@ -24,10 +24,14 @@ SOFTWARE.
 #include "function_bind.h"
 
 #include <algorithm>
+#include <optional>
+#include <vector>
 #include <glm/glm.hpp>
+#include <optional>
 
 #include "game_server.h"
 #include "packet.h"
+#include "shared/lua_runtime/shared_bind.h"
 #include "shared/lua_runtime/timer_manager.h"
 
 using namespace std;
@@ -83,6 +87,18 @@ std::optional<glm::vec3> ParseSpawnPosition(sol::variadic_args args) {
   }
 
   SPDLOG_WARN("spawnPlayer called with unsupported arguments");
+  return std::nullopt;
+}
+
+std::optional<glm::vec3> Function_ParsePositionTable(const sol::table& table) {
+  auto x = GetOptionalFloat(table, "x", "X");
+  auto y = GetOptionalFloat(table, "y", "Y");
+  auto z = GetOptionalFloat(table, "z", "Z");
+  if (x && y && z) {
+    return glm::vec3(*x, *y, *z);
+  }
+
+  SPDLOG_WARN("Position table must contain x, y, z fields");
   return std::nullopt;
 }
 
@@ -180,8 +196,106 @@ sol::object Function_GetPlayerPosition(std::uint32_t player_id, sol::this_state 
   return position_table;
 }
 
+void Function_SetServerWorld(const std::string& world) {
+  if (!g_server) {
+    SPDLOG_WARN("Cannot set server world before the server is initialized");
+    return;
+  }
+
+  g_server->SetServerWorld(world);
+}
+
+std::string Function_GetServerWorld() {
+  if (!g_server) {
+    SPDLOG_WARN("Cannot get server world before the server is initialized");
+    return std::string{};
+  }
+
+  return g_server->GetServerWorld();
+}
+
+std::vector<std::uint32_t> Function_FindNearbyPlayers(const sol::table& position_table, int radius,
+                                                      const std::string& world, sol::optional<int> virtual_world) {
+  if (!g_server) {
+    SPDLOG_WARN("Cannot find players before the server is initialized");
+    return {};
+  }
+
+  auto position = Function_ParsePositionTable(position_table);
+  if (!position.has_value()) {
+    return {};
+  }
+
+  return g_server->FindNearbyPlayers(*position, static_cast<float>(radius), world, virtual_world.value_or(0));
+}
+
+std::vector<std::uint32_t> Function_GetSpawnedPlayersForPlayer(std::uint32_t player_id) {
+  if (!g_server) {
+    SPDLOG_WARN("Cannot get spawned players before the server is initialized");
+    return {};
+  }
+
+  return g_server->GetSpawnedPlayersForPlayer(player_id);
+}
+
+std::vector<std::uint32_t> Function_GetStreamedPlayersByPlayer(std::uint32_t player_id) {
+  if (!g_server) {
+    SPDLOG_WARN("Cannot get streamed players before the server is initialized");
+    return {};
+  }
+
+  return g_server->GetStreamedPlayersByPlayer(player_id);
+}
+
+bool Function_SetTime(int hour, int min, sol::optional<int> day) {
+  if (!g_server) {
+    SPDLOG_WARN("Cannot set time before the server is initialized");
+    return false;
+  }
+
+  return g_server->SetTime(hour, min, day.value_or(0));
+}
+
+sol::object Function_GetTime(sol::this_state ts) {
+  if (!g_server) {
+    SPDLOG_WARN("Cannot get time before the server is initialized");
+    return sol::nil;
+  }
+
+  auto time = g_server->GetTime();
+  sol::state_view lua(ts);
+  sol::table time_table = lua.create_table();
+  time_table["day"] = time.day_;
+  time_table["hour"] = time.hour_;
+  time_table["min"] = time.min_;
+  return time_table;
+}
+
 // Register Functions
 void lua::bindings::BindFunctions(sol::state& lua, TimerManager& timer_manager) {
+  SetServerInfoProvider({
+      [] { return g_server ? g_server->GetHostname() : std::string{}; },
+      [] { return g_server ? static_cast<int>(g_server->GetMaxSlots()) : 0; },
+      [] {
+        if (!g_server) {
+          return std::vector<int>{};
+        }
+
+        std::vector<int> players;
+        g_server->GetPlayerManager().ForEachIngamePlayer(
+            [&players](const PlayerManager::Player& player) { players.push_back(player.player_id); });
+        return players;
+      },
+      [] {
+        if (!g_server) {
+          return 0;
+        }
+
+        std::uint32_t count = 0;
+        g_server->GetPlayerManager().ForEachIngamePlayer([&count](const PlayerManager::Player&) { ++count; });
+        return static_cast<int>(count);
+      },
+  });
   lua["Log"] = Function_Log;
   lua.new_usertype<Packet>("Packet", sol::constructors<Packet()>(), "reset", &Packet::reset, 
                            "send", &Packet::send, "sendToAll", &Packet::sendToAll, 
@@ -205,4 +319,14 @@ void lua::bindings::BindFunctions(sol::state& lua, TimerManager& timer_manager) 
 
   lua["setPlayerPosition"] = Function_SetPlayerPosition;
   lua["getPlayerPosition"] = Function_GetPlayerPosition;
+
+  lua["setServerWorld"] = Function_SetServerWorld;
+  lua["getServerWorld"] = Function_GetServerWorld;
+  
+  lua["findNearbyPlayers"] = Function_FindNearbyPlayers;
+  lua["getSpawnedPlayersForPlayer"] = Function_GetSpawnedPlayersForPlayer;
+  lua["getStreamedPlayersByPlayer"] = Function_GetStreamedPlayersByPlayer;
+
+  lua["setTime"] = Function_SetTime;
+  lua["getTime"] = Function_GetTime;
 }

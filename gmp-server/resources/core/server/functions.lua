@@ -19,6 +19,20 @@ addEventHandler("onPlayerCommand", function(id, cmd, params)
         return
     end
 
+    if cmd == "time" then
+        local parsed = sscanf("dd", params)
+        setTime(parsed[1], parsed[2])
+        print(getTime().hour, getTime().min)
+        return
+    end
+
+    if cmd == "map" then
+        print(getServerWorld())
+        setServerWorld(params)
+        print(getServerWorld())
+        return
+    end
+
     if cmd == "msg" then
         local parsed = sscanf("ddds", params)
 

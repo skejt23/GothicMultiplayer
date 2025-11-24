@@ -27,7 +27,9 @@ SOFTWARE.
 
 #include "sol/sol.hpp"
 #include "spdlog_bind.h"
+#include "shared_bind.h"
 #include "timer_manager.h"
+#include "math_bind.h"
 #include "utility_bind.h"
 
 namespace lua {
@@ -144,7 +146,9 @@ protected:
 
     // Bind shared functionality
     bindings::Bind_spdlog(lua_);
+    bindings::BindSharedFunctions(lua_);
     bindings::BindUtilities(lua_);
+    bindings::BindMath(lua_);
     bindings::BindTimers(lua_, timer_manager_);
   }
 
