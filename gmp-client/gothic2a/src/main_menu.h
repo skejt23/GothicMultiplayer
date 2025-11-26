@@ -59,7 +59,6 @@ public:
   ~CMainMenu();
   void RenderMenu();
   void ReLaunchMainMenu();
-  void LoadConfig();
   void ClearNpcTalents(oCNpc* Npc);
   void static __stdcall MainMenuLoop();
   void InitializeStateMachine();

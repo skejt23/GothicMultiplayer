@@ -49,10 +49,6 @@ public:
   bool IsDefault() const;
 
   zSTRING Nickname;
-  int skintexture;
-  int facetexture;
-  int headmodel;
-  int walkstyle;
   int lang;
   bool logchat;
   bool watch;

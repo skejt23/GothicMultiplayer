@@ -24,6 +24,8 @@ SOFTWARE.
 
 #include "gothic_bindings.h"
 
+#include <algorithm>
+#include <cstdint>
 #include <optional>
 #include <tuple>
 #include <spdlog/spdlog.h>
@@ -31,6 +33,7 @@ SOFTWARE.
 #include "ZenGin/zGothicAPI.h"
 #include "discord_presence.h"
 #include "client_resources/process_input.h"
+#include "net_game.h"
 
 #include "lua_draw.h"
 #include "lua_texture.h"
@@ -45,7 +48,66 @@ sol::optional<std::string> GetOptionalString(const sol::table& table, const char
   return table.get<sol::optional<std::string>>(upperKey);
 }
 
+oCNpc* GetNpcById(std::uint64_t id) {
+  auto& players = NetGame::Instance().players;
+  auto it = std::find_if(players.begin(), players.end(), [id](Gothic2APlayer* player) {
+    return player && player->base_player().id() == id;
+  });
+
+  if (it == players.end()) {
+    return nullptr;
+  }
+
+  return (*it)->GetNpc();
+}
 }  // namespace
+
+void BindPlayers(sol::state& lua) {
+  lua.set_function(
+      "setPlayerVisual",
+      [](std::uint64_t id, const std::string& body_model, int body_texture, const std::string& head_model, int head_texture,
+         sol::optional<int> teeth_texture, sol::optional<int> skin_color) {
+        if (auto* npc = GetNpcById(id); npc) {
+          zSTRING body(body_model.c_str());
+          zSTRING head(head_model.c_str());
+          const int color_variant = skin_color.value_or(0);
+          const int teeth_variant = teeth_texture.value_or(0);
+          npc->SetAdditionalVisuals(body, body_texture, color_variant, head, head_texture, teeth_variant, color_variant);
+        }
+      });
+
+  lua.set_function("setPlayerFatness", [](std::uint64_t id, float fatness) {
+    if (auto* npc = GetNpcById(id); npc) {
+      npc->SetFatness(fatness);
+    }
+  });
+
+  lua.set_function("setPlayerScale", [](std::uint64_t id, float x, float y, float z) {
+    if (auto* npc = GetNpcById(id); npc) {
+      npc->SetModelScale(zVEC3{x, y, z});
+    }
+  });
+
+  lua.set_function("applyPlayerOverlay", [](std::uint64_t id, const std::string& overlay) {
+    if (auto* npc = GetNpcById(id); npc) {
+      zSTRING overlay_name(overlay.c_str());
+      return npc->ApplyOverlay(overlay_name) != 0;
+    }
+    return false;
+  });
+
+  lua.set_function("removePlayerOverlay", [](std::uint64_t id, const std::string& overlay) {
+    if (auto* npc = GetNpcById(id); npc) {
+      zSTRING overlay_name(overlay.c_str());
+      const bool has_overlay = npc->GetOverlay(overlay_name) != 0;
+      if (has_overlay) {
+        npc->RemoveOverlay(overlay_name);
+      }
+      return has_overlay;
+    }
+    return false;
+  });
+}
 
 void BindInput(sol::state& lua) {
     // KEY_* constants
@@ -233,6 +295,7 @@ void BindTime(sol::state& lua) {
 void BindGothicSpecific(sol::state& lua) {
   SPDLOG_TRACE("Initializing Gothic 2 Addon 2.6 specific bindings...");
 
+  BindPlayers(lua);
   BindInput(lua);
   BindDiscord(lua);
   BindDraw(lua);

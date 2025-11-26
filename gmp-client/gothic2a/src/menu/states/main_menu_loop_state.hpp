@@ -36,7 +36,6 @@ namespace states {
  * This is the main hub menu that players see after initial setup.
  * It presents options like:
  * - Choose Server
- * - Appearance
  * - Options
  * - Online Options
  * - Leave Game
@@ -47,11 +46,10 @@ private:
     
     enum MenuItem {
         CHOOSE_SERVER = 0,
-        APPEARANCE = 1,
-        OPTIONS = 2,
-        ONLINE_OPTIONS = 3,
-        LEAVE_GAME = 4,
-        MENU_ITEM_COUNT = 5
+        OPTIONS = 1,
+        ONLINE_OPTIONS = 2,
+        LEAVE_GAME = 3,
+        MENU_ITEM_COUNT = 4
     };
     
     int selectedMenuItem_;

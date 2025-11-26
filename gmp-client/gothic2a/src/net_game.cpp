@@ -44,6 +44,8 @@ SOFTWARE.
 #include <optional>
 #include <vector>
 
+#include "sol/sol.hpp"
+
 #include "CChat.h"
 #include "CIngame.h"
 #include "Interface.h"
@@ -137,8 +139,7 @@ void NetGame::JoinGame() {
     player->name[0] = sanitized_name.c_str();
 
     // Call the new GameClient JoinGame method
-    game_client->JoinGame(sanitized_name, sanitized_name, Config::Instance().headmodel, Config::Instance().skintexture,
-                          Config::Instance().facetexture, Config::Instance().walkstyle);
+    game_client->JoinGame(sanitized_name, sanitized_name, 0, 0, 0, 0);
 
     // Set up the local player now that we have the player ID from the server
     CIngame* g = new CIngame();
@@ -355,6 +356,12 @@ void NetGame::OnResourcesReady() {
 
   SPDLOG_INFO("Loading {} resource payload(s) into runtime", payloads.size());
   std::string error_message;
+  if (game_client->player_manager().HasLocalPlayer()) {
+    resource_runtime->GetLuaState()["heroId"] =
+        static_cast<int>(game_client->player_manager().GetLocalPlayer().id());
+  } else {
+    resource_runtime->GetLuaState()["heroId"] = sol::lua_nil;
+  }
   if (!resource_runtime->LoadResources(std::move(payloads), error_message)) {
     if (error_message.empty()) {
       error_message = "Failed to initialize client resources";
@@ -425,12 +432,7 @@ void NetGame::SpawnRemotePlayer(gmp::client::Player& new_player) {
   newhero->base_player().set_hp(static_cast<short>(newhero->GetHealth()));
   newhero->SetPosition(pos);
   newhero->SetName(new_player.name().c_str());
-  if (newhero->Type == Gothic2APlayer::NPC_HUMAN) {
-    newhero->SetAppearance(new_player.head_model(), new_player.skin_texture(), new_player.face_texture());
-  }
-  if (newhero->Type > Gothic2APlayer::NPC_DRACONIAN || newhero->Type == Gothic2APlayer::NPC_HUMAN) {
-    newhero->npc->ApplyOverlay(Gothic2APlayer::GetWalkStyleFromByte(new_player.walk_style()));
-  }
+  (void)new_player;
 
   CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(0, 255, 0, 255), "%s%s", new_player.name().c_str(),
                                      Language::Instance()[Language::SOMEONE_JOIN_GAME].ToChar());

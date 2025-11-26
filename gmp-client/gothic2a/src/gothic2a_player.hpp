@@ -68,9 +68,6 @@ public:
   void AnalyzePosition(zVEC3& Pos);
   static void DeleteAllPlayers();
   void DisablePlayer();
-  void GetAppearance(BYTE& head, BYTE& skin, BYTE& face);
-  zSTRING GetHeadModelName();
-  static zSTRING GetHeadModelNameFromByte(BYTE head);
   int GetHealth();
   static Gothic2APlayer* GetLocalPlayer();
   const char* GetName();
@@ -78,12 +75,10 @@ public:
   inline oCNpc* GetNpc() {
     return this->npc;
   };
-  static zSTRING GetWalkStyleFromByte(BYTE walkstyle);
   bool IsFighting();
   bool IsLocalPlayer();
   void LeaveGame();
   void RespawnPlayer();
-  void SetAppearance(BYTE head, BYTE skin, BYTE face);
   void SetHealth(int Value);
   void SetName(zSTRING& Name);
   void SetName(const char* Name);
@@ -100,7 +95,4 @@ private:
   bool is_local_player_{false};
   CInterpolatePos* InterPos;
   int ScriptInstance;
-  BYTE Head;
-  BYTE Skin;
-  BYTE Face;
 };
