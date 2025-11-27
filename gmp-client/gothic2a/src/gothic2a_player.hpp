@@ -82,6 +82,8 @@ public:
   void SetHealth(int Value);
   void SetName(zSTRING& Name);
   void SetName(const char* Name);
+  void SetNameColor(const zCOLOR& color);
+  const zCOLOR& GetNameColor() const { return name_color_; }
   void SetNpc(oCNpc* npc);
   void SetNpcType(NpcType Type);
   void SetPosition(zVEC3& pos);
@@ -95,4 +97,5 @@ private:
   bool is_local_player_{false};
   CInterpolatePos* InterPos;
   int ScriptInstance;
+  zCOLOR name_color_{255, 255, 255, 255};
 };

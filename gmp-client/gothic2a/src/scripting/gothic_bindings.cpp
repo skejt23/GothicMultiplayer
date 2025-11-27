@@ -25,8 +25,10 @@ SOFTWARE.
 #include "gothic_bindings.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <tuple>
 #include <spdlog/spdlog.h>
 
@@ -34,10 +36,13 @@ SOFTWARE.
 #include "discord_presence.h"
 #include "client_resources/process_input.h"
 #include "net_game.h"
+#include "patch.h"
 
 #include "lua_draw.h"
 #include "lua_texture.h"
 #include "lua_sound.h"
+
+using namespace Gothic_II_Addon;
 
 namespace gmp::gothic {
 namespace {
@@ -48,7 +53,7 @@ sol::optional<std::string> GetOptionalString(const sol::table& table, const char
   return table.get<sol::optional<std::string>>(upperKey);
 }
 
-oCNpc* GetNpcById(std::uint64_t id) {
+Gothic2APlayer* GetPlayerById(std::uint64_t id) {
   auto& players = NetGame::Instance().players;
   auto it = std::find_if(players.begin(), players.end(), [id](Gothic2APlayer* player) {
     return player && player->base_player().id() == id;
@@ -58,11 +63,316 @@ oCNpc* GetNpcById(std::uint64_t id) {
     return nullptr;
   }
 
-  return (*it)->GetNpc();
+  return *it;
+}
+
+oCNpc* GetNpcById(std::uint64_t id) {
+  if (auto* player = GetPlayerById(id)) {
+    return player->GetNpc();
+  }
+
+  return nullptr;
+}
+
+oCMenu_Status* GetStatusMenu() {
+  zSTRING status_menu_name("MENU_STATUS");
+  if (auto* menu = dynamic_cast<oCMenu_Status*>(zCMenu::GetByName(status_menu_name))) {
+    return menu;
+  }
+
+  zSTRING fallback_name("STATUS");
+  return dynamic_cast<oCMenu_Status*>(zCMenu::GetByName(fallback_name));
 }
 }  // namespace
 
 void BindPlayers(sol::state& lua) {
+  lua.set_function("setPlayerInstance", [](std::uint64_t id, const std::string& instance) {
+    if (auto* npc = GetNpcById(id)) {
+      if (auto* parser = zCParser::GetParser()) {
+        zSTRING instance_name(instance.c_str());
+        const int instance_id = parser->GetIndex(instance_name);
+
+        if (instance_id >= 0) {
+          npc->InitByScript(instance_id, 0);
+        }
+      }
+    }
+  });
+
+  lua.set_function("getPlayerInstance", [](std::uint64_t id) {
+    if (auto* npc = GetNpcById(id)) {
+      return std::string(npc->GetInstanceName().ToChar());
+    }
+
+    return std::string();
+  });
+
+  lua.set_function("setPlayerName", [](std::uint64_t id, const std::string& name) {
+    if (auto* player = GetPlayerById(id)) {
+      zSTRING new_name(name.c_str());
+
+      for (auto* other_player : NetGame::Instance().players) {
+        if (!other_player || !other_player->GetNpc()) {
+          continue;
+        }
+
+        if (other_player->base_player().id() != id && other_player->GetNpc()->GetName() == new_name) {
+          return false;
+        }
+      }
+
+      player->SetName(new_name);
+      player->base_player().set_name(new_name.ToChar());
+      return true;
+    }
+
+    return false;
+  });
+
+  lua.set_function("getPlayerName", [](std::uint64_t id) {
+    if (auto* npc = GetNpcById(id)) {
+      return std::string(npc->GetName().ToChar());
+    }
+
+    return std::string();
+  });
+
+  lua.set_function("setPlayerColor", [](std::uint64_t id, int r, int g, int b) {
+    r = std::clamp(r, 0, 255);
+    g = std::clamp(g, 0, 255);
+    b = std::clamp(b, 0, 255);
+
+    if (auto* player = GetPlayerById(id)) {
+      player->SetNameColor(zCOLOR(static_cast<unsigned char>(r), static_cast<unsigned char>(g),
+                                  static_cast<unsigned char>(b), 255));
+    }
+  });
+
+  lua.set_function("getPlayerColor", [](std::uint64_t id) {
+    if (auto* player = GetPlayerById(id)) {
+      const auto& color = player->GetNameColor();
+      return std::make_tuple(static_cast<int>(color.r), static_cast<int>(color.g), static_cast<int>(color.b));
+    }
+
+    return std::make_tuple(0, 0, 0);
+  });
+
+  lua.set_function("setPlayerHealth", [](std::uint64_t id, int health) {
+    if (health < 0) {
+      health = 0;
+    }
+
+    if (auto* player = GetPlayerById(id)) {
+      if (auto* npc = player->GetNpc()) {
+        const int max_health = npc->GetAttribute(NPC_ATR_HITPOINTSMAX);
+        const int clamped_health = std::min(health, max_health);
+        npc->SetAttribute(NPC_ATR_HITPOINTS, clamped_health);
+        player->base_player().set_hp(static_cast<short>(clamped_health));
+      }
+    }
+  });
+
+  lua.set_function("getPlayerHealth", [](std::uint64_t id) {
+    if (auto* npc = GetNpcById(id)) {
+      return npc->GetAttribute(NPC_ATR_HITPOINTS);
+    }
+
+    return 0;
+  });
+
+  lua.set_function("setPlayerMaxHealth", [](std::uint64_t id, int max_health) {
+    if (max_health < 0) {
+      max_health = 0;
+    }
+
+    if (auto* player = GetPlayerById(id)) {
+      if (auto* npc = player->GetNpc()) {
+        npc->SetAttribute(NPC_ATR_HITPOINTSMAX, max_health);
+        const int current_health = npc->GetAttribute(NPC_ATR_HITPOINTS);
+        if (current_health > max_health) {
+          npc->SetAttribute(NPC_ATR_HITPOINTS, max_health);
+        }
+      }
+    }
+  });
+
+  lua.set_function("getPlayerMaxHealth", [](std::uint64_t id) {
+    if (auto* npc = GetNpcById(id)) {
+      return npc->GetAttribute(NPC_ATR_HITPOINTSMAX);
+    }
+
+    return 0;
+  });
+
+  lua.set_function("setPlayerMana", [](std::uint64_t id, int mana) {
+    if (mana < 0) {
+      mana = 0;
+    }
+
+    if (auto* npc = GetNpcById(id)) {
+      const int max_mana = npc->GetAttribute(NPC_ATR_MANAMAX);
+      const int clamped_mana = std::min(mana, max_mana);
+      npc->SetAttribute(NPC_ATR_MANA, clamped_mana);
+    }
+  });
+
+  lua.set_function("getPlayerMana", [](std::uint64_t id) {
+    if (auto* npc = GetNpcById(id)) {
+      return npc->GetAttribute(NPC_ATR_MANA);
+    }
+
+    return 0;
+  });
+
+  lua.set_function("setPlayerMaxMana", [](std::uint64_t id, int max_mana) {
+    if (max_mana < 0) {
+      max_mana = 0;
+    }
+
+    if (auto* npc = GetNpcById(id)) {
+      npc->SetAttribute(NPC_ATR_MANAMAX, max_mana);
+      const int current_mana = npc->GetAttribute(NPC_ATR_MANA);
+      if (current_mana > max_mana) {
+        npc->SetAttribute(NPC_ATR_MANA, max_mana);
+      }
+    }
+  });
+
+  lua.set_function("getPlayerMaxMana", [](std::uint64_t id) {
+    if (auto* npc = GetNpcById(id)) {
+      return npc->GetAttribute(NPC_ATR_MANAMAX);
+    }
+
+    return 0;
+  });
+
+  lua.set_function("setPlayerStrength", [](std::uint64_t id, int strength) {
+    if (strength < 0) {
+      strength = 0;
+    }
+
+    if (auto* npc = GetNpcById(id)) {
+      npc->SetAttribute(NPC_ATR_STRENGTH, strength);
+    }
+  });
+
+  lua.set_function("getPlayerStrength", [](std::uint64_t id) {
+    if (auto* npc = GetNpcById(id)) {
+      return npc->GetAttribute(NPC_ATR_STRENGTH);
+    }
+
+    return 0;
+  });
+
+  lua.set_function("setPlayerDexterity", [](std::uint64_t id, int dexterity) {
+    if (dexterity < 0) {
+      dexterity = 0;
+    }
+
+    if (auto* npc = GetNpcById(id)) {
+      npc->SetAttribute(NPC_ATR_DEXTERITY, dexterity);
+    }
+  });
+
+  lua.set_function("getPlayerDexterity", [](std::uint64_t id) {
+    if (auto* npc = GetNpcById(id)) {
+      return npc->GetAttribute(NPC_ATR_DEXTERITY);
+    }
+
+    return 0;
+  });
+
+  lua.set_function("setPlayerSkillWeapon", [](std::uint64_t id, int skill_id, int percentage) {
+    percentage = std::clamp(percentage, 0, 100);
+
+    if (auto* npc = GetNpcById(id)) {
+      npc->SetHitChance(skill_id, percentage);
+    }
+  });
+
+  lua.set_function("getPlayerSkillWeapon", [](std::uint64_t id, int skill_id) {
+    if (auto* npc = GetNpcById(id)) {
+      return npc->GetHitChance(skill_id);
+    }
+
+    return 0;
+  });
+
+  lua.set_function("setPlayerTalent", [](std::uint64_t id, int talent_id, int talent_value) {
+    if (auto* npc = GetNpcById(id)) {
+      npc->SetTalentSkill(talent_id, talent_value);
+    }
+  });
+
+  lua.set_function("getPlayerTalent", [](std::uint64_t id, int talent_id) {
+    if (auto* npc = GetNpcById(id)) {
+      return npc->GetTalentSkill(talent_id);
+    }
+
+    return 0;
+  });
+
+  lua.set_function("setPlayerWorld", [](std::uint64_t id, const std::string& world, sol::optional<std::string> start_point) {
+    if (auto* player = GetPlayerById(id)) {
+      if (!player->IsLocalPlayer() || !ogame) {
+        return;
+      }
+
+      zSTRING z_world(world.c_str());
+      zSTRING z_start_point = start_point ? zSTRING(start_point->c_str()) : zSTRING("");
+      Patch::ChangeLevelEnabled(true);
+      ogame->ChangeLevel(z_world, z_start_point);
+      Patch::ChangeLevelEnabled(false);
+    }
+  });
+
+  lua.set_function("getPlayerWorld", [](std::uint64_t id) {
+    if (auto* player = GetPlayerById(id)) {
+      if (player->IsLocalPlayer() && ogame && ogame->GetGameWorld()) {
+        return std::string(ogame->GetGameWorld()->GetWorldFilename().ToChar());
+      }
+    }
+
+    return std::string();
+  });
+
+  lua.set_function("setPlayerPosition", [](std::uint64_t id, float x, float y, float z) {
+    if (auto* player = GetPlayerById(id)) {
+      if (auto* npc = player->GetNpc()) {
+        zVEC3 position{x, y, z};
+        npc->SetPositionWorld(position);
+        player->SetPosition(position);
+        player->base_player().set_position(x, y, z);
+      }
+    }
+  });
+
+  lua.set_function("getPlayerPosition", [](std::uint64_t id) {
+    if (auto* npc = GetNpcById(id)) {
+      const zVEC3 position = npc->GetPositionWorld();
+      return std::make_tuple(position[VX], position[VY], position[VZ]);
+    }
+
+    return std::make_tuple(0.0F, 0.0F, 0.0F);
+  });
+
+  lua.set_function("setPlayerAngle", [](std::uint64_t id, float angle, sol::optional<bool> /*interpolate*/) {
+    if (auto* npc = GetNpcById(id)) {
+      const float radians = angle;
+      const zVEC3 heading_vector(std::sin(radians), 0.0F, std::cos(radians));
+      npc->SetHeadingYWorld(heading_vector);
+    }
+  });
+
+  lua.set_function("getPlayerAngle", [](std::uint64_t id) {
+    if (auto* npc = GetNpcById(id)) {
+      const zVEC3 forward = npc->GetAtVectorWorld();
+      return std::atan2(forward[VX], forward[VZ]);
+    }
+
+    return 0.0F;
+  });
+
   lua.set_function(
       "setPlayerVisual",
       [](std::uint64_t id, const std::string& body_model, int body_texture, const std::string& head_model, int head_texture,
@@ -106,6 +416,89 @@ void BindPlayers(sol::state& lua) {
       return has_overlay;
     }
     return false;
+  });
+
+  lua.set_function("setPlayerLevel", [](std::uint64_t id, int level) {
+    if (auto* npc = GetNpcById(id)) {
+      npc->level = static_cast<int>(std::max(level, 0));
+    }
+  });
+
+  lua.set_function("getPlayerLevel", [](std::uint64_t id) {
+    if (auto* npc = GetNpcById(id)) {
+      return static_cast<int>(npc->level);
+    }
+
+    return 0;
+  });
+
+  lua.set_function("setLearnPoints", [](int learn_points) {
+    if (auto* player = Gothic2APlayer::GetLocalPlayer()) {
+      if (auto* npc = player->GetNpc()) {
+        const unsigned long clamped_points = static_cast<unsigned long>(std::max(learn_points, 0));
+        npc->learn_points = clamped_points;
+
+        if (auto* status_menu = GetStatusMenu()) {
+          status_menu->SetLearnPoints(clamped_points);
+        }
+      }
+    }
+  });
+
+  lua.set_function("getLearnPoints", []() {
+    if (auto* player = Gothic2APlayer::GetLocalPlayer()) {
+      if (auto* npc = player->GetNpc()) {
+        return static_cast<int>(npc->learn_points);
+      }
+    }
+
+    return 0;
+  });
+
+  lua.set_function("setExp", [](int exp) {
+    if (auto* player = Gothic2APlayer::GetLocalPlayer()) {
+      if (auto* npc = player->GetNpc()) {
+        const unsigned long clamped_exp = static_cast<unsigned long>(std::max(exp, 0));
+        npc->experience_points = clamped_exp;
+
+        if (auto* status_menu = GetStatusMenu()) {
+          status_menu->SetExperience(clamped_exp, 0, npc->experience_points_next_level);
+        }
+      }
+    }
+  });
+
+  lua.set_function("getExp", []() {
+    if (auto* player = Gothic2APlayer::GetLocalPlayer()) {
+      if (auto* npc = player->GetNpc()) {
+        return static_cast<int>(npc->experience_points);
+      }
+    }
+
+    return 0;
+  });
+
+  lua.set_function("setNextLevelExp", [](int next_level_exp) {
+    if (auto* player = Gothic2APlayer::GetLocalPlayer()) {
+      if (auto* npc = player->GetNpc()) {
+        const unsigned long clamped_next_level = static_cast<unsigned long>(std::max(next_level_exp, 0));
+        npc->experience_points_next_level = clamped_next_level;
+
+        if (auto* status_menu = GetStatusMenu()) {
+          status_menu->SetExperience(npc->experience_points, 0, clamped_next_level);
+        }
+      }
+    }
+  });
+
+  lua.set_function("getNextLevelExp", []() {
+    if (auto* player = Gothic2APlayer::GetLocalPlayer()) {
+      if (auto* npc = player->GetNpc()) {
+        return static_cast<int>(npc->experience_points_next_level);
+      }
+    }
+
+    return 0;
   });
 }
 

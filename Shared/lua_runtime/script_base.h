@@ -146,6 +146,7 @@ protected:
 
     // Bind shared functionality
     bindings::Bind_spdlog(lua_);
+    bindings::BindSharedConstants(lua_);
     bindings::BindSharedFunctions(lua_);
     bindings::BindUtilities(lua_);
     bindings::BindMath(lua_);

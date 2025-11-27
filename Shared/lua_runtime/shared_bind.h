@@ -38,6 +38,8 @@ struct ServerInfoProvider {
   std::function<int()> get_players_count;
 };
 
+void BindSharedConstants(sol::state& lua);
+
 void BindSharedFunctions(sol::state& lua);
 
 void SetServerInfoProvider(ServerInfoProvider provider);

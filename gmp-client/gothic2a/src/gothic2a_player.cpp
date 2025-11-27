@@ -174,6 +174,10 @@ void Gothic2APlayer::SetName(const char* Name) {
   this->npc->name[0] = Name;
 };
 
+void Gothic2APlayer::SetNameColor(const zCOLOR& color) {
+  name_color_ = color;
+}
+
 void Gothic2APlayer::SetNpc(oCNpc* Npc) {
   this->npc = Npc;
   this->ScriptInstance = Npc->GetInstance();
