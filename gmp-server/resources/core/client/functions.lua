@@ -1,3 +1,6 @@
+    local npc = nil
+    local npc2 = nil
+
 addEventHandler('onKeyDown', function(key)
     if key == KEY_V then
         setPlayerVisual(heroId, "HUM_BODY_NAKED0", 8, "HUM_HEAD_FIGHTER", 26)
@@ -45,5 +48,16 @@ addEventHandler('onKeyDown', function(key)
         print("Learn points: " .. getLearnPoints())
         setPlayerLevel(30)
         print("Level: " .. getPlayerLevel(heroId))
-    end
+	elseif(key == KEY_Z) then
+        print("keyZ -> spawning npcs")
+            npc = createNpc("TestNpc")
+            npc2 = createNpc("TestNpc2")
+            npc3 = createNpc("TestNpc3")
+        spawnNpc(npc, "PC_HERO")
+        spawnNpc(npc2, "SCAVENGER")
+	elseif(key == KEY_X) then
+        print("keyX -> destroying npcs")
+        destroyNpc(npc)
+        destroyNpc(npc2)
+	end
 end)

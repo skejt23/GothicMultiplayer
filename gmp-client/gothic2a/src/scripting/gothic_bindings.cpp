@@ -30,6 +30,7 @@ SOFTWARE.
 #include <optional>
 #include <string>
 #include <tuple>
+#include <unordered_map>
 #include <spdlog/spdlog.h>
 
 #include "ZenGin/zGothicAPI.h"
@@ -46,6 +47,25 @@ using namespace Gothic_II_Addon;
 
 namespace gmp::gothic {
 namespace {
+struct ClientNpc {
+  oCNpc* npc{nullptr};
+  std::string name;
+  bool spawned{false};
+};
+
+std::unordered_map<int, ClientNpc> g_client_npcs;
+int g_next_npc_id = -1;
+
+oCSpawnManager* GetSpawnManager() {
+  return ogame ? ogame->GetSpawnManager() : nullptr;
+}
+
+bool HasFactoryAndParser() { return zfactory && zCParser::GetParser(); }
+
+bool HasSpawnPrerequisites() {
+  return HasFactoryAndParser() && ogame && GetSpawnManager();
+}
+
 sol::optional<std::string> GetOptionalString(const sol::table& table, const char* lowerKey, const char* upperKey) {
   if (auto value = table.get<sol::optional<std::string>>(lowerKey); value) {
     return value;
@@ -502,6 +522,121 @@ void BindPlayers(sol::state& lua) {
   });
 }
 
+void BindNpc(sol::state& lua) {
+  lua.set_function("createNpc", [](const std::string& name) {
+    if (!HasFactoryAndParser()) {
+      SPDLOG_WARN("createNpc: missing game engine components");
+      return 0;
+    }
+
+    auto* parser = zCParser::GetParser();
+    const int default_instance = parser->GetIndex("PC_HERO");
+    if (default_instance < 0) {
+      SPDLOG_WARN("createNpc: failed to resolve default instance 'PC_HERO'");
+      return 0;
+    }
+
+    oCNpc* npc = zfactory->CreateNpc(default_instance);
+    if (!npc) {
+      SPDLOG_WARN("createNpc: failed to allocate npc");
+      return 0;
+    }
+
+    npc->name[0] = name.c_str();
+
+    const int npc_id = g_next_npc_id--;
+    g_client_npcs.emplace(npc_id, ClientNpc{npc, name});
+    return npc_id;
+  });
+
+  lua.set_function("destroyNpc", [](int npc_id) {
+    auto it = g_client_npcs.find(npc_id);
+    if (it == g_client_npcs.end()) {
+      return false;
+    }
+
+    oCNpc* npc = it->second.npc;
+    if (npc && npc->GetHomeWorld()) {
+      npc->Disable();
+      npc->RemoveVobFromWorld();
+    }
+
+    if (auto* spawn_manager = GetSpawnManager()) {
+      spawn_manager->DeleteNpc(npc);
+    }
+
+    g_client_npcs.erase(it);
+    return true;
+  });
+
+  lua.set_function("spawnNpc", [](int npc_id, sol::optional<std::string> instance_name) {
+    auto it = g_client_npcs.find(npc_id);
+    if (it == g_client_npcs.end()) {
+      return false;
+    }
+
+    ClientNpc& entry = it->second;
+    if (entry.spawned || entry.npc->GetHomeWorld() != nullptr) {
+      SPDLOG_WARN("spawnNpc: npc {} is already spawned", npc_id);
+      return false;
+    }
+
+    if (!HasSpawnPrerequisites()) {
+      SPDLOG_WARN("spawnNpc: missing game engine components");
+      return false;
+    }
+
+    const std::string instance = instance_name.value_or("PC_HERO");
+    auto* parser = zCParser::GetParser();
+    const int instance_index = parser->GetIndex(instance.c_str());
+    if (instance_index < 0) {
+      SPDLOG_WARN("spawnNpc: instance '{}' not found", instance);
+      return false;
+    }
+
+    entry.npc->InitByScript(instance_index, 0);
+    entry.npc->startAIState = 0;
+    entry.npc->name[0] = entry.name.c_str();
+
+    zVEC3 spawn_position{0.0f, 0.0f, 0.0f};
+    GetSpawnManager()->SpawnNpc(entry.npc, spawn_position, 0.0f);
+
+    if (entry.npc->GetHomeWorld() == nullptr) {
+      entry.npc->Enable(spawn_position);
+    }
+
+    const bool attached = entry.npc->GetHomeWorld() != nullptr;
+    if (!attached) {
+      SPDLOG_WARN("spawnNpc: failed to attach npc to world");
+    }
+
+    entry.spawned = attached;
+
+    return attached;
+  });
+
+  lua.set_function("unspawnNpc", [](int npc_id) {
+    auto it = g_client_npcs.find(npc_id);
+    if (it == g_client_npcs.end()) {
+      return false;
+    }
+
+    oCNpc* npc = it->second.npc;
+    if (!it->second.spawned || npc == nullptr) {
+      SPDLOG_WARN("unspawnNpc: npc {} is not spawned", npc_id);
+      return false;
+    }
+    if (npc && npc->GetHomeWorld()) {
+      npc->Disable();
+      npc->RemoveVobFromWorld();
+    }
+
+    it->second.spawned = false;
+
+    return true;
+  });
+}
+
 void BindInput(sol::state& lua) {
     // KEY_* constants
 #define BIND_KEY(name) lua[#name] = name;
@@ -689,6 +824,7 @@ void BindGothicSpecific(sol::state& lua) {
   SPDLOG_TRACE("Initializing Gothic 2 Addon 2.6 specific bindings...");
 
   BindPlayers(lua);
+  BindNpc(lua);
   BindInput(lua);
   BindDiscord(lua);
   BindDraw(lua);
