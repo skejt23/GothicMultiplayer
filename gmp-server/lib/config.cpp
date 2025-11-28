@@ -34,6 +34,7 @@ SOFTWARE.
 
 #include <array>
 #include <cstdint>
+#include <filesystem>
 #include <fstream>
 #include <set>
 #include <sstream>
@@ -161,6 +162,38 @@ void Config::ValidateAndFixValues() {
 void Config::LogConfigValues() const {
   constexpr std::string_view kFrame = "-========================================-";
   const auto bool_to_string = [](bool value) { return value ? "true" : "false"; };
+  const auto count_scripts_in_directory = [](const std::filesystem::path& directory) {
+    std::size_t count = 0;
+
+    if (!std::filesystem::exists(directory) || !std::filesystem::is_directory(directory)) {
+      return count;
+    }
+
+    for (const auto& entry : std::filesystem::directory_iterator(directory)) {
+      if (entry.is_regular_file() && entry.path().extension() == ".lua") {
+        ++count;
+      }
+    }
+
+    return count;
+  };
+
+  std::size_t resource_count = 0;
+  std::size_t scripts_count = 0;
+
+  const std::filesystem::path resources_root{"resources"};
+  if (std::filesystem::exists(resources_root) && std::filesystem::is_directory(resources_root)) {
+    for (const auto& entry : std::filesystem::directory_iterator(resources_root)) {
+      if (!entry.is_directory()) {
+        continue;
+      }
+
+      ++resource_count;
+      scripts_count += count_scripts_in_directory(entry.path() / "shared");
+      scripts_count += count_scripts_in_directory(entry.path() / "server");
+      scripts_count += count_scripts_in_directory(entry.path() / "client");
+    }
+  }
 
   SPDLOG_INFO(kFrame);
 
@@ -186,9 +219,9 @@ void Config::LogConfigValues() const {
   SPDLOG_INFO("* {:<18}: {}", "Log level", Get<std::string>("log_level"));
 
   SPDLOG_INFO("");
-  SPDLOG_INFO("-= Scripts =-");
-  const auto& scripts = Get<std::vector<std::string>>("scripts");
-  SPDLOG_INFO("* {:<18}: {}", "Script count", scripts.size());
+  SPDLOG_INFO("-= Resources =-");
+  SPDLOG_INFO("* {:<18}: {}", "Resources count", resource_count);
+  SPDLOG_INFO("* {:<18}: {}", "Scripts count", scripts_count);
 
   SPDLOG_INFO("");
   SPDLOG_INFO("-= Performance =-");

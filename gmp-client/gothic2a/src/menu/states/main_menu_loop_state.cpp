@@ -28,7 +28,6 @@ SOFTWARE.
 
 #include "keyboard.h"
 #include "language.h"
-#include "menu/states/appearance_state.hpp"
 #include "menu/states/online_options_state.hpp"
 #include "menu/states/options_menu_state.hpp"
 #include "menu/states/server_list_state.hpp"
@@ -106,25 +105,20 @@ void MainMenuLoopState::RenderMenu() {
   context_.screen->SetFontColor(fcolor);
   context_.screen->Print(200, 3200, Language::Instance()[Language::MMENU_CHSERVER]);
 
-  // Appearance
-  fcolor = (selectedMenuItem_ == APPEARANCE) ? Highlighted : Normal;
-  context_.screen->SetFontColor(fcolor);
-  context_.screen->Print(200, 3600, Language::Instance()[Language::MMENU_APPEARANCE]);
-
   // Options
   fcolor = (selectedMenuItem_ == OPTIONS) ? Highlighted : Normal;
   context_.screen->SetFontColor(fcolor);
-  context_.screen->Print(200, 4000, Language::Instance()[Language::MMENU_OPTIONS]);
+  context_.screen->Print(200, 3600, Language::Instance()[Language::MMENU_OPTIONS]);
 
   // Online Options
   fcolor = (selectedMenuItem_ == ONLINE_OPTIONS) ? Highlighted : Normal;
   context_.screen->SetFontColor(fcolor);
-  context_.screen->Print(200, 4400, Language::Instance()[Language::MMENU_ONLINEOPTIONS]);
+  context_.screen->Print(200, 4000, Language::Instance()[Language::MMENU_ONLINEOPTIONS]);
 
   // Leave Game
   fcolor = (selectedMenuItem_ == LEAVE_GAME) ? Highlighted : Normal;
   context_.screen->SetFontColor(fcolor);
-  context_.screen->Print(200, 4800, Language::Instance()[Language::MMENU_LEAVEGAME]);
+  context_.screen->Print(200, 4400, Language::Instance()[Language::MMENU_LEAVEGAME]);
 }
 
 void MainMenuLoopState::RenderVersionInfo() {
@@ -177,11 +171,6 @@ void MainMenuLoopState::ExecuteMenuItem(MenuItem item) {
     case CHOOSE_SERVER:
       SPDLOG_INFO("Selected: Choose Server");
       nextState_ = new ServerListState(context_);
-      break;
-
-    case APPEARANCE:
-      SPDLOG_INFO("Selected: Appearance");
-      nextState_ = new AppearanceState(context_);
       break;
 
     case OPTIONS:

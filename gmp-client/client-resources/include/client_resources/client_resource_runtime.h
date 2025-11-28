@@ -22,6 +22,8 @@ public:
 
   sol::state& GetLuaState();
 
+  void SetServerInfoProvider(gmp::client::GameClient& game_client);
+
 private:
   struct ResourceInstance {
     std::string name;

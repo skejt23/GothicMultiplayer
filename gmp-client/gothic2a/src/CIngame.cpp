@@ -240,7 +240,7 @@ void CIngame::HandleInput() {
       zinput->KeyPressed(KEY_F8)) {
     if (NetGame::Instance().IsConnected()) {
       NetGame::Instance().Disconnect();
-      CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(255, 0, 0, 255), "%s", "Disconnected!");
+      CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(255, 0, 0, 255), "Disconnected!");
     }
   }
   // PLAYER LIST

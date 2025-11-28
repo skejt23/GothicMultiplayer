@@ -29,5 +29,6 @@ SOFTWARE.
 namespace gmp::gothic {
 
 void BindGothicSpecific(sol::state& lua);
+void CleanupGothicViews();
 
 }  // namespace gmp::gothic

@@ -52,10 +52,12 @@ struct Response;
 #include "client_resource_packager.h"
 #include "common_structs.h"
 #include "config.h"
+#include "packet.h"
 #include "player_manager.h"
 #include "resource_manager.h"
 #include "resource_server.h"
 #include "znet_server.h"
+#include "gothic_clock.h"
 
 #define DEFAULT_ADMIN_PORT 0x404
 
@@ -64,26 +66,10 @@ class GothicClock;
 
 enum CONFIG_FLAGS { HIDE_MAP = 0x04 };
 
-struct Packet {
-  // Not owning.
-  unsigned char* data = nullptr;
-  std::uint32_t length = 0;
-  Net::ConnectionHandle id;
-};
-
 class GameServer : public Net::PacketHandler {
 public:
   using PlayerId = PlayerManager::PlayerId;
   using Player = PlayerManager::Player;
-
-  struct DiscordActivityState {
-    std::string state;
-    std::string details;
-    std::string large_image_key;
-    std::string large_image_text;
-    std::string small_image_key;
-    std::string small_image_text;
-  };
 
   using BanEntry = BanManager::BanEntry;
 
@@ -96,8 +82,26 @@ public:
   void Run();
   bool Init();
   bool IsPublic(void);
-  void SendServerMessage(const std::string& message);
+  void SendMessageToAll(std::uint8_t r, std::uint8_t g, std::uint8_t b, const std::string& text);
+  void SendMessageToPlayer(PlayerId player_id, std::uint8_t r, std::uint8_t g, std::uint8_t b,
+                           const std::string& text);
+  void SendPlayerMessageToAll(PlayerId sender_id, std::uint8_t r, std::uint8_t g, std::uint8_t b,
+                              const std::string& text);
+  void SendPlayerMessageToPlayer(PlayerId sender_id, PlayerId receiver_id, std::uint8_t r, std::uint8_t g,
+                                 std::uint8_t b, const std::string& text);
   bool SpawnPlayer(PlayerId player_id, std::optional<glm::vec3> position_override = std::nullopt);
+  bool SetPlayerPosition(PlayerId player_id, const glm::vec3& position);
+  std::optional<glm::vec3> GetPlayerPosition(PlayerId player_id) const;
+  std::string GetHostname() const;
+  std::uint32_t GetMaxSlots() const;
+  bool SetServerWorld(const std::string& world);
+  std::string GetServerWorld() const;
+  std::vector<PlayerId> FindNearbyPlayers(const glm::vec3& position, float radius, const std::string& world,
+                                          std::int32_t virtual_world) const;
+  std::vector<PlayerId> GetSpawnedPlayersForPlayer(PlayerId player_id) const;
+  std::vector<PlayerId> GetStreamedPlayersByPlayer(PlayerId player_id) const;
+  bool SetTime(std::int32_t hour, std::int32_t min, std::int32_t day = 0);
+  GothicClock::Time GetTime() const;
 
   PlayerManager& GetPlayerManager() {
     return player_manager_;
@@ -105,9 +109,6 @@ public:
   const PlayerManager& GetPlayerManager() const {
     return player_manager_;
   }
-
-  void UpdateDiscordActivity(const DiscordActivityState& activity);
-  const DiscordActivityState& GetDiscordActivity() const;
 
   std::uint32_t GetPort() const;
 
@@ -132,8 +133,7 @@ private:
   void SendRespawnInfo(PlayerId player_id);
   void BroadcastPlayerJoined(const Player& joining_player);
   void SendGameInfo(Net::ConnectionHandle connection);
-  void SendDiscordActivity(Net::ConnectionHandle connection);
-  void SendExistingPlayersPacket(const Player& target_player);
+  void SendExistingPlayersPacket(Player& target_player);
 
   std::unique_ptr<BanManager> ban_manager_;
   std::unique_ptr<LuaScript> lua_script_;
@@ -150,12 +150,11 @@ private:
   bool allow_modification = false;
   Config config_;
   std::unique_ptr<GothicClock> clock_;
+  std::string server_world_;
   std::future<void> public_list_http_thread_future_;
   std::chrono::time_point<std::chrono::steady_clock> last_update_time_{};
   std::thread main_thread;
   std::atomic<bool> main_thread_running = false;
-  DiscordActivityState discord_activity_{};
-  bool discord_activity_initialized_{false};
   std::vector<ClientResourceDescriptor> client_resource_descriptors_;
 
   std::unique_ptr<ResourceServer> resource_server_;

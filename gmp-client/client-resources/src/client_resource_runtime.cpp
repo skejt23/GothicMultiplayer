@@ -1,5 +1,6 @@
 #include "client_resources/client_resource_runtime.h"
 #include "client_resources/event_bind.h"
+#include "shared/lua_runtime/shared_bind.h"
 
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
@@ -103,6 +104,62 @@ std::optional<sol::table> ClientResourceRuntime::GetExports(const std::string& r
 
 sol::state& ClientResourceRuntime::GetLuaState() {
   return script_.GetLuaState();
+}
+
+void ClientResourceRuntime::SetServerInfoProvider(gmp::client::GameClient& game_client) {
+  lua::bindings::SetServerInfoProvider({
+      [&game_client]() {
+        const auto& name = game_client.GetServerName();
+        if (!name.empty()) {
+          return name;
+        }
+
+        const auto& host = game_client.GetServerIp();
+        const auto port = game_client.GetServerPort();
+        return port != 0 && !host.empty() ? fmt::format("{}:{}", host, port) : host;
+      },
+      [&game_client]() {
+        return static_cast<int>(game_client.GetMaxSlots());
+      },
+      [&game_client]() {
+        std::vector<int> player_ids;
+        auto& manager = game_client.player_manager();
+        const bool has_local = manager.HasLocalPlayer();
+        const auto& players = manager.GetAllPlayers();
+
+        player_ids.reserve(players.size() + (has_local ? 1 : 0));
+
+        if (has_local) {
+          const auto& local = manager.GetLocalPlayer();
+          if (local.has_spawned()) {
+            player_ids.push_back(static_cast<int>(local.id()));
+          }
+        }
+
+        for (const auto& [id, player_ptr] : players) {
+          if (player_ptr && player_ptr->has_spawned()) {
+            player_ids.push_back(static_cast<int>(id));
+          }
+        }
+
+        return player_ids;
+      },
+      [&game_client]() {
+        int count = 0;
+        auto& manager = game_client.player_manager();
+        if (manager.HasLocalPlayer() && manager.GetLocalPlayer().has_spawned()) {
+          ++count;
+        }
+
+        for (const auto& [_, player_ptr] : manager.GetAllPlayers()) {
+          if (player_ptr && player_ptr->has_spawned()) {
+            ++count;
+          }
+        }
+
+        return count;
+      },
+  });
 }
 
 void ClientResourceRuntime::SetupRequire(ResourceInstance& instance) {

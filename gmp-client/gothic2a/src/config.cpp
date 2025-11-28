@@ -75,22 +75,6 @@ void Config::LoadConfigFromFile() {
     Nickname = nickname_opt->c_str();
   }
 
-  if (auto skin_opt = toml.GetValue<int>("skin_texture"); skin_opt) {
-    skintexture = *skin_opt;
-  }
-
-  if (auto face_opt = toml.GetValue<int>("face_texture"); face_opt) {
-    facetexture = *face_opt;
-  }
-
-  if (auto head_opt = toml.GetValue<int>("head_model"); head_opt) {
-    headmodel = *head_opt;
-  }
-
-  if (auto walk_opt = toml.GetValue<int>("walk_style"); walk_opt) {
-    walkstyle = *walk_opt;
-  }
-
   if (auto lang_opt = toml.GetValue<int>("language"); lang_opt) {
     lang = *lang_opt;
   }
@@ -158,10 +142,6 @@ void Config::LoadConfigFromFile() {
 
 void Config::DefaultSettings() {
   Nickname.Clear();
-  skintexture = 9;
-  facetexture = 18;
-  headmodel = 3;
-  walkstyle = 0;
   // 0 - polski, 1 - angielski
   lang = 0;
   logchat = false;
@@ -179,10 +159,6 @@ void Config::SaveConfigToFile() {
   TomlWrapper toml;
 
   toml["nickname"] = Nickname.string();
-  toml["skin_texture"] = skintexture;
-  toml["face_texture"] = facetexture;
-  toml["head_model"] = headmodel;
-  toml["walk_style"] = walkstyle;
   toml["language"] = lang;
   toml["log_chat"] = logchat;
   toml["watch_enabled"] = watch;

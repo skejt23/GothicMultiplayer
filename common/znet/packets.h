@@ -209,6 +209,9 @@ struct fmt::formatter<PlayerSpawnPacket> : ostream_formatter {};
 struct MessagePacket {
   std::uint8_t packet_type;
   std::string message;
+  std::uint8_t r{255};
+  std::uint8_t g{255};
+  std::uint8_t b{255};
   std::optional<std::uint32_t> sender;
   std::optional<std::uint32_t> recipient;
 };
@@ -217,13 +220,17 @@ template <typename S>
 void serialize(S& s, MessagePacket& packet) {
   s.value1b(packet.packet_type);
   s.text1b(packet.message, 1024);
+  s.value1b(packet.r);
+  s.value1b(packet.g);
+  s.value1b(packet.b);
   s.ext4b(packet.sender, bitsery::ext::StdOptional{});
   s.ext4b(packet.recipient, bitsery::ext::StdOptional{});
 }
 
 inline std::ostream& operator<<(std::ostream& os, const MessagePacket& packet) {
   os << "MessagePacket {"
-     << " packet_type: " << static_cast<int>(packet.packet_type) << ", message: " << packet.message;
+     << " packet_type: " << static_cast<int>(packet.packet_type) << ", message: " << packet.message
+     << ", color: (" << static_cast<int>(packet.r) << ", " << static_cast<int>(packet.g) << ", " << static_cast<int>(packet.b) << ")";
   if (packet.sender) {
     os << ", sender: " << *packet.sender;
   }
@@ -479,6 +486,8 @@ struct InitialInfoPacket {
   std::uint8_t packet_type;
   std::string map_name;
   std::uint32_t player_id;
+  std::string server_name;
+  std::uint16_t max_slots{0};
   std::string resource_token;
   std::string resource_base_path;
   std::vector<ClientResourceInfoEntry> client_resources;
@@ -489,6 +498,8 @@ void serialize(S& s, InitialInfoPacket& packet) {
   s.value1b(packet.packet_type);
   s.text1b(packet.map_name, 64);
   s.value4b(packet.player_id);
+  s.text1b(packet.server_name, 64);
+  s.value2b(packet.max_slots);
   s.text1b(packet.resource_token, 64);
   s.text1b(packet.resource_base_path, 64);
   s.container(packet.client_resources, 128);
@@ -497,6 +508,7 @@ void serialize(S& s, InitialInfoPacket& packet) {
 inline std::ostream& operator<<(std::ostream& os, const InitialInfoPacket& packet) {
   os << "InitialInfoPacket {"
      << " packet_type: " << static_cast<int>(packet.packet_type) << ", map_name: " << packet.map_name << ", player_id: " << packet.player_id
+     << ", server_name: " << packet.server_name << ", max_slots: " << packet.max_slots
      << ", resources: " << packet.client_resources.size() << " }";
   return os;
 }

@@ -33,6 +33,7 @@ SOFTWARE.
 #include <version.h>
 
 #include <array>
+#include <algorithm>
 #include <charconv>
 #include <chrono>
 #include <dylib.hpp>
@@ -78,6 +79,7 @@ using namespace Net;
 
 namespace {
 
+constexpr std::size_t kMaxWorldNameLength = 32;
 constexpr const char* kBanListFileName = "bans.json";
 constexpr std::string_view kFrame = "-========================================-";
 
@@ -157,6 +159,15 @@ std::optional<MasterServerEndpointInfo> ParseMasterServerEndpoint(std::string_vi
   return info;
 }
 
+std::string SanitizeWorldName(std::string world) {
+  if (world.size() > kMaxWorldNameLength) {
+    SPDLOG_WARN("World name '{}' is longer than {} characters and will be truncated", world, kMaxWorldNameLength);
+    world.resize(kMaxWorldNameLength);
+  }
+
+  return world;
+}
+
 std::unique_ptr<httplib::Client> CreateMasterServerClient(const MasterServerEndpointInfo& info) {
 #ifdef CPPHTTPLIB_OPENSSL_SUPPORT
   if (info.use_https) {
@@ -183,6 +194,24 @@ std::string SanitizeServerText(std::string text) {
     }
   }
   return text;
+}
+
+std::uint8_t ClampColorComponent(int value) {
+  return static_cast<std::uint8_t>(std::clamp(value, 0, 255));
+}
+
+MessagePacket CreateMessagePacket(std::optional<std::uint32_t> sender_id, std::optional<std::uint32_t> recipient_id,
+                                  std::uint8_t r, std::uint8_t g, std::uint8_t b, std::string text,
+                                  std::uint8_t packet_type = PT_MSG) {
+  MessagePacket packet{};
+  packet.packet_type = packet_type;
+  packet.message = SanitizeServerText(std::move(text));
+  packet.r = ClampColorComponent(static_cast<int>(r));
+  packet.g = ClampColorComponent(static_cast<int>(g));
+  packet.b = ClampColorComponent(static_cast<int>(b));
+  packet.sender = sender_id;
+  packet.recipient = recipient_id;
+  return packet;
 }
 
 void LogServerBanner() {
@@ -212,18 +241,6 @@ void SerializeAndSend(const Packet& packet, Net::PacketPriority priority, Net::P
   TContainer buffer;
   auto written_size = bitsery::quickSerialization<bitsery::OutputBufferAdapter<TContainer>>(buffer, packet);
   g_net_server->Send(buffer.data(), written_size, priority, reliable, channel, id);
-}
-
-DiscordActivityPacket MakeDiscordActivityPacket(const GameServer::DiscordActivityState& activity) {
-  DiscordActivityPacket packet;
-  packet.packet_type = PT_DISCORD_ACTIVITY;
-  packet.state = activity.state;
-  packet.details = activity.details;
-  packet.large_image_key = activity.large_image_key;
-  packet.large_image_text = activity.large_image_text;
-  packet.small_image_key = activity.small_image_key;
-  packet.small_image_text = activity.small_image_text;
-  return packet;
 }
 
 void LoadNetworkLibrary() {
@@ -263,9 +280,12 @@ GameServer::GameServer() {
   InitializeLogger(config_);
   LogServerBanner();
   config_.LogConfigValues();
+  server_world_ = SanitizeWorldName(config_.Get<std::string>("map"));
+  config_.Set<std::string>("map", server_world_);
   g_server = this;
 
   // Register server-side events.
+  EventManager::Instance().RegisterEvent(kEventOnPacketName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerConnectName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerDisconnectName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerMessageName);
@@ -508,9 +528,17 @@ void GameServer::ProcessRespawns() {
 }
 
 bool GameServer::HandlePacket(Net::ConnectionHandle connectionHandle, unsigned char* data, std::uint32_t size) {
-  Packet p{data, size, connectionHandle};
+  Packet p(data, size, connectionHandle);
 
   unsigned char packetIdentifier = GetPacketIdentifier(p);
+
+  if (packetIdentifier == PT_EXTENDED_4_SCRIPTS) {
+    if (auto player_id = player_manager_.GetPlayerId(connectionHandle)) {
+      Packet script_packet(p.data + 1, p.length > 0 ? p.length - 1 : 0, connectionHandle);
+      EventManager::Instance().TriggerEvent(kEventOnPacketName, OnPacketEvent{*player_id, script_packet});
+    }
+    return true;
+  }
   switch (packetIdentifier) {
     case ID_DISCONNECTION_NOTIFICATION: {
       auto player_opt = player_manager_.GetPlayerByConnection(p.id);
@@ -524,12 +552,18 @@ bool GameServer::HandlePacket(Net::ConnectionHandle connectionHandle, unsigned c
     case ID_NEW_INCOMING_CONNECTION: {
       // Add player to the manager
       PlayerId new_player_id = player_manager_.AddPlayer(p.id, "");
+      if (auto new_player = player_manager_.GetPlayer(new_player_id)) {
+        new_player->get().world = server_world_;
+        new_player->get().virtual_world = 0;
+      }
 
       // Send packet with initial information.
       InitialInfoPacket packet;
       packet.packet_type = PT_INITIAL_INFO;
-      packet.map_name = config_.Get<std::string>("map");
+      packet.map_name = server_world_;
       packet.player_id = new_player_id;
+      packet.server_name = GetHostname();
+      packet.max_slots = static_cast<std::uint16_t>(GetMaxSlots());
       packet.resource_token = resource_server_->IssueToken(p.id);
       packet.resource_base_path = "/public";
       packet.client_resources.reserve(client_resource_descriptors_.size());
@@ -793,11 +827,25 @@ void GameServer::HandleNormalMsg(Packet p) {
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
 
+  packet.message = SanitizeServerText(packet.message);
+  packet.r = 255;
+  packet.g = 255;
+  packet.b = 255;
+  
   if (!packet.message.empty() && packet.message.front() == '/') {
-    auto command = packet.message.substr(1);
-    if (!command.empty()) {
-      SPDLOG_INFO("{} issued command: {}", player.name, command);
-      EventManager::Instance().TriggerEvent(kEventOnPlayerCommandName, OnPlayerCommandEvent{player.player_id, std::move(command)});
+    auto command_line = packet.message.substr(1);
+    auto command_start = command_line.find_first_not_of(' ');
+    if (command_start != std::string::npos) {
+      command_line = command_line.substr(command_start);
+      auto space_pos = command_line.find(' ');
+      auto command = command_line.substr(0, space_pos);
+      if (!command.empty()) {
+        auto params_start = command_line.find_first_not_of(' ', space_pos);
+        std::string params = params_start == std::string::npos ? std::string{} : command_line.substr(params_start);
+        SPDLOG_INFO("{} issued command: /{} {}", player.name, command, params);
+        EventManager::Instance().TriggerEvent(kEventOnPlayerCommandName,
+                                             OnPlayerCommandEvent{player.player_id, command, params});
+      }
     }
     return;
   }
@@ -821,6 +869,11 @@ void GameServer::HandleWhisp(Packet p) {
   MessagePacket packet;
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
+
+  packet.message = SanitizeServerText(packet.message);
+  packet.r = 255;
+  packet.g = 255;
+  packet.b = 255;
 
   if (!packet.recipient.has_value()) {
     SPDLOG_ERROR("No recipient in whisper packet!");
@@ -1004,29 +1057,6 @@ void GameServer::SendGameInfo(Net::ConnectionHandle who) {
   SerializeAndSend(packet, MEDIUM_PRIORITY, RELIABLE, who, 9);
 }
 
-void GameServer::UpdateDiscordActivity(const DiscordActivityState& activity) {
-  discord_activity_ = activity;
-  discord_activity_initialized_ = true;
-
-  SPDLOG_INFO("Discord activity updated: state='{}', details='{}'", discord_activity_.state, discord_activity_.details);
-
-  auto packet = MakeDiscordActivityPacket(discord_activity_);
-  player_manager_.ForEachIngamePlayer([&](const Player& player) { SerializeAndSend(packet, LOW_PRIORITY, RELIABLE, player.connection); });
-}
-
-const GameServer::DiscordActivityState& GameServer::GetDiscordActivity() const {
-  return discord_activity_;
-}
-
-void GameServer::SendDiscordActivity(Net::ConnectionHandle handle) {
-  if (!discord_activity_initialized_) {
-    return;
-  }
-
-  auto packet = MakeDiscordActivityPacket(discord_activity_);
-  SerializeAndSend(packet, LOW_PRIORITY, RELIABLE, handle);
-}
-
 void GameServer::HandleMapNameReq(Packet p) {
 }
 
@@ -1046,16 +1076,69 @@ bool GameServer::IsPublic() {
   return (config_.Get<bool>("public")) ? true : false;
 }
 
-void GameServer::SendServerMessage(const std::string& message) {
-  if (message.empty()) {
+void GameServer::SendMessageToAll(std::uint8_t r, std::uint8_t g, std::uint8_t b, const std::string& text) {
+  if (text.empty()) {
     return;
   }
 
-  MessagePacket packet;
-  packet.packet_type = PT_SRVMSG;
-  packet.message = message;
+  auto packet = CreateMessagePacket(std::nullopt, std::nullopt, r, g, b, text);
+  player_manager_.ForEachIngamePlayer(
+      [&](const Player& player) { SerializeAndSend(packet, LOW_PRIORITY, RELIABLE_ORDERED, player.connection); });
+}
 
-  player_manager_.ForEachIngamePlayer([&](const Player& player) { SerializeAndSend(packet, MEDIUM_PRIORITY, RELIABLE, player.connection, 11); });
+void GameServer::SendMessageToPlayer(PlayerId player_id, std::uint8_t r, std::uint8_t g, std::uint8_t b,
+                                     const std::string& text) {
+  if (text.empty()) {
+    return;
+  }
+
+  auto target_player = player_manager_.GetPlayer(player_id);
+  if (!target_player.has_value() || !target_player->get().is_ingame) {
+    SPDLOG_WARN("Cannot send message to player {} because they are not connected", player_id);
+    return;
+  }
+
+  auto packet = CreateMessagePacket(std::nullopt, player_id, r, g, b, text);
+  SerializeAndSend(packet, LOW_PRIORITY, RELIABLE_ORDERED, target_player->get().connection);
+}
+
+void GameServer::SendPlayerMessageToAll(PlayerId sender_id, std::uint8_t r, std::uint8_t g, std::uint8_t b,
+                                        const std::string& text) {
+  if (text.empty()) {
+    return;
+  }
+
+  auto sender = player_manager_.GetPlayer(sender_id);
+  if (!sender.has_value() || !sender->get().is_ingame) {
+    SPDLOG_WARN("Cannot broadcast message from invalid sender {}", sender_id);
+    return;
+  }
+
+  auto packet = CreateMessagePacket(sender_id, std::nullopt, r, g, b, text);
+  player_manager_.ForEachIngamePlayer(
+      [&](const Player& player) { SerializeAndSend(packet, LOW_PRIORITY, RELIABLE_ORDERED, player.connection); });
+}
+
+void GameServer::SendPlayerMessageToPlayer(PlayerId sender_id, PlayerId receiver_id, std::uint8_t r, std::uint8_t g,
+                                           std::uint8_t b, const std::string& text) {
+  if (text.empty()) {
+    return;
+  }
+
+  auto sender = player_manager_.GetPlayer(sender_id);
+  if (!sender.has_value() || !sender->get().is_ingame) {
+    SPDLOG_WARN("Cannot send player message from invalid sender {}", sender_id);
+    return;
+  }
+
+  auto receiver = player_manager_.GetPlayer(receiver_id);
+  if (!receiver.has_value() || !receiver->get().is_ingame) {
+    SPDLOG_WARN("Cannot send player message to invalid receiver {}", receiver_id);
+    return;
+  }
+
+  auto packet = CreateMessagePacket(sender_id, receiver_id, r, g, b, text);
+  SerializeAndSend(packet, LOW_PRIORITY, RELIABLE_ORDERED, receiver->get().connection);
 }
 
 void GameServer::SendDeathInfo(PlayerId dead_player_id) {
@@ -1098,9 +1181,9 @@ void GameServer::BroadcastPlayerJoined(const Player& joining_player) {
   });
 }
 
-void GameServer::SendExistingPlayersPacket(const Player& target_player) {
+void GameServer::SendExistingPlayersPacket(Player& target_player) {
   std::vector<ExistingPlayerInfo> existing_players;
-  player_manager_.ForEachPlayer([&](const Player& existing_player) {
+  player_manager_.ForEachPlayer([&](Player& existing_player) {
     if (existing_player.player_id == target_player.player_id) {
       return;
     }
@@ -1109,6 +1192,9 @@ void GameServer::SendExistingPlayersPacket(const Player& target_player) {
     if (existing_player.name.empty()) {
       return;
     }
+
+    target_player.spawned_players.insert(existing_player.player_id);
+    existing_player.streamed_by_players.insert(target_player.player_id);
 
     ExistingPlayerInfo player_packet;
     player_packet.player_id = existing_player.player_id;
@@ -1177,14 +1263,16 @@ bool GameServer::SpawnPlayer(PlayerId player_id, std::optional<glm::vec3> positi
 
   SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE, player.connection);
 
-  player_manager_.ForEachIngamePlayer([&](const Player& existing_player) {
+  player_manager_.ForEachIngamePlayer([&](Player& existing_player) {
     if (existing_player.player_id == player.player_id) {
       return;
     }
+
+    existing_player.spawned_players.insert(player.player_id);
+    player.streamed_by_players.insert(existing_player.player_id);
+
     SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE, existing_player.connection);
   });
-
-  SendDiscordActivity(player.connection);
 
   if (was_dead) {
     EventManager::Instance().TriggerEvent(kEventOnPlayerRespawnName, OnPlayerRespawnEvent{player.player_id, player.state.position});
@@ -1192,6 +1280,146 @@ bool GameServer::SpawnPlayer(PlayerId player_id, std::optional<glm::vec3> positi
 
   EventManager::Instance().TriggerEvent(kEventOnPlayerSpawnName, OnPlayerSpawnEvent{player.player_id, player.state.position});
   return true;
+}
+
+bool GameServer::SetPlayerPosition(PlayerId player_id, const glm::vec3& position) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("setPlayerPosition called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  player.state.position = position;
+
+  PlayerPositionUpdatePacket packet{};
+  packet.packet_type = PT_MAP_ONLY;
+  packet.player_id = player.player_id;
+  packet.position = position;
+
+  player_manager_.ForEachIngamePlayer([&](const Player& existing_player) {
+    SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE, existing_player.connection);
+  });
+
+  return true;
+}
+
+std::optional<glm::vec3> GameServer::GetPlayerPosition(PlayerId player_id) const {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    return std::nullopt;
+  }
+
+  const auto& player = player_opt->get();
+  return player.state.position;
+}
+
+std::string GameServer::GetHostname() const {
+  return config_.Get<std::string>("name");
+}
+
+std::uint32_t GameServer::GetMaxSlots() const {
+  return static_cast<std::uint32_t>(config_.Get<std::int32_t>("slots"));
+}
+
+bool GameServer::SetServerWorld(const std::string& world) {
+  auto sanitized_world = SanitizeWorldName(world);
+  server_world_ = sanitized_world;
+  config_.Set<std::string>("map", sanitized_world);
+  return true;
+}
+
+std::string GameServer::GetServerWorld() const {
+  return server_world_;
+}
+
+std::vector<GameServer::PlayerId> GameServer::FindNearbyPlayers(const glm::vec3& position, float radius,
+                                                                const std::string& world,
+                                                                std::int32_t virtual_world) const {
+  std::vector<PlayerId> nearby_players;
+  if (radius < 0.0f) {
+    return nearby_players;
+  }
+
+  const auto sanitized_world = SanitizeWorldName(world);
+  const float radius_squared = radius * radius;
+  nearby_players.reserve(player_manager_.GetPlayerCount());
+
+  player_manager_.ForEachIngamePlayer([&](const Player& player) {
+    if (!sanitized_world.empty() && player.world != sanitized_world) {
+      return;
+    }
+
+    if (player.virtual_world != virtual_world) {
+      return;
+    }
+
+    const auto delta = player.state.position - position;
+    if (glm::dot(delta, delta) <= radius_squared) {
+      nearby_players.push_back(player.player_id);
+    }
+  });
+
+  return nearby_players;
+}
+
+std::vector<GameServer::PlayerId> GameServer::GetSpawnedPlayersForPlayer(PlayerId player_id) const {
+  std::vector<PlayerId> spawned_players;
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value() || !player_opt->get().is_ingame) {
+    return spawned_players;
+  }
+
+  const auto& player = player_opt->get();
+  spawned_players.reserve(player.spawned_players.size());
+  spawned_players.insert(spawned_players.end(), player.spawned_players.begin(), player.spawned_players.end());
+
+  return spawned_players;
+}
+
+std::vector<GameServer::PlayerId> GameServer::GetStreamedPlayersByPlayer(PlayerId player_id) const {
+  std::vector<PlayerId> streaming_players;
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value() || !player_opt->get().is_ingame) {
+    return streaming_players;
+  }
+
+  const auto& player = player_opt->get();
+  streaming_players.reserve(player.streamed_by_players.size());
+  streaming_players.insert(streaming_players.end(), player.streamed_by_players.begin(),
+                           player.streamed_by_players.end());
+
+  return streaming_players;
+}
+
+bool GameServer::SetTime(std::int32_t hour, std::int32_t min, std::int32_t day) {
+  if (!clock_) {
+    return false;
+  }
+
+  if (hour < 0 || hour > 23 || min < 0 || min > 59 || day < 0) {
+    SPDLOG_WARN("setTime called with invalid parameters: day={}, hour={}, min={}", day, hour, min);
+    return false;
+  }
+
+  auto current_time = clock_->GetTime();
+  GothicClock::Time new_time{static_cast<std::uint16_t>(day == 0 ? current_time.day_ : day),
+                             static_cast<std::uint8_t>(hour), static_cast<std::uint8_t>(min)};
+  clock_->UpdateTime(new_time);
+
+  EventManager::Instance().TriggerEvent(kEventOnGameTimeName,
+                                        OnGameTimeEvent{new_time.day_, new_time.hour_, new_time.min_});
+
+  player_manager_.ForEachIngamePlayer([&](const Player& player) { SendGameInfo(player.connection); });
+  return true;
+}
+
+GothicClock::Time GameServer::GetTime() const {
+  if (!clock_) {
+    return GothicClock::Time{};
+  }
+
+  return clock_->GetTime();
 }
 
 std::uint32_t GameServer::GetPort() const {

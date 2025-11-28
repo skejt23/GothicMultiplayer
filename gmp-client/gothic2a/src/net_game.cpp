@@ -41,7 +41,10 @@ SOFTWARE.
 #include <list>
 #include <sstream>
 #include <string>
+#include <optional>
 #include <vector>
+
+#include "sol/sol.hpp"
 
 #include "CChat.h"
 #include "CIngame.h"
@@ -55,6 +58,7 @@ SOFTWARE.
 #include "patch.h"
 #include "player_name_utils.hpp"
 #include "scripting/gothic_bindings.h"
+#include "client_resources/process_input.h"
 #include "shared/event.h"
 #include "client_resources/client_events.h"
 
@@ -69,6 +73,7 @@ NetGame::NetGame() : task_scheduler(nullptr), game_client(nullptr), resource_run
   task_scheduler = std::make_unique<gmp::GothicTaskScheduler>();
   game_client = std::make_unique<gmp::client::GameClient>(*this, *task_scheduler);
   resource_runtime = std::make_unique<ClientResourceRuntime>();
+  resource_runtime->SetServerInfoProvider(*game_client);
   gmp::gothic::BindGothicSpecific(resource_runtime->GetLuaState());
 }
 
@@ -79,6 +84,9 @@ void __stdcall NetGame::ProcessTaskScheduler() {
   }
   if (instance.resource_runtime) {
     instance.resource_runtime->ProcessTimers();
+  }
+  if (zinput) {
+    gmp::gothic::ProcessInput(zinput);
   }
   EventManager::Instance().TriggerEvent(gmp::client::kEventOnRenderName, 0);
 }
@@ -131,8 +139,7 @@ void NetGame::JoinGame() {
     player->name[0] = sanitized_name.c_str();
 
     // Call the new GameClient JoinGame method
-    game_client->JoinGame(sanitized_name, sanitized_name, Config::Instance().headmodel, Config::Instance().skintexture,
-                          Config::Instance().facetexture, Config::Instance().walkstyle);
+    game_client->JoinGame(sanitized_name, sanitized_name, 0, 0, 0, 0);
 
     // Set up the local player now that we have the player ID from the server
     CIngame* g = new CIngame();
@@ -144,6 +151,9 @@ void NetGame::JoinGame() {
     // LocalPlayer->npc->SetMovLock(0);
     // this->players.push_back(LocalPlayer);
     // this->HeroLastHp = player->attribute[NPC_ATR_HITPOINTS];
+
+    
+    EventManager::Instance().TriggerEvent(gmp::client::kEventOnInitName, 0);
   }
 }
 
@@ -264,6 +274,8 @@ void NetGame::Disconnect() {
   }
 
   if (resource_runtime) {
+    EventManager::Instance().TriggerEvent(gmp::client::kEventOnExitName, 0);
+    gmp::gothic::CleanupGothicViews();
     resource_runtime->UnloadResources();
   }
 }
@@ -290,6 +302,8 @@ void NetGame::OnDisconnected() {
   SPDLOG_INFO("Disconnected from server");
   IsReadyToJoin = false;
   if (resource_runtime) {
+    EventManager::Instance().TriggerEvent(gmp::client::kEventOnExitName, 0);
+    gmp::gothic::CleanupGothicViews();
     resource_runtime->UnloadResources();
   }
 }
@@ -342,6 +356,12 @@ void NetGame::OnResourcesReady() {
 
   SPDLOG_INFO("Loading {} resource payload(s) into runtime", payloads.size());
   std::string error_message;
+  if (game_client->player_manager().HasLocalPlayer()) {
+    resource_runtime->GetLuaState()["heroId"] =
+        static_cast<int>(game_client->player_manager().GetLocalPlayer().id());
+  } else {
+    resource_runtime->GetLuaState()["heroId"] = sol::lua_nil;
+  }
   if (!resource_runtime->LoadResources(std::move(payloads), error_message)) {
     if (error_message.empty()) {
       error_message = "Failed to initialize client resources";
@@ -390,6 +410,8 @@ void NetGame::OnLocalPlayerSpawned(gmp::client::Player& player) {
   SPDLOG_INFO("Local player spawned at position ({}, {}, {})", player.position().x, player.position().y, player.position().z);
   local_player->SetPosition(pos);
   players.insert(players.begin(), local_player);
+  EventManager::Instance().TriggerEvent(gmp::client::kEventOnPlayerCreateName,
+                                        gmp::client::PlayerLifecycleEvent{player.id()});
 }
 
 void NetGame::OnPlayerJoined(gmp::client::Player& new_player) {
@@ -410,12 +432,7 @@ void NetGame::SpawnRemotePlayer(gmp::client::Player& new_player) {
   newhero->base_player().set_hp(static_cast<short>(newhero->GetHealth()));
   newhero->SetPosition(pos);
   newhero->SetName(new_player.name().c_str());
-  if (newhero->Type == Gothic2APlayer::NPC_HUMAN) {
-    newhero->SetAppearance(new_player.head_model(), new_player.skin_texture(), new_player.face_texture());
-  }
-  if (newhero->Type > Gothic2APlayer::NPC_DRACONIAN || newhero->Type == Gothic2APlayer::NPC_HUMAN) {
-    newhero->npc->ApplyOverlay(Gothic2APlayer::GetWalkStyleFromByte(new_player.walk_style()));
-  }
+  (void)new_player;
 
   CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(0, 255, 0, 255), "%s%s", new_player.name().c_str(),
                                      Language::Instance()[Language::SOMEONE_JOIN_GAME].ToChar());
@@ -430,6 +447,8 @@ void NetGame::OnPlayerLeft(std::uint64_t player_id, const std::string& player_na
       CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(255, 0, 0, 255), "%s%s", this->players[i]->GetName(),
                                          Language::Instance()[Language::SOMEONEDISCONNECT_FROM_SERVER].ToChar());
       this->players[i]->LeaveGame();
+      EventManager::Instance().TriggerEvent(gmp::client::kEventOnPlayerDestroyName,
+                                            gmp::client::PlayerLifecycleEvent{player_id});
       delete this->players[i];
       this->players.erase(this->players.begin() + i);
       break;
@@ -754,10 +773,10 @@ void NetGame::OnPlayerStateUpdate(std::uint64_t player_id, const PlayerState& st
   }
 }
 
-void NetGame::OnPlayerPositionUpdate(std::uint64_t player_id, float x, float z) {
+void NetGame::OnPlayerPositionUpdate(std::uint64_t player_id, float x, float y, float z) {
   Gothic2APlayer* cplayer = GetPlayerById(player_id);
   if (cplayer) {
-    cplayer->npc->trafoObjToWorld.SetTranslation(zVEC3(x, cplayer->npc->GetPositionWorld()[VY], z));
+    cplayer->npc->trafoObjToWorld.SetTranslation(zVEC3(x, y, z));
     cplayer->DisablePlayer();
   }
 }
@@ -836,23 +855,29 @@ void NetGame::OnSpellCastOnTarget(std::uint64_t caster_id, std::uint64_t target_
   }
 }
 
-void NetGame::OnChatMessage(std::uint64_t sender_id, const std::string& sender_name, const std::string& message) {
-  Gothic2APlayer* sender = GetPlayerById(sender_id);
-  if (sender) {
-    SPDLOG_INFO("Message from player: {} ({}): {}", sender->npc->GetName().ToChar(), sender->GetName(), message);
-    CChat::GetInstance()->WriteMessage(NORMAL, false, "%s: %s", sender->npc->GetName().ToChar(), message.c_str());
+void NetGame::OnPlayerMessage(std::optional<std::uint64_t> sender_id, std::uint8_t r, std::uint8_t g, std::uint8_t b,
+                              const std::string& message) {
+  zCOLOR color(r, g, b, 255);
+
+  if (sender_id) {
+    Gothic2APlayer* sender = GetPlayerById(*sender_id);
+    if (sender) {
+      SPDLOG_INFO("Message from player: {} ({}): {}", sender->npc->GetName().ToChar(), sender->GetName(), message);
+      CChat::GetInstance()->WriteMessage(NORMAL, false, color, "%s", message.c_str());
+    }
+  } else {
+    CChat::GetInstance()->WriteMessage(NORMAL, false, color, "%s", message.c_str());
   }
+
+  EventManager::Instance().TriggerEvent(gmp::client::kEventOnPlayerMessageName,
+                                        gmp::client::OnPlayerMessageEvent{sender_id, r, g, b, message});
 }
 
 void NetGame::OnWhisperReceived(std::uint64_t sender_id, const std::string& sender_name, const std::string& message) {
   Gothic2APlayer* sender = GetPlayerById(sender_id);
   if (sender) {
-    CChat::GetInstance()->WriteMessage(WHISPER, true, zCOLOR(0, 255, 255, 255), "%s-> %s", sender->npc->GetName().ToChar(), message.c_str());
+    CChat::GetInstance()->WriteMessage(WHISPER, true, zCOLOR(0, 255, 255, 255), "%s -> %s", sender->npc->GetName().ToChar(), message.c_str());
   }
-}
-
-void NetGame::OnServerMessage(const std::string& message) {
-  CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(255, 128, 0, 255), "(SERVER): %s", message.c_str());
 }
 
 void NetGame::OnRconResponse(const std::string& response, bool is_admin) {
@@ -866,4 +891,8 @@ void NetGame::OnDiscordActivityUpdate(const std::string& state, const std::strin
                                       const std::string& large_image_text, const std::string& small_image_key, const std::string& small_image_text) {
   SPDLOG_DEBUG("Discord activity update: {} - {}", state, details);
   DiscordRichPresence::Instance().UpdateActivity(state, details, 0, 0, large_image_key, large_image_text, small_image_key, small_image_text);
+}
+
+void NetGame::OnPacket(const gmp::client::Packet& packet) {
+  EventManager::Instance().TriggerEvent(gmp::client::kEventOnPacketName, gmp::client::OnPacketEvent{packet});
 }

@@ -23,15 +23,24 @@ SOFTWARE.
 
 #include "function_bind.h"
 
+#include <algorithm>
+#include <optional>
+#include <vector>
 #include <glm/glm.hpp>
+#include <optional>
 
-#include "function_helpers.cpp"
 #include "game_server.h"
+#include "packet.h"
+#include "shared/lua_runtime/shared_bind.h"
 #include "shared/lua_runtime/timer_manager.h"
 
 using namespace std;
 
 namespace {
+
+std::uint8_t ClampColorComponent(int value) {
+  return static_cast<std::uint8_t>(std::clamp(value, 0, 255));
+}
 
 std::optional<float> GetOptionalFloat(const sol::table& table, const char* lowerKey, const char* upperKey) {
   if (auto value = table.get<sol::optional<float>>(lowerKey); value) {
@@ -81,6 +90,18 @@ std::optional<glm::vec3> ParseSpawnPosition(sol::variadic_args args) {
   return std::nullopt;
 }
 
+std::optional<glm::vec3> Function_ParsePositionTable(const sol::table& table) {
+  auto x = GetOptionalFloat(table, "x", "X");
+  auto y = GetOptionalFloat(table, "y", "Y");
+  auto z = GetOptionalFloat(table, "z", "Z");
+  if (x && y && z) {
+    return glm::vec3(*x, *y, *z);
+  }
+
+  SPDLOG_WARN("Position table must contain x, y, z fields");
+  return std::nullopt;
+}
+
 }  // namespace
 
 // Functions
@@ -94,73 +115,47 @@ int Function_Log(std::string name, std::string text) {
   return 0;
 }
 
-void Function_SetDiscordActivity(const sol::table& params) {
+
+bool Function_SendMessageToAll(int r, int g, int b, const std::string& text) {
   if (!g_server) {
-    SPDLOG_WARN("Cannot update Discord activity before the server is initialized");
-    return;
+    SPDLOG_WARN("Cannot send message before the server is initialized");
+    return false;
   }
 
-  auto activity = g_server->GetDiscordActivity();
-
-  if (auto state = GetOptionalString(params, "state", "State")) {
-    activity.state = *state;
-  }
-  if (auto details = GetOptionalString(params, "details", "Details")) {
-    activity.details = *details;
-  }
-  if (auto largeImageKey = GetOptionalString(params, "largeImageKey", "LargeImageKey")) {
-    activity.large_image_key = *largeImageKey;
-  }
-  if (auto largeImageText = GetOptionalString(params, "largeImageText", "LargeImageText")) {
-    activity.large_image_text = *largeImageText;
-  }
-  if (auto smallImageKey = GetOptionalString(params, "smallImageKey", "SmallImageKey")) {
-    activity.small_image_key = *smallImageKey;
-  }
-  if (auto smallImageText = GetOptionalString(params, "smallImageText", "SmallImageText")) {
-    activity.small_image_text = *smallImageText;
-  }
-
-  g_server->UpdateDiscordActivity(activity);
+  g_server->SendMessageToAll(ClampColorComponent(r), ClampColorComponent(g), ClampColorComponent(b), text);
+  return true;
 }
 
-void Function_SendServerMessage(const std::string& message) {
+bool Function_SendMessageToPlayer(std::uint32_t player_id, int r, int g, int b, const std::string& text) {
   if (!g_server) {
-    SPDLOG_WARN("Cannot send server message before the server is initialized");
-    return;
+    SPDLOG_WARN("Cannot send message before the server is initialized");
+    return false;
   }
 
-  g_server->SendServerMessage(message);
+  g_server->SendMessageToPlayer(player_id, ClampColorComponent(r), ClampColorComponent(g), ClampColorComponent(b), text);
+  return true;
 }
 
-std::string Function_HashMd5(const std::string& input) {
-  unsigned char digest[MD5_DIGEST_LENGTH];
-  MD5(reinterpret_cast<const unsigned char*>(input.data()), input.size(), digest);
-  return BytesToHex(digest, MD5_DIGEST_LENGTH);
+bool Function_SendPlayerMessageToAll(std::uint32_t sender_id, int r, int g, int b, const std::string& text) {
+  if (!g_server) {
+    SPDLOG_WARN("Cannot send player message before the server is initialized");
+    return false;
+  }
+
+  g_server->SendPlayerMessageToAll(sender_id, ClampColorComponent(r), ClampColorComponent(g), ClampColorComponent(b), text);
+  return true;
 }
 
-std::string Function_HashSha1(const std::string& input) {
-  unsigned char digest[SHA_DIGEST_LENGTH];
-  SHA1(reinterpret_cast<const unsigned char*>(input.data()), input.size(), digest);
-  return BytesToHex(digest, SHA_DIGEST_LENGTH);
-}
+bool Function_SendPlayerMessageToPlayer(std::uint32_t sender_id, std::uint32_t receiver_id, int r, int g, int b,
+                                        const std::string& text) {
+  if (!g_server) {
+    SPDLOG_WARN("Cannot send player message before the server is initialized");
+    return false;
+  }
 
-std::string Function_HashSha256(const std::string& input) {
-  unsigned char digest[SHA256_DIGEST_LENGTH];
-  SHA256(reinterpret_cast<const unsigned char*>(input.data()), input.size(), digest);
-  return BytesToHex(digest, SHA256_DIGEST_LENGTH);
-}
-
-std::string Function_HashSha384(const std::string& input) {
-  unsigned char digest[SHA384_DIGEST_LENGTH];
-  SHA384(reinterpret_cast<const unsigned char*>(input.data()), input.size(), digest);
-  return BytesToHex(digest, SHA384_DIGEST_LENGTH);
-}
-
-std::string Function_HashSha512(const std::string& input) {
-  unsigned char digest[SHA512_DIGEST_LENGTH];
-  SHA512(reinterpret_cast<const unsigned char*>(input.data()), input.size(), digest);
-  return BytesToHex(digest, SHA512_DIGEST_LENGTH);
+  g_server->SendPlayerMessageToPlayer(sender_id, receiver_id, ClampColorComponent(r), ClampColorComponent(g),
+                                      ClampColorComponent(b), text);
+  return true;
 }
 
 bool Function_SpawnPlayer(std::uint32_t player_id, sol::variadic_args args) {
@@ -173,17 +168,165 @@ bool Function_SpawnPlayer(std::uint32_t player_id, sol::variadic_args args) {
   return g_server->SpawnPlayer(player_id, position_override);
 }
 
+bool Function_SetPlayerPosition(std::uint32_t player_id, float x, float y, float z) {
+  if (!g_server) {
+    SPDLOG_WARN("Cannot set player position before the server is initialized");
+    return false;
+  }
+
+  return g_server->SetPlayerPosition(player_id, glm::vec3{x, y, z});
+}
+
+sol::object Function_GetPlayerPosition(std::uint32_t player_id, sol::this_state ts) {
+  if (!g_server) {
+    SPDLOG_WARN("Cannot get player position before the server is initialized");
+    return sol::nil;
+  }
+
+  auto position = g_server->GetPlayerPosition(player_id);
+  if (!position.has_value()) {
+    return sol::nil;
+  }
+
+  sol::state_view lua(ts);
+  sol::table position_table = lua.create_table();
+  position_table["x"] = position->x;
+  position_table["y"] = position->y;
+  position_table["z"] = position->z;
+  return position_table;
+}
+
+void Function_SetServerWorld(const std::string& world) {
+  if (!g_server) {
+    SPDLOG_WARN("Cannot set server world before the server is initialized");
+    return;
+  }
+
+  g_server->SetServerWorld(world);
+}
+
+std::string Function_GetServerWorld() {
+  if (!g_server) {
+    SPDLOG_WARN("Cannot get server world before the server is initialized");
+    return std::string{};
+  }
+
+  return g_server->GetServerWorld();
+}
+
+std::vector<std::uint32_t> Function_FindNearbyPlayers(const sol::table& position_table, int radius,
+                                                      const std::string& world, sol::optional<int> virtual_world) {
+  if (!g_server) {
+    SPDLOG_WARN("Cannot find players before the server is initialized");
+    return {};
+  }
+
+  auto position = Function_ParsePositionTable(position_table);
+  if (!position.has_value()) {
+    return {};
+  }
+
+  return g_server->FindNearbyPlayers(*position, static_cast<float>(radius), world, virtual_world.value_or(0));
+}
+
+std::vector<std::uint32_t> Function_GetSpawnedPlayersForPlayer(std::uint32_t player_id) {
+  if (!g_server) {
+    SPDLOG_WARN("Cannot get spawned players before the server is initialized");
+    return {};
+  }
+
+  return g_server->GetSpawnedPlayersForPlayer(player_id);
+}
+
+std::vector<std::uint32_t> Function_GetStreamedPlayersByPlayer(std::uint32_t player_id) {
+  if (!g_server) {
+    SPDLOG_WARN("Cannot get streamed players before the server is initialized");
+    return {};
+  }
+
+  return g_server->GetStreamedPlayersByPlayer(player_id);
+}
+
+bool Function_SetTime(int hour, int min, sol::optional<int> day) {
+  if (!g_server) {
+    SPDLOG_WARN("Cannot set time before the server is initialized");
+    return false;
+  }
+
+  return g_server->SetTime(hour, min, day.value_or(0));
+}
+
+sol::object Function_GetTime(sol::this_state ts) {
+  if (!g_server) {
+    SPDLOG_WARN("Cannot get time before the server is initialized");
+    return sol::nil;
+  }
+
+  auto time = g_server->GetTime();
+  sol::state_view lua(ts);
+  sol::table time_table = lua.create_table();
+  time_table["day"] = time.day_;
+  time_table["hour"] = time.hour_;
+  time_table["min"] = time.min_;
+  return time_table;
+}
+
 // Register Functions
 void lua::bindings::BindFunctions(sol::state& lua, TimerManager& timer_manager) {
-  lua["Log"] = Function_Log;
+  SetServerInfoProvider({
+      [] { return g_server ? g_server->GetHostname() : std::string{}; },
+      [] { return g_server ? static_cast<int>(g_server->GetMaxSlots()) : 0; },
+      [] {
+        if (!g_server) {
+          return std::vector<int>{};
+        }
 
-  lua["SetDiscordActivity"] = Function_SetDiscordActivity;
-  lua["SendServerMessage"] = Function_SendServerMessage;
+        std::vector<int> players;
+        g_server->GetPlayerManager().ForEachIngamePlayer(
+            [&players](const PlayerManager::Player& player) { players.push_back(player.player_id); });
+        return players;
+      },
+      [] {
+        if (!g_server) {
+          return 0;
+        }
+
+        std::uint32_t count = 0;
+        g_server->GetPlayerManager().ForEachIngamePlayer([&count](const PlayerManager::Player&) { ++count; });
+        return static_cast<int>(count);
+      },
+  });
+  lua["Log"] = Function_Log;
+  lua.new_usertype<Packet>("Packet", sol::constructors<Packet()>(), "reset", &Packet::reset, 
+                           "send", &Packet::send, "sendToAll", &Packet::sendToAll, 
+                           "writeBool", &Packet::writeBool, "writeInt8", &Packet::writeInt8,
+                           "writeUInt8", &Packet::writeUInt8, "writeInt16", &Packet::writeInt16, 
+                           "writeUInt16", &Packet::writeUInt16, "writeInt32", &Packet::writeInt32, 
+                           "writeUInt32", &Packet::writeUInt32, "writeFloat", &Packet::writeFloat,
+                           "writeString", &Packet::writeString, "writeBlob", &Packet::writeBlob, 
+                           "readBool", &Packet::readBool, "readInt8", &Packet::readInt8, 
+                           "readUInt8", &Packet::readUInt8, "readInt16", &Packet::readInt16,
+                           "readUInt16", &Packet::readUInt16, "readInt32", &Packet::readInt32, 
+                           "readUInt32", &Packet::readUInt32, "readFloat", &Packet::readFloat, 
+                           "readString", &Packet::readString, "readBlob", &Packet::readBlob);
+
+  lua["sendMessageToAll"] = Function_SendMessageToAll;
+  lua["sendMessageToPlayer"] = Function_SendMessageToPlayer;
+  lua["sendPlayerMessageToAll"] = Function_SendPlayerMessageToAll;
+  lua["sendPlayerMessageToPlayer"] = Function_SendPlayerMessageToPlayer;
+
   lua["spawnPlayer"] = Function_SpawnPlayer;
 
-  lua["md5"] = Function_HashMd5;
-  lua["sha1"] = Function_HashSha1;
-  lua["sha256"] = Function_HashSha256;
-  lua["sha384"] = Function_HashSha384;
-  lua["sha512"] = Function_HashSha512;
+  lua["setPlayerPosition"] = Function_SetPlayerPosition;
+  lua["getPlayerPosition"] = Function_GetPlayerPosition;
+
+  lua["setServerWorld"] = Function_SetServerWorld;
+  lua["getServerWorld"] = Function_GetServerWorld;
+  
+  lua["findNearbyPlayers"] = Function_FindNearbyPlayers;
+  lua["getSpawnedPlayersForPlayer"] = Function_GetSpawnedPlayersForPlayer;
+  lua["getStreamedPlayersByPlayer"] = Function_GetStreamedPlayersByPlayer;
+
+  lua["setTime"] = Function_SetTime;
+  lua["getTime"] = Function_GetTime;
 }
