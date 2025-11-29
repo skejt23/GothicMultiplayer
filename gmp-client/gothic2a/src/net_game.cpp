@@ -47,6 +47,7 @@ SOFTWARE.
 #include "CIngame.h"
 #include "Interface.h"
 #include "ZenGin/zGothicAPI.h"
+#include "client_resources/client_events.h"
 #include "config.h"
 #include "discord_presence.h"
 #include "language.h"
@@ -56,7 +57,6 @@ SOFTWARE.
 #include "player_name_utils.hpp"
 #include "scripting/gothic_bindings.h"
 #include "shared/event.h"
-#include "client_resources/client_events.h"
 
 const char* LANG_DIR = ".\\Multiplayer\\Localization\\";
 
@@ -390,6 +390,22 @@ void NetGame::OnLocalPlayerSpawned(gmp::client::Player& player) {
   SPDLOG_INFO("Local player spawned at position ({}, {}, {})", player.position().x, player.position().y, player.position().z);
   local_player->SetPosition(pos);
   players.insert(players.begin(), local_player);
+
+#ifndef NDEBUG
+  // Spawn Quarhodron NPC near the player
+  int npcIndex = zCParser::GetParser()->GetIndex("NONE_ADDON_111_QUARHODRON");
+  if (npcIndex > 0) {
+    oCNpc* quarhodron = zfactory->CreateNpc(npcIndex);
+    if (quarhodron) {
+      zVEC3 npcPos(pos[VX] + 200.0f, pos[VY], pos[VZ] + 200.0f);
+      quarhodron->SetPositionWorld(npcPos);
+      ogame->GetGameWorld()->AddVob(quarhodron);
+      SPDLOG_INFO("Spawned Quarhodron NPC near local player at ({}, {}, {})", npcPos[VX], npcPos[VY], npcPos[VZ]);
+    }
+  } else {
+    SPDLOG_WARN("Could not find NPC instance NONE_ADDON_111_QUARHODRON");
+  }
+#endif
 }
 
 void NetGame::OnPlayerJoined(gmp::client::Player& new_player) {

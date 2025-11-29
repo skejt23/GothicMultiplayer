@@ -117,8 +117,8 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
     try {
       ExternalConsoleWindow::Init();
       spdlog::default_logger()->sinks().push_back(std::make_shared<spdlog::sinks::basic_file_sink_mt>("GMP_Log.txt", false));
-      spdlog::flush_on(spdlog::level::debug);
-      spdlog::set_level(spdlog::level::debug);
+      spdlog::flush_on(spdlog::level::info);
+      spdlog::set_level(spdlog::level::info);
 
       gmp::client::LoadNetworkLibrary();
 
