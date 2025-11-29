@@ -4,6 +4,8 @@
 #ifndef __ZMODEL_H__VER3__
 #define __ZMODEL_H__VER3__
 
+#include <cstdint>
+
 #include "zVisual.h"
 #include "zProgMesh.h"
 #include "zResource.h"
@@ -219,13 +221,13 @@ namespace Gothic_II_Addon {
       int numAniEvents      : 6;      // sizeof 06h    offset bit
     };
     struct {
-      byte flagVobRot      : 1;       // sizeof 01h    offset bit
-      byte flagVobPos      : 1;       // sizeof 01h    offset bit
-      byte flagEndSync     : 1;       // sizeof 01h    offset bit
-      byte flagFly         : 1;       // sizeof 01h    offset bit
-      byte flagIdle        : 1;       // sizeof 01h    offset bit
-      byte flagInPlace     : 1;       // sizeof 01h    offset bit
-      byte flagStaticCycle : 1;       // sizeof 01h    offset bit
+      std::uint8_t flagVobRot      : 1;       // sizeof 01h    offset bit
+      std::uint8_t flagVobPos      : 1;       // sizeof 01h    offset bit
+      std::uint8_t flagEndSync     : 1;       // sizeof 01h    offset bit
+      std::uint8_t flagFly         : 1;       // sizeof 01h    offset bit
+      std::uint8_t flagIdle        : 1;       // sizeof 01h    offset bit
+      std::uint8_t flagInPlace     : 1;       // sizeof 01h    offset bit
+      std::uint8_t flagStaticCycle : 1;       // sizeof 01h    offset bit
 	  }
     aniFlags;                         // sizeof 01h    offset E0h
 
