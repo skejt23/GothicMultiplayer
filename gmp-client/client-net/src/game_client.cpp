@@ -41,7 +41,6 @@ SOFTWARE.
 
 #include "net_enums.h"
 #include "packets.h"
-#include "packet.h"
 #include "shared/crypto_utils.h"
 #include "znet_client.h"
 
@@ -234,20 +233,12 @@ std::vector<GameClient::ResourcePayload> GameClient::ConsumeDownloadedResources(
 
 bool GameClient::HandlePacket(unsigned char* data, std::uint32_t size) {
   try {
-    Packet packet(data, size);
-
-    if (packet.length > 0 && packet.data[0] == Net::PT_EXTENDED_4_SCRIPTS) {
-      Packet script_packet(packet.data + 1, packet.length > 0 ? packet.length - 1 : 0);
-      event_observer_.OnPacket(script_packet);
-      return true;
-    }
-
-    SPDLOG_TRACE("Received packet: {}", static_cast<int>(packet.data[0]));
-    auto it = packet_handlers_.find(static_cast<int>(packet.data[0]));
+    SPDLOG_TRACE("Received packet: {}", (int)data[0]);
+    auto it = packet_handlers_.find((int)data[0]);
     if (it != packet_handlers_.end()) {
-      it->second(packet);
+      it->second(Packet{data, size});
     } else {
-      SPDLOG_WARN("No handler for packet type: {}", static_cast<int>(packet.data[0]));
+      SPDLOG_WARN("No handler for packet type: {}", (int)data[0]);
     }
   } catch (std::exception& ex) {
     SPDLOG_ERROR("Exception thrown while handling packet: {}", ex.what());

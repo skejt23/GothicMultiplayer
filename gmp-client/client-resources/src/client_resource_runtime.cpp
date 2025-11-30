@@ -1,5 +1,5 @@
 #include "client_resources/client_resource_runtime.h"
-#include "client_resources/event_bind.h"
+
 #include "shared/lua_runtime/shared_bind.h"
 
 #include <fmt/format.h>
@@ -87,7 +87,9 @@ void ClientResourceRuntime::UnloadResources() {
   }
 
   script_.GetTimerManager().Clear();
-  gmp::client::lua::bindings::ResetEvents();
+  if (reset_callback_) {
+    reset_callback_();
+  }
 }
 
 void ClientResourceRuntime::ProcessTimers() {

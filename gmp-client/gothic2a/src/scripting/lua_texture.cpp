@@ -10,13 +10,15 @@ using namespace Gothic_II_Addon;
 namespace gmp::gothic {
 
 class LuaTextureView : public zCView {
- public:
-  LuaTextureView(LuaTexture& owner, int x, int y, int width, int height)
-      : zCView(x, y, x + width, y + height, VIEW_ITEM), owner_(owner) {}
+public:
+  LuaTextureView(LuaTexture& owner, int x, int y, int width, int height) : zCView(x, y, x + width, y + height, VIEW_ITEM), owner_(owner) {
+  }
 
-  void Blit() override { owner_.Blit(); }
+  void Blit() override {
+    owner_.Blit();
+  }
 
- private:
+private:
   LuaTexture& owner_;
 };
 
@@ -197,11 +199,17 @@ void LuaTexture::setColor(unsigned char r, unsigned char g, unsigned char b) {
   color_.SetRGB(r, g, b);
 }
 
-unsigned char LuaTexture::getAlpha() const { return color_.alpha; }
+unsigned char LuaTexture::getAlpha() const {
+  return color_.alpha;
+}
 
-void LuaTexture::setAlpha(unsigned char alpha) { color_.alpha = alpha; }
+void LuaTexture::setAlpha(unsigned char alpha) {
+  color_.alpha = alpha;
+}
 
-std::string LuaTexture::getFile() const { return fileName_; }
+std::string LuaTexture::getFile() const {
+  return fileName_;
+}
 
 void LuaTexture::setFile(const std::string& file) {
   fileName_ = file;
@@ -212,9 +220,13 @@ void LuaTexture::setFile(const std::string& file) {
   }
 }
 
-void LuaTexture::setVisible(bool visible) { visible_ = visible; }
+void LuaTexture::setVisible(bool visible) {
+  visible_ = visible;
+}
 
-bool LuaTexture::getVisible() const { return visible_; }
+bool LuaTexture::getVisible() const {
+  return visible_;
+}
 
 void LuaTexture::top() {
   if (view_) {
@@ -254,8 +266,7 @@ void LuaTexture::Blit() {
   view_->GetSize(virtualWidth, virtualHeight);
 
   zVEC2 posMin(static_cast<float>(screen->nax(virtualPosX)), static_cast<float>(screen->nay(virtualPosY)));
-  zVEC2 posMax(posMin[VX] + static_cast<float>(screen->nax(virtualWidth)),
-               posMin[VY] + static_cast<float>(screen->nay(virtualHeight)));
+  zVEC2 posMax(posMin[VX] + static_cast<float>(screen->nax(virtualWidth)), posMin[VY] + static_cast<float>(screen->nay(virtualHeight)));
 
   if (posMin[VX] > zrenderer->vid_xdim - 1 || posMin[VY] > zrenderer->vid_ydim - 1) {
     return;

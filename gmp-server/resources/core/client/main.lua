@@ -1,3 +1,13 @@
+-- Main client entrypoint for 'core' resource
+-- Other client scripts are loaded via require()
+
+-- Load client modules
+require('client.discord')
+require('client.events')
+require('client.functions')
+require('client.sound')
+require('client.ui')
+
 LOG_INFO('[Core][Client] Core client-side resources initialized.')
 
 print(getHostname())

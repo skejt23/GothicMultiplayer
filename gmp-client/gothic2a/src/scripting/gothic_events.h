@@ -24,47 +24,45 @@ SOFTWARE.
 
 #pragma once
 
+#include <cstdint>
+#include <optional>
 #include <string>
 
-#include "ZenGin/zGothicAPI.h"
+#include "sol/sol.hpp"
 
 namespace gmp::gothic {
 
-class LuaSound {
-public:
-  explicit LuaSound(const std::string& filename);
-  ~LuaSound();
+// Gothic-specific event names
+constexpr const char* kEventOnInitName = "onInit";
+constexpr const char* kEventOnExitName = "onExit";
+constexpr const char* kEventOnRenderName = "onRender";
+constexpr const char* kEventOnKeyDownName = "onKeyDown";
+constexpr const char* kEventOnKeyUpName = "onKeyUp";
+constexpr const char* kEventOnPlayerCreateName = "onPlayerCreate";
+constexpr const char* kEventOnPlayerDestroyName = "onPlayerDestroy";
+constexpr const char* kEventOnPlayerMessageName = "onPlayerMessage";
 
-  void play();
-  void stop();
-  bool isPlaying() const;
-
-  std::string getFile() const;
-  void setFile(const std::string& filename);
-
-  float getPlayingTime() const;
-
-  float getVolume() const;
-  void setVolume(float volume);
-
-  bool getLooping() const;
-  void setLooping(bool looping);
-
-  float getBalance() const;
-  void setBalance(float balance);
-
-private:
-  void ReloadSound();
-  void ApplyProperties();
-  void StopIfNeeded();
-
-  std::string file_;
-  float volume_;
-  bool looping_;
-  float balance_;
-  int handle_;
-
-  Gothic_II_Addon::zCSoundFX* sound_fx_;
+// Gothic-specific event structs
+struct OnKeyEvent {
+  int key;
 };
+
+struct PlayerLifecycleEvent {
+  std::uint64_t player_id;
+};
+
+struct OnPlayerMessageEvent {
+  std::optional<std::uint64_t> sender_id;
+  std::uint8_t r;
+  std::uint8_t g;
+  std::uint8_t b;
+  std::string message;
+};
+
+// Bind Gothic-specific events to Lua
+void BindGothicEvents(sol::state& lua);
+
+// Reset Gothic-specific events (call when disconnecting/reconnecting)
+void ResetGothicEvents();
 
 }  // namespace gmp::gothic

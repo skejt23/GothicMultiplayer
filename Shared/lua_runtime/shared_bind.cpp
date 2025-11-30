@@ -82,23 +82,6 @@ int Function_GetPlayersCount() {
   return g_server_info_provider->get_players_count();
 }
 
-float Function_GetDistance2d(float x1, float y1, float x2, float y2) {
-  const float dx = x1 - x2;
-  const float dy = y1 - y2;
-  return std::sqrt(dx * dx + dy * dy);
-}
-
-float Function_GetDistance3d(float x1, float y1, float z1, float x2, float y2, float z2) {
-  const float dx = x1 - x2;
-  const float dy = y1 - y2;
-  const float dz = z1 - z2;
-  return std::sqrt(dx * dx + dy * dy + dz * dz);
-}
-
-float Function_GetVectorAngle(float x1, float y1, float x2, float y2) {
-  return std::atan2(y2 - y1, x2 - x1);
-}
-
 }  // namespace
 
 void BindSharedConstants(sol::state& lua) {
@@ -194,9 +177,6 @@ void BindSharedFunctions(sol::state& lua) {
   lua["getMaxSlots"] = Function_GetMaxSlots;
   lua["getOnlinePlayers"] = Function_GetOnlinePlayers;
   lua["getPlayersCount"] = Function_GetPlayersCount;
-  lua["getDistance2d"] = Function_GetDistance2d;
-  lua["getDistance3d"] = Function_GetDistance3d;
-  lua["getVectorAngle"] = Function_GetVectorAngle;
 }
 
 void SetServerInfoProvider(ServerInfoProvider provider) {

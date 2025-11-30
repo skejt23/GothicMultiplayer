@@ -32,8 +32,8 @@ SOFTWARE.
 #include <spdlog/spdlog.h>
 #include <version.h>
 
-#include <array>
 #include <algorithm>
+#include <array>
 #include <charconv>
 #include <chrono>
 #include <dylib.hpp>
@@ -200,9 +200,8 @@ std::uint8_t ClampColorComponent(int value) {
   return static_cast<std::uint8_t>(std::clamp(value, 0, 255));
 }
 
-MessagePacket CreateMessagePacket(std::optional<std::uint32_t> sender_id, std::optional<std::uint32_t> recipient_id,
-                                  std::uint8_t r, std::uint8_t g, std::uint8_t b, std::string text,
-                                  std::uint8_t packet_type = PT_MSG) {
+MessagePacket CreateMessagePacket(std::optional<std::uint32_t> sender_id, std::optional<std::uint32_t> recipient_id, std::uint8_t r, std::uint8_t g,
+                                  std::uint8_t b, std::string text, std::uint8_t packet_type = PT_MSG) {
   MessagePacket packet{};
   packet.packet_type = packet_type;
   packet.message = SanitizeServerText(std::move(text));
@@ -285,7 +284,6 @@ GameServer::GameServer() {
   g_server = this;
 
   // Register server-side events.
-  EventManager::Instance().RegisterEvent(kEventOnPacketName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerConnectName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerDisconnectName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerMessageName);
@@ -375,6 +373,7 @@ bool GameServer::Init() {
 
   // Discover and load all resources from resources/
   auto discovered_resources = resource_manager_->DiscoverResources();
+  resource_manager_->LogResourceInfo();
 
   try {
     client_resource_descriptors_ = ClientResourcePackager::Build(resource_manager_->GetDiscoveredResourceInfo());
@@ -532,13 +531,6 @@ bool GameServer::HandlePacket(Net::ConnectionHandle connectionHandle, unsigned c
 
   unsigned char packetIdentifier = GetPacketIdentifier(p);
 
-  if (packetIdentifier == PT_EXTENDED_4_SCRIPTS) {
-    if (auto player_id = player_manager_.GetPlayerId(connectionHandle)) {
-      Packet script_packet(p.data + 1, p.length > 0 ? p.length - 1 : 0, connectionHandle);
-      EventManager::Instance().TriggerEvent(kEventOnPacketName, OnPacketEvent{*player_id, script_packet});
-    }
-    return true;
-  }
   switch (packetIdentifier) {
     case ID_DISCONNECTION_NOTIFICATION: {
       auto player_opt = player_manager_.GetPlayerByConnection(p.id);
@@ -831,7 +823,7 @@ void GameServer::HandleNormalMsg(Packet p) {
   packet.r = 255;
   packet.g = 255;
   packet.b = 255;
-  
+
   if (!packet.message.empty() && packet.message.front() == '/') {
     auto command_line = packet.message.substr(1);
     auto command_start = command_line.find_first_not_of(' ');
@@ -843,8 +835,7 @@ void GameServer::HandleNormalMsg(Packet p) {
         auto params_start = command_line.find_first_not_of(' ', space_pos);
         std::string params = params_start == std::string::npos ? std::string{} : command_line.substr(params_start);
         SPDLOG_INFO("{} issued command: /{} {}", player.name, command, params);
-        EventManager::Instance().TriggerEvent(kEventOnPlayerCommandName,
-                                             OnPlayerCommandEvent{player.player_id, command, params});
+        EventManager::Instance().TriggerEvent(kEventOnPlayerCommandName, OnPlayerCommandEvent{player.player_id, command, params});
       }
     }
     return;
@@ -1082,12 +1073,10 @@ void GameServer::SendMessageToAll(std::uint8_t r, std::uint8_t g, std::uint8_t b
   }
 
   auto packet = CreateMessagePacket(std::nullopt, std::nullopt, r, g, b, text);
-  player_manager_.ForEachIngamePlayer(
-      [&](const Player& player) { SerializeAndSend(packet, LOW_PRIORITY, RELIABLE_ORDERED, player.connection); });
+  player_manager_.ForEachIngamePlayer([&](const Player& player) { SerializeAndSend(packet, LOW_PRIORITY, RELIABLE_ORDERED, player.connection); });
 }
 
-void GameServer::SendMessageToPlayer(PlayerId player_id, std::uint8_t r, std::uint8_t g, std::uint8_t b,
-                                     const std::string& text) {
+void GameServer::SendMessageToPlayer(PlayerId player_id, std::uint8_t r, std::uint8_t g, std::uint8_t b, const std::string& text) {
   if (text.empty()) {
     return;
   }
@@ -1102,8 +1091,7 @@ void GameServer::SendMessageToPlayer(PlayerId player_id, std::uint8_t r, std::ui
   SerializeAndSend(packet, LOW_PRIORITY, RELIABLE_ORDERED, target_player->get().connection);
 }
 
-void GameServer::SendPlayerMessageToAll(PlayerId sender_id, std::uint8_t r, std::uint8_t g, std::uint8_t b,
-                                        const std::string& text) {
+void GameServer::SendPlayerMessageToAll(PlayerId sender_id, std::uint8_t r, std::uint8_t g, std::uint8_t b, const std::string& text) {
   if (text.empty()) {
     return;
   }
@@ -1115,12 +1103,11 @@ void GameServer::SendPlayerMessageToAll(PlayerId sender_id, std::uint8_t r, std:
   }
 
   auto packet = CreateMessagePacket(sender_id, std::nullopt, r, g, b, text);
-  player_manager_.ForEachIngamePlayer(
-      [&](const Player& player) { SerializeAndSend(packet, LOW_PRIORITY, RELIABLE_ORDERED, player.connection); });
+  player_manager_.ForEachIngamePlayer([&](const Player& player) { SerializeAndSend(packet, LOW_PRIORITY, RELIABLE_ORDERED, player.connection); });
 }
 
-void GameServer::SendPlayerMessageToPlayer(PlayerId sender_id, PlayerId receiver_id, std::uint8_t r, std::uint8_t g,
-                                           std::uint8_t b, const std::string& text) {
+void GameServer::SendPlayerMessageToPlayer(PlayerId sender_id, PlayerId receiver_id, std::uint8_t r, std::uint8_t g, std::uint8_t b,
+                                           const std::string& text) {
   if (text.empty()) {
     return;
   }
@@ -1297,9 +1284,8 @@ bool GameServer::SetPlayerPosition(PlayerId player_id, const glm::vec3& position
   packet.player_id = player.player_id;
   packet.position = position;
 
-  player_manager_.ForEachIngamePlayer([&](const Player& existing_player) {
-    SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE, existing_player.connection);
-  });
+  player_manager_.ForEachIngamePlayer(
+      [&](const Player& existing_player) { SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE, existing_player.connection); });
 
   return true;
 }
@@ -1333,8 +1319,7 @@ std::string GameServer::GetServerWorld() const {
   return server_world_;
 }
 
-std::vector<GameServer::PlayerId> GameServer::FindNearbyPlayers(const glm::vec3& position, float radius,
-                                                                const std::string& world,
+std::vector<GameServer::PlayerId> GameServer::FindNearbyPlayers(const glm::vec3& position, float radius, const std::string& world,
                                                                 std::int32_t virtual_world) const {
   std::vector<PlayerId> nearby_players;
   if (radius < 0.0f) {
@@ -1386,8 +1371,7 @@ std::vector<GameServer::PlayerId> GameServer::GetStreamedPlayersByPlayer(PlayerI
 
   const auto& player = player_opt->get();
   streaming_players.reserve(player.streamed_by_players.size());
-  streaming_players.insert(streaming_players.end(), player.streamed_by_players.begin(),
-                           player.streamed_by_players.end());
+  streaming_players.insert(streaming_players.end(), player.streamed_by_players.begin(), player.streamed_by_players.end());
 
   return streaming_players;
 }
@@ -1403,12 +1387,11 @@ bool GameServer::SetTime(std::int32_t hour, std::int32_t min, std::int32_t day) 
   }
 
   auto current_time = clock_->GetTime();
-  GothicClock::Time new_time{static_cast<std::uint16_t>(day == 0 ? current_time.day_ : day),
-                             static_cast<std::uint8_t>(hour), static_cast<std::uint8_t>(min)};
+  GothicClock::Time new_time{static_cast<std::uint16_t>(day == 0 ? current_time.day_ : day), static_cast<std::uint8_t>(hour),
+                             static_cast<std::uint8_t>(min)};
   clock_->UpdateTime(new_time);
 
-  EventManager::Instance().TriggerEvent(kEventOnGameTimeName,
-                                        OnGameTimeEvent{new_time.day_, new_time.hour_, new_time.min_});
+  EventManager::Instance().TriggerEvent(kEventOnGameTimeName, OnGameTimeEvent{new_time.day_, new_time.hour_, new_time.min_});
 
   player_manager_.ForEachIngamePlayer([&](const Player& player) { SendGameInfo(player.connection); });
   return true;

@@ -33,8 +33,9 @@ SOFTWARE.
 #include <string>
 #include <vector>
 
-#include <openssl/md5.h>
-#include <openssl/sha.h>
+#include <sodium.h>
+
+#include "shared/crypto_utils.h"
 
 namespace lua {
 namespace bindings {
@@ -193,45 +194,16 @@ std::int64_t Function_GetTickCount() {
   return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - kStartTime).count();
 }
 
-std::string BytesToHex(const unsigned char* data, std::size_t length) {
-  std::ostringstream stream;
-  stream << std::hex << std::nouppercase << std::setfill('0');
-
-  for (std::size_t i = 0; i < length; ++i) {
-    stream << std::setw(2) << static_cast<int>(data[i]);
-  }
-
-  return stream.str();
-}
-
-std::string Function_HashMd5(const std::string& input) {
-  unsigned char digest[MD5_DIGEST_LENGTH];
-  MD5(reinterpret_cast<const unsigned char*>(input.data()), input.size(), digest);
-  return BytesToHex(digest, MD5_DIGEST_LENGTH);
-}
-
-std::string Function_HashSha1(const std::string& input) {
-  unsigned char digest[SHA_DIGEST_LENGTH];
-  SHA1(reinterpret_cast<const unsigned char*>(input.data()), input.size(), digest);
-  return BytesToHex(digest, SHA_DIGEST_LENGTH);
-}
-
 std::string Function_HashSha256(const std::string& input) {
-  unsigned char digest[SHA256_DIGEST_LENGTH];
-  SHA256(reinterpret_cast<const unsigned char*>(input.data()), input.size(), digest);
-  return BytesToHex(digest, SHA256_DIGEST_LENGTH);
-}
-
-std::string Function_HashSha384(const std::string& input) {
-  unsigned char digest[SHA384_DIGEST_LENGTH];
-  SHA384(reinterpret_cast<const unsigned char*>(input.data()), input.size(), digest);
-  return BytesToHex(digest, SHA384_DIGEST_LENGTH);
+  unsigned char digest[crypto_hash_sha256_BYTES];
+  crypto_hash_sha256(digest, reinterpret_cast<const unsigned char*>(input.data()), input.size());
+  return gmp::crypto::BytesToHex(digest, crypto_hash_sha256_BYTES);
 }
 
 std::string Function_HashSha512(const std::string& input) {
-  unsigned char digest[SHA512_DIGEST_LENGTH];
-  SHA512(reinterpret_cast<const unsigned char*>(input.data()), input.size(), digest);
-  return BytesToHex(digest, SHA512_DIGEST_LENGTH);
+  unsigned char digest[crypto_hash_sha512_BYTES];
+  crypto_hash_sha512(digest, reinterpret_cast<const unsigned char*>(input.data()), input.size());
+  return gmp::crypto::BytesToHex(digest, crypto_hash_sha512_BYTES);
 }
 
 }  // namespace
@@ -241,10 +213,7 @@ void BindUtilities(sol::state& lua) {
   lua["hexToRgb"] = Function_HexToRgb;
   lua["rgbToHex"] = Function_RgbToHex;
   lua["sscanf"] = Function_Sscanf;
-  lua["md5"] = Function_HashMd5;
-  lua["sha1"] = Function_HashSha1;
   lua["sha256"] = Function_HashSha256;
-  lua["sha384"] = Function_HashSha384;
   lua["sha512"] = Function_HashSha512;
 }
 

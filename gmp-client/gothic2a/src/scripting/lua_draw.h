@@ -34,8 +34,8 @@ namespace gmp::gothic {
 
 class LuaDrawView;
 
-  class LuaDraw {
- public:
+class LuaDraw {
+public:
   LuaDraw();
   LuaDraw(int x, int y, const std::string& text);
   ~LuaDraw();
@@ -64,7 +64,7 @@ class LuaDrawView;
 
   void render();
 
- private:
+private:
   friend class LuaDrawView;
 
   void Blit();

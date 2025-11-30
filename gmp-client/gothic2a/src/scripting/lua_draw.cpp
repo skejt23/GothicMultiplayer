@@ -24,21 +24,24 @@ SOFTWARE.
 
 #include "lua_draw.h"
 
-#include "ZenGin/zGothicAPI.h"
-
 #include <unordered_set>
+
+#include "ZenGin/zGothicAPI.h"
 
 using namespace Gothic_II_Addon;
 
 namespace gmp::gothic {
 
 class LuaDrawView : public zCView {
- public:
-  explicit LuaDrawView(LuaDraw& owner) : zCView(0, 0, 8192, 8192), owner_(owner) {}
+public:
+  explicit LuaDrawView(LuaDraw& owner) : zCView(0, 0, 8192, 8192), owner_(owner) {
+  }
 
-  void Blit() override { owner_.Blit(); }
+  void Blit() override {
+    owner_.Blit();
+  }
 
- private:
+private:
   LuaDraw& owner_;
 };
 

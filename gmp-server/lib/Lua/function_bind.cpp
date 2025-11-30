@@ -30,7 +30,6 @@ SOFTWARE.
 #include <optional>
 
 #include "game_server.h"
-#include "packet.h"
 #include "shared/lua_runtime/shared_bind.h"
 #include "shared/lua_runtime/timer_manager.h"
 
@@ -297,18 +296,6 @@ void lua::bindings::BindFunctions(sol::state& lua, TimerManager& timer_manager) 
       },
   });
   lua["Log"] = Function_Log;
-  lua.new_usertype<Packet>("Packet", sol::constructors<Packet()>(), "reset", &Packet::reset, 
-                           "send", &Packet::send, "sendToAll", &Packet::sendToAll, 
-                           "writeBool", &Packet::writeBool, "writeInt8", &Packet::writeInt8,
-                           "writeUInt8", &Packet::writeUInt8, "writeInt16", &Packet::writeInt16, 
-                           "writeUInt16", &Packet::writeUInt16, "writeInt32", &Packet::writeInt32, 
-                           "writeUInt32", &Packet::writeUInt32, "writeFloat", &Packet::writeFloat,
-                           "writeString", &Packet::writeString, "writeBlob", &Packet::writeBlob, 
-                           "readBool", &Packet::readBool, "readInt8", &Packet::readInt8, 
-                           "readUInt8", &Packet::readUInt8, "readInt16", &Packet::readInt16,
-                           "readUInt16", &Packet::readUInt16, "readInt32", &Packet::readInt32, 
-                           "readUInt32", &Packet::readUInt32, "readFloat", &Packet::readFloat, 
-                           "readString", &Packet::readString, "readBlob", &Packet::readBlob);
 
   lua["sendMessageToAll"] = Function_SendMessageToAll;
   lua["sendMessageToPlayer"] = Function_SendMessageToPlayer;

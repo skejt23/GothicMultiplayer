@@ -1,5 +1,4 @@
 #include "client_resources/client_script.h"
-#include "client_resources/event_bind.h"
 
 #include <spdlog/spdlog.h>
 
@@ -9,5 +8,6 @@ ClientScript::ClientScript() {
 
 void ClientScript::BindDomainSpecific() {
   SPDLOG_DEBUG("ClientScript domain bindings initialized");
-  gmp::client::lua::bindings::BindEvents(lua_);
+  // Domain-specific bindings (e.g., Gothic events) should be added
+  // by the consuming code after construction via GetLuaState()
 }

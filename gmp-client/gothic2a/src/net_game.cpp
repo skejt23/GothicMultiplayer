@@ -58,9 +58,9 @@ SOFTWARE.
 #include "patch.h"
 #include "player_name_utils.hpp"
 #include "scripting/gothic_bindings.h"
-#include "client_resources/process_input.h"
+#include "scripting/gothic_events.h"
+#include "scripting/process_input.h"
 #include "shared/event.h"
-#include "client_resources/client_events.h"
 
 const char* LANG_DIR = ".\\Multiplayer\\Localization\\";
 
@@ -74,6 +74,8 @@ NetGame::NetGame() : task_scheduler(nullptr), game_client(nullptr), resource_run
   game_client = std::make_unique<gmp::client::GameClient>(*this, *task_scheduler);
   resource_runtime = std::make_unique<ClientResourceRuntime>();
   resource_runtime->SetServerInfoProvider(*game_client);
+  resource_runtime->SetResetCallback([]() { gmp::gothic::ResetGothicEvents(); });
+  gmp::gothic::BindGothicEvents(resource_runtime->GetLuaState());
   gmp::gothic::BindGothicSpecific(resource_runtime->GetLuaState());
 }
 
@@ -88,7 +90,7 @@ void __stdcall NetGame::ProcessTaskScheduler() {
   if (zinput) {
     gmp::gothic::ProcessInput(zinput);
   }
-  EventManager::Instance().TriggerEvent(gmp::client::kEventOnRenderName, 0);
+  EventManager::Instance().TriggerEvent(gmp::gothic::kEventOnRenderName, 0);
 }
 
 bool NetGame::Connect(std::string_view full_address) {
@@ -153,7 +155,7 @@ void NetGame::JoinGame() {
     // this->HeroLastHp = player->attribute[NPC_ATR_HITPOINTS];
 
     
-    EventManager::Instance().TriggerEvent(gmp::client::kEventOnInitName, 0);
+    EventManager::Instance().TriggerEvent(gmp::gothic::kEventOnInitName, 0);
   }
 }
 
@@ -274,7 +276,7 @@ void NetGame::Disconnect() {
   }
 
   if (resource_runtime) {
-    EventManager::Instance().TriggerEvent(gmp::client::kEventOnExitName, 0);
+    EventManager::Instance().TriggerEvent(gmp::gothic::kEventOnExitName, 0);
     gmp::gothic::CleanupGothicViews();
     resource_runtime->UnloadResources();
   }
@@ -302,7 +304,7 @@ void NetGame::OnDisconnected() {
   SPDLOG_INFO("Disconnected from server");
   IsReadyToJoin = false;
   if (resource_runtime) {
-    EventManager::Instance().TriggerEvent(gmp::client::kEventOnExitName, 0);
+    EventManager::Instance().TriggerEvent(gmp::gothic::kEventOnExitName, 0);
     gmp::gothic::CleanupGothicViews();
     resource_runtime->UnloadResources();
   }
@@ -410,8 +412,8 @@ void NetGame::OnLocalPlayerSpawned(gmp::client::Player& player) {
   SPDLOG_INFO("Local player spawned at position ({}, {}, {})", player.position().x, player.position().y, player.position().z);
   local_player->SetPosition(pos);
   players.insert(players.begin(), local_player);
-  EventManager::Instance().TriggerEvent(gmp::client::kEventOnPlayerCreateName,
-                                        gmp::client::PlayerLifecycleEvent{player.id()});
+  EventManager::Instance().TriggerEvent(gmp::gothic::kEventOnPlayerCreateName,
+                                        gmp::gothic::PlayerLifecycleEvent{player.id()});
 }
 
 void NetGame::OnPlayerJoined(gmp::client::Player& new_player) {
@@ -447,8 +449,8 @@ void NetGame::OnPlayerLeft(std::uint64_t player_id, const std::string& player_na
       CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(255, 0, 0, 255), "%s%s", this->players[i]->GetName(),
                                          Language::Instance()[Language::SOMEONEDISCONNECT_FROM_SERVER].ToChar());
       this->players[i]->LeaveGame();
-      EventManager::Instance().TriggerEvent(gmp::client::kEventOnPlayerDestroyName,
-                                            gmp::client::PlayerLifecycleEvent{player_id});
+      EventManager::Instance().TriggerEvent(gmp::gothic::kEventOnPlayerDestroyName,
+                                            gmp::gothic::PlayerLifecycleEvent{player_id});
       delete this->players[i];
       this->players.erase(this->players.begin() + i);
       break;
@@ -869,8 +871,8 @@ void NetGame::OnPlayerMessage(std::optional<std::uint64_t> sender_id, std::uint8
     CChat::GetInstance()->WriteMessage(NORMAL, false, color, "%s", message.c_str());
   }
 
-  EventManager::Instance().TriggerEvent(gmp::client::kEventOnPlayerMessageName,
-                                        gmp::client::OnPlayerMessageEvent{sender_id, r, g, b, message});
+  EventManager::Instance().TriggerEvent(gmp::gothic::kEventOnPlayerMessageName,
+                                        gmp::gothic::OnPlayerMessageEvent{sender_id, r, g, b, message});
 }
 
 void NetGame::OnWhisperReceived(std::uint64_t sender_id, const std::string& sender_name, const std::string& message) {
@@ -891,8 +893,4 @@ void NetGame::OnDiscordActivityUpdate(const std::string& state, const std::strin
                                       const std::string& large_image_text, const std::string& small_image_key, const std::string& small_image_text) {
   SPDLOG_DEBUG("Discord activity update: {} - {}", state, details);
   DiscordRichPresence::Instance().UpdateActivity(state, details, 0, 0, large_image_key, large_image_text, small_image_key, small_image_text);
-}
-
-void NetGame::OnPacket(const gmp::client::Packet& packet) {
-  EventManager::Instance().TriggerEvent(gmp::client::kEventOnPacketName, gmp::client::OnPacketEvent{packet});
 }

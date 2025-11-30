@@ -2,15 +2,16 @@
 
 #include <string>
 #include <unordered_set>
-#include "sol/sol.hpp"
+
 #include "ZenGin/zGothicAPI.h"
+#include "sol/sol.hpp"
 
 namespace gmp::gothic {
 
 class LuaTextureView;
 
 class LuaTexture {
- public:
+public:
   friend class LuaTextureView;
 
   LuaTexture(int x, int y, int width, int height, const std::string& file);
@@ -52,8 +53,7 @@ class LuaTexture {
   void render();
   void Blit();
 
- private:
-
+private:
   LuaTextureView* view_;
   Gothic_II_Addon::zCTexture* texture_;
   Gothic_II_Addon::zVEC2 uvPos_;

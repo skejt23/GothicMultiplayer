@@ -35,7 +35,7 @@ SOFTWARE.
 
 #include "ZenGin/zGothicAPI.h"
 #include "discord_presence.h"
-#include "client_resources/process_input.h"
+#include "process_input.h"
 #include "net_game.h"
 #include "patch.h"
 
@@ -637,34 +637,6 @@ void BindNpc(sol::state& lua) {
   });
 }
 
-void BindInput(sol::state& lua) {
-    // KEY_* constants
-#define BIND_KEY(name) lua[#name] = name;
-    G2_KEY_LIST(BIND_KEY)
-#undef BIND_KEY
-
-    // MOUSE_* constants
-#define BIND_MOUSE(name) lua[#name] = name;
-    G2_MOUSE_LIST(BIND_MOUSE)
-#undef BIND_MOUSE
-
-    // GAME_* constants (logical actions, separate set)
-#define BIND_GAME(name) lua[#name] = name;
-    G2_GAME_LIST(BIND_GAME)
-#undef BIND_GAME
-
-
-  lua.set_function("KeyPressed", [](int key) -> bool {
-      if (key < 0 || key > MAX_KEYS_AND_CODES) return false;
-      return s_pressedThisFrame[key];
-  });
-
-  lua.set_function("KeyToggled", [](int key) -> bool {
-      if (key < 0 || key > MAX_KEYS_AND_CODES) return false;
-      return s_toggledThisFrame[key];
-  });
-}
-
 void BindDiscord(sol::state& lua) {
   auto discord = lua.create_table("Discord");
   
@@ -825,7 +797,7 @@ void BindGothicSpecific(sol::state& lua) {
 
   BindPlayers(lua);
   BindNpc(lua);
-  BindInput(lua);
+  BindInputConstants(lua);
   BindDiscord(lua);
   BindDraw(lua);
   BindTexture(lua);

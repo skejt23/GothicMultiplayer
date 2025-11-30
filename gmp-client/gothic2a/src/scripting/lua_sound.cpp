@@ -24,9 +24,9 @@ SOFTWARE.
 
 #include "lua_sound.h"
 
-#include <algorithm>
-
 #include <spdlog/spdlog.h>
+
+#include <algorithm>
 
 namespace gmp::gothic {
 namespace {
@@ -34,10 +34,9 @@ constexpr float kMinVolume = 0.0f;
 constexpr float kMaxVolume = 1.0f;
 constexpr float kMinBalance = -1.0f;
 constexpr float kMaxBalance = 1.0f;
-}
+}  // namespace
 
-LuaSound::LuaSound(const std::string& filename)
-    : file_(filename), volume_(1.0f), looping_(false), balance_(0.0f), handle_(-1), sound_fx_(nullptr) {
+LuaSound::LuaSound(const std::string& filename) : file_(filename), volume_(1.0f), looping_(false), balance_(0.0f), handle_(-1), sound_fx_(nullptr) {
   ReloadSound();
 }
 
@@ -65,14 +64,14 @@ void LuaSound::ReloadSound() {
   }
 
   SPDLOG_INFO("Attempting to load sound: '{}'", file_);
-  
+
   Gothic_II_Addon::zSTRING soundName = file_.c_str();
   sound_fx_ = zsound->LoadSoundFX(soundName);
   if (!sound_fx_) {
     SPDLOG_ERROR("Failed to load sound FX from '{}'.", file_);
     return;
   }
-  
+
   SPDLOG_INFO("Successfully loaded sound: '{}'", file_);
   ApplyProperties();
 }
@@ -104,23 +103,21 @@ void LuaSound::play() {
   }
 
   if (!zsound || !sound_fx_) {
-    SPDLOG_ERROR("Cannot play sound: zsound={}, sound_fx_={}", 
-                 (void*)zsound, (void*)sound_fx_);
+    SPDLOG_ERROR("Cannot play sound: zsound={}, sound_fx_={}", (void*)zsound, (void*)sound_fx_);
     return;
   }
 
   StopIfNeeded();
-  
+
   // Set looping before playback
   sound_fx_->SetLooping(looping_ ? 1 : 0);
   sound_fx_->SetVolume(volume_);
   sound_fx_->SetPan(balance_);
-  
-  SPDLOG_INFO("Attempting to play sound: '{}' (vol={}, pan={}, loop={})",
-              file_, volume_, balance_, looping_);
-  
+
+  SPDLOG_INFO("Attempting to play sound: '{}' (vol={}, pan={}, loop={})", file_, volume_, balance_, looping_);
+
   handle_ = zsound->PlaySound(sound_fx_, 0, Gothic_II_Addon::zSND_FREQ_DEFAULT, volume_, balance_);
-  
+
   SPDLOG_INFO("PlaySound returned handle: {}", handle_);
 }
 

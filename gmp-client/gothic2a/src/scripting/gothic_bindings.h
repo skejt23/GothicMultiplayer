@@ -28,7 +28,10 @@ SOFTWARE.
 
 namespace gmp::gothic {
 
+// Bind all Gothic-specific Lua bindings (players, NPCs, input, Discord, Draw, Texture, Sound, Time)
 void BindGothicSpecific(sol::state& lua);
+
+// Cleanup Gothic UI views (Draw, Texture) - call on disconnect/cleanup
 void CleanupGothicViews();
 
 }  // namespace gmp::gothic

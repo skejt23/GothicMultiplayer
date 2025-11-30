@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -11,6 +12,8 @@
 
 class ClientResourceRuntime {
 public:
+  using ResetCallback = std::function<void()>;
+
   ClientResourceRuntime();
   ~ClientResourceRuntime();
 
@@ -23,6 +26,9 @@ public:
   sol::state& GetLuaState();
 
   void SetServerInfoProvider(gmp::client::GameClient& game_client);
+
+  // Set a callback to be invoked when resources are unloaded (e.g., to reset domain-specific events)
+  void SetResetCallback(ResetCallback callback) { reset_callback_ = std::move(callback); }
 
 private:
   struct ResourceInstance {
@@ -39,4 +45,5 @@ private:
 
   ClientScript script_;
   std::vector<ResourceInstance> resources_;
+  ResetCallback reset_callback_;
 };
