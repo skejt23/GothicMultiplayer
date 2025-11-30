@@ -6,7 +6,7 @@ target("Client.Resources")
     add_includedirs("../client-net/include", {public = true})
     add_includedirs("../client-net/lib/znet", {public = true})
 
-    add_deps("LuaRuntime", "ResourceLoader")
+    add_deps("LuaRuntime", "ResourceLoader", "gothic_api", "Client.Net")
     add_packages("spdlog", "fmt", "sol2", "bitsery", {public = true})
     set_default(false)
 

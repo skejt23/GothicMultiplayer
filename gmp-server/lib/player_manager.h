@@ -30,6 +30,7 @@ SOFTWARE.
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "common_structs.h"
 #include "znet_server.h"
@@ -56,6 +57,12 @@ public:
     PlayerId player_id;
     Net::ConnectionHandle connection;
     std::string name;
+    std::string world;
+    std::int32_t virtual_world{0};
+
+    // Streaming state
+    std::unordered_set<PlayerId> spawned_players;
+    std::unordered_set<PlayerId> streamed_by_players;
 
     // Character appearance
     std::uint8_t head;

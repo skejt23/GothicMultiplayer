@@ -37,7 +37,6 @@ SOFTWARE.
 
 #include "CIngame.h"
 #include "CInterpolatePos.h"
-#include "config.h"
 #include "net_game.h"
 
 // NEEDED FOR SETTING NPC TYPES
@@ -51,22 +50,6 @@ static int HeroInstance;
 // Externs
 extern CIngame* global_ingame;
 
-constexpr const char* BODYMESHNAKED = "HUM_BODY_NAKED0";
-// Head models
-constexpr const char* HUM_HEAD_FIGHTER = "HUM_HEAD_FIGHTER";
-constexpr const char* HUM_HEAD_BALD = "HUM_HEAD_BALD";
-constexpr const char* HUM_HEAD_FATBALD = "HUM_HEAD_FATBALD";
-constexpr const char* HUM_HEAD_PONY = "HUM_HEAD_PONY";
-constexpr const char* HUM_HEAD_PSIONIC = "HUM_HEAD_PSIONIC";
-constexpr const char* HUM_HEAD_THIEF = "HUM_HEAD_THIEF";
-// Walk styles
-constexpr const char* WALK_NONE = "NONE";
-constexpr const char* HUMANS_TIRED = "HUMANS_TIRED.MDS";
-constexpr const char* HUMANS_RELAXED = "HUMANS_RELAXED.MDS";
-constexpr const char* HUMANS_MILITIA = "HUMANS_MILITIA.MDS";
-constexpr const char* HUMANS_BABE = "HUMANS_BABE.MDS";
-constexpr const char* HUMANS_ARROGANCE = "HUMANS_ARROGANCE.MDS";
-constexpr const char* HUMANS_MAGE = "HUMANS_MAGE.MDS";
 // NPC INSTANCES
 constexpr const char* PCHERO = "PC_HERO";
 constexpr const char* ORCWARRIOR = "ORCWARRIOR_ROAM";
@@ -122,42 +105,6 @@ void Gothic2APlayer::DisablePlayer() {
   }
 }
 
-void Gothic2APlayer::GetAppearance(BYTE& head, BYTE& skin, BYTE& face) {
-  head = this->Head;
-  skin = this->Skin;
-  face = this->Face;
-};
-
-zSTRING Gothic2APlayer::GetHeadModelName() {
-  return GetHeadModelNameFromByte(Head);
-};
-
-zSTRING Gothic2APlayer::GetHeadModelNameFromByte(BYTE head) {
-  switch (head) {
-    case 0:
-      return HUM_HEAD_FIGHTER;
-      break;
-    case 1:
-      return HUM_HEAD_BALD;
-      break;
-    case 2:
-      return HUM_HEAD_FATBALD;
-      break;
-    case 3:
-      return HUM_HEAD_PONY;
-      break;
-    case 4:
-      return HUM_HEAD_PSIONIC;
-      break;
-    case 5:
-      return HUM_HEAD_THIEF;
-      break;
-    default:
-      return HUM_HEAD_BALD;
-      break;
-  }
-};
-
 int Gothic2APlayer::GetHealth() {
   return this->npc->attribute[NPC_ATR_HITPOINTS];
 };
@@ -173,35 +120,6 @@ const char* Gothic2APlayer::GetName() {
 int Gothic2APlayer::GetNameLength() {
   return this->npc->GetName().Length();
 };
-
-zSTRING Gothic2APlayer::GetWalkStyleFromByte(BYTE walkstyle) {
-  switch (walkstyle) {
-    case 0:
-      return WALK_NONE;
-      break;
-    case 1:
-      return HUMANS_TIRED;
-      break;
-    case 2:
-      return HUMANS_RELAXED;
-      break;
-    case 3:
-      return HUMANS_MILITIA;
-      break;
-    case 4:
-      return HUMANS_BABE;
-      break;
-    case 5:
-      return HUMANS_ARROGANCE;
-      break;
-    case 6:
-      return HUMANS_MAGE;
-      break;
-    default:
-      return WALK_NONE;
-      break;
-  }
-}
 
 bool Gothic2APlayer::IsFighting() {
   if (npc->GetWeaponMode() > 0)
@@ -242,15 +160,6 @@ void Gothic2APlayer::RespawnPlayer() {
   }
 }
 
-void Gothic2APlayer::SetAppearance(BYTE head, BYTE skin, BYTE face) {
-  this->Head = head;
-  this->Skin = skin;
-  this->Face = face;
-  static zSTRING body_mesh = BODYMESHNAKED;
-  zSTRING head_model = GetHeadModelNameFromByte(head);
-  this->npc->SetAdditionalVisuals(body_mesh, skin, 0, head_model, face, 0, -1);
-};
-
 void Gothic2APlayer::SetHealth(int Value) {
   this->npc->attribute[NPC_ATR_HITPOINTS] = Value;
 };
@@ -264,6 +173,10 @@ void Gothic2APlayer::SetName(const char* Name) {
   this->npc->name[0].Clear();
   this->npc->name[0] = Name;
 };
+
+void Gothic2APlayer::SetNameColor(const zCOLOR& color) {
+  name_color_ = color;
+}
 
 void Gothic2APlayer::SetNpc(oCNpc* Npc) {
   this->npc = Npc;
@@ -280,8 +193,6 @@ void Gothic2APlayer::SetNpcType(NpcType TYPE) {
   char buffer[128];
   zSTRING TypeTemp;
   zCParser::GetParser()->SetInstance("SELF", npc);
-  if (npc->GetModel()->HasAppliedModelProtoOverlay(Gothic2APlayer::GetWalkStyleFromByte(Config::Instance().walkstyle)))
-    npc->GetModel()->RemoveModelProtoOverlay(Gothic2APlayer::GetWalkStyleFromByte(Config::Instance().walkstyle));
   switch (TYPE) {
     case NPC_HUMAN: {
       oCNpc* New = zfactory->CreateNpc(zCParser::GetParser()->GetIndex(PCHERO));
@@ -289,12 +200,6 @@ void Gothic2APlayer::SetNpcType(NpcType TYPE) {
         New->startAIState = 0;
       auto position = npc->GetPositionWorld();
       New->Enable(position);
-      if (IsLocalPlayer()) {
-        TypeTemp = "HUM_BODY_NAKED0";
-        zSTRING headmodel_tmp = Gothic2APlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
-        New->SetAdditionalVisuals(TypeTemp, Config::Instance().skintexture, 0, headmodel_tmp, Config::Instance().facetexture, 0, -1);
-        New->GetModel()->ApplyModelProtoOverlay(Gothic2APlayer::GetWalkStyleFromByte(Config::Instance().walkstyle));
-      }
       if (IsLocalPlayer())
         New->SetAsPlayer();
       New->name[0] = this->npc->GetName();
@@ -377,13 +282,11 @@ void Gothic2APlayer::SetNpcType(NpcType TYPE) {
       sprintf(buffer, "%s_%s", B_SETVISUALS, LESSER_SKELETON);
       TypeTemp = buffer;
       zCParser::GetParser()->CallFunc(TypeTemp);
-      npc->GetModel()->ApplyModelProtoOverlay(Gothic2APlayer::GetWalkStyleFromByte(Config::Instance().walkstyle));
       break;
     case NPC_SKELETON:
       sprintf(buffer, "%s_%s", B_SETVISUALS, SKELETON);
       TypeTemp = buffer;
       zCParser::GetParser()->CallFunc(TypeTemp);
-      npc->GetModel()->ApplyModelProtoOverlay(Gothic2APlayer::GetWalkStyleFromByte(Config::Instance().walkstyle));
       break;
     case NPC_SKELETONMAGE:
       sprintf(buffer, "%s_%s", B_SETVISUALS, SKELETON_MAGE);

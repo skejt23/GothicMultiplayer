@@ -242,6 +242,61 @@ TEST_F(ResourcePackerTest, ThrowsOnInvalidLuaSyntax) {
   EXPECT_THROW(PackResource(opts), std::runtime_error);
 }
 
+TEST_F(ResourcePackerTest, EntrypointIsOnlyMainLua) {
+  // Create main.lua and several other scripts
+  WriteFile("client/main.lua", "require('client.utils') return 'main'");
+  WriteFile("client/utils.lua", "return { helper = function() end }");
+  WriteFile("client/ui/menu.lua", "return {}");
+  WriteFile("shared/common.lua", "return {}");
+
+  auto result = PackResource(BuildDefaultOptions());
+
+  // All files should be included in the archive
+  ASSERT_EQ(result.manifest.files.size(), 4u);
+  EXPECT_NE(FindFile(result.manifest.files, "client/main.luac"), nullptr);
+  EXPECT_NE(FindFile(result.manifest.files, "client/utils.luac"), nullptr);
+  EXPECT_NE(FindFile(result.manifest.files, "client/ui/menu.luac"), nullptr);
+  EXPECT_NE(FindFile(result.manifest.files, "shared/common.luac"), nullptr);
+
+  // But only main.lua should be an entrypoint - other scripts are loaded via require()
+  ASSERT_EQ(result.manifest.entrypoints.size(), 1u);
+  EXPECT_EQ(result.manifest.entrypoints[0], "client/main.luac");
+}
+
+TEST_F(ResourcePackerTest, EntrypointPrefersCompiledOverSource) {
+  // When compile_lua is false, we get .lua files
+  WriteFile("client/main.lua", "return 'main'");
+  WriteFile("client/helper.lua", "return 'helper'");
+
+  PackOptions opts = BuildDefaultOptions();
+  opts.compile_lua = false;
+
+  auto result = PackResource(opts);
+
+  // Files should have .lua extension
+  ASSERT_EQ(result.manifest.files.size(), 2u);
+  EXPECT_NE(FindFile(result.manifest.files, "client/main.lua"), nullptr);
+  EXPECT_NE(FindFile(result.manifest.files, "client/helper.lua"), nullptr);
+
+  // Entrypoint should still be just main.lua
+  ASSERT_EQ(result.manifest.entrypoints.size(), 1u);
+  EXPECT_EQ(result.manifest.entrypoints[0], "client/main.lua");
+}
+
+TEST_F(ResourcePackerTest, NoEntrypointWhenMainLuaMissing) {
+  // Resource with no main.lua - only utility scripts
+  WriteFile("client/utils.lua", "return {}");
+  WriteFile("shared/common.lua", "return {}");
+
+  auto result = PackResource(BuildDefaultOptions());
+
+  // Files should be included
+  ASSERT_EQ(result.manifest.files.size(), 2u);
+
+  // But no entrypoint since there's no main.lua
+  EXPECT_TRUE(result.manifest.entrypoints.empty());
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {

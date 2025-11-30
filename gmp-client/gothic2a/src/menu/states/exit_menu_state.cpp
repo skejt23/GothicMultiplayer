@@ -73,11 +73,6 @@ void ExitMenuState::CleanUpMenuResources() {
     context_.cameraWeapon->RemoveVobFromWorld();
     context_.cameraWeapon = nullptr;
   }
-  if (context_.appearanceWeapon) {
-    context_.appearanceWeapon->RemoveVobFromWorld();
-    context_.appearanceWeapon = nullptr;
-  }
-  context_.appearanceCameraCreated = false;
 
   // Unlock player movement
   if (context_.player) {

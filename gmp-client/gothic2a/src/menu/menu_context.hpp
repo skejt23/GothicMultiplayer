@@ -56,7 +56,6 @@ struct MenuContext {
   zCView* logoView = nullptr;
   oCItem* titleWeapon = nullptr;
   oCItem* cameraWeapon = nullptr;
-  oCItem* appearanceWeapon = nullptr;
 
   // ===== Configuration & Data =====
   Config& config;
@@ -67,7 +66,6 @@ struct MenuContext {
   zSTRING selectedServerIP;
   int selectedServerIndex = -1;
   bool titleWeaponEnabled = false;
-  bool appearanceCameraCreated = false;
   bool writingNickname = false;
 
   // ===== Extended Server List =====

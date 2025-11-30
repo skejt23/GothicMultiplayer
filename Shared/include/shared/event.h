@@ -53,14 +53,19 @@ public:
 
   // Triggers an event with arguments.
   // Returns true if the event was triggered, false if it doesn't exist.
-  template <typename... Args>
-  bool TriggerEvent(const std::string& eventName, Args&&... args) {
+  // Note: Arguments are passed by const reference to ensure all subscribers
+  // receive the same data. The std::any wrapper will copy the event object
+  // once, and each callback receives a reference to that copy.
+  template <typename T>
+  bool TriggerEvent(const std::string& eventName, const T& event) {
     if (!EventExists(eventName)) {
       return false;
     }
 
+    // Wrap in std::any once, then pass to all callbacks
+    std::any wrapped_event = event;
     for (auto& callback : events_[eventName]) {
-      callback(std::forward<Args>(args)...);
+      callback(wrapped_event);
     }
 
     return true;

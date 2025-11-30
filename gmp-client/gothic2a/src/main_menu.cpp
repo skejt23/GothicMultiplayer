@@ -66,7 +66,6 @@ zCOLOR Red = zCOLOR(0xFF, 0, 0);
 CMainMenu::CMainMenu() {
   player->SetMovLock(1);
   Patch::PlayerInterfaceEnabled(false);
-  LoadConfig();
   hbX = 0;
   hbY = 0;
   RECT wymiary;
@@ -219,15 +218,6 @@ void CMainMenu::PreparePlayerForMenuReentry() {
   oCNpcFocus::SetFocusMode(FOCUS_NORMAL);
   player->human_ai->StartStandAni();
   player->inventory2.ClearInventory();
-}
-
-void CMainMenu::LoadConfig() {
-  if (!Config::Instance().IsDefault()) {
-    auto head_model = Gothic2APlayer::GetHeadModelNameFromByte(Config::Instance().headmodel);
-    auto walkstyle = Gothic2APlayer::GetWalkStyleFromByte(Config::Instance().walkstyle);
-    player->SetAdditionalVisuals("HUM_BODY_NAKED0", Config::Instance().skintexture, 0, head_model, Config::Instance().facetexture, 0, -1);
-    player->ApplyOverlay(walkstyle);
-  }
 }
 
 void CMainMenu::ClearNpcTalents(oCNpc* Npc) {

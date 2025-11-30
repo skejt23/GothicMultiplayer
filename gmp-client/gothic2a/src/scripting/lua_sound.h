@@ -1,8 +1,7 @@
-
 /*
 MIT License
 
-Copyright (c) 2022 Gothic Multiplayer Team (pampi, skejt23, mecio)
+Copyright (c) 2025 Gothic Multiplayer Team.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -25,46 +24,47 @@ SOFTWARE.
 
 #pragma once
 
-#include <vector>
-#include <memory>
-#include <singleton.h>
+#include <string>
 
-#include "CServerList.h"
-#include "ExtendedServerList.h"
 #include "ZenGin/zGothicAPI.h"
 
-// Forward declarations for new menu system
-namespace menu {
-  class MenuStateMachine;
-  struct MenuContext;
-}
+namespace gmp::gothic {
 
-class CMainMenu : public TSingleton<CMainMenu> {
-private:
-  CServerList server_list_;
-  int Hour, Minute;
-
-  // Menu state machine system
-  std::unique_ptr<menu::MenuStateMachine> stateMachine_;
-  std::unique_ptr<menu::MenuContext> menuContext_;
-
+class LuaSound {
 public:
-  zVEC3 HeroPos;
-  zVEC3 Angle;
-  zVEC3 NAngle;
-  int hbX, hbY;  // Health bar dimensions
+  explicit LuaSound(const std::string& filename);
+  ~LuaSound();
 
-public:
-  CMainMenu();
-  ~CMainMenu();
-  void RenderMenu();
-  void ReLaunchMainMenu();
-  void ClearNpcTalents(oCNpc* Npc);
-  void static __stdcall MainMenuLoop();
-  void InitializeStateMachine();
-  void PrepareForMenuEntry();
-  
+  void play();
+  void stop();
+  bool isPlaying() const;
+
+  std::string getFile() const;
+  void setFile(const std::string& filename);
+
+  float getPlayingTime() const;
+
+  float getVolume() const;
+  void setVolume(float volume);
+
+  bool getLooping() const;
+  void setLooping(bool looping);
+
+  float getBalance() const;
+  void setBalance(float balance);
+
 private:
-  void PreparePlayerForMenuReentry();
-  static void __stdcall ReLaunchMenuCallback();
+  void ReloadSound();
+  void ApplyProperties();
+  void StopIfNeeded();
+
+  std::string file_;
+  float volume_;
+  bool looping_;
+  float balance_;
+  int handle_;
+
+  Gothic_II_Addon::zCSoundFX* sound_fx_;
 };
+
+}  // namespace gmp::gothic

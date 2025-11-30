@@ -186,11 +186,6 @@ void Config::LogConfigValues() const {
   SPDLOG_INFO("* {:<18}: {}", "Log level", Get<std::string>("log_level"));
 
   SPDLOG_INFO("");
-  SPDLOG_INFO("-= Scripts =-");
-  const auto& scripts = Get<std::vector<std::string>>("scripts");
-  SPDLOG_INFO("* {:<18}: {}", "Script count", scripts.size());
-
-  SPDLOG_INFO("");
   SPDLOG_INFO("-= Performance =-");
   SPDLOG_INFO("* {:<18}: {} ms", "Tick rate", Get<std::int32_t>("tick_rate_ms"));
 

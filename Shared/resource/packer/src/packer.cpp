@@ -28,6 +28,8 @@ SOFTWARE.
 #include <minizip/zip.h>
 #include <sodium.h>
 
+#include "shared/crypto_utils.h"
+
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -100,26 +102,6 @@ private:
   zipFile handle_;
 };
 
-void EnsureSodiumInitialized() {
-  static bool sodium_initialized = []() {
-    if (sodium_init() < 0) {
-      throw std::runtime_error("Failed to initialize libsodium");
-    }
-    return true;
-  }();
-  (void)sodium_initialized;
-}
-
-// Convert bytes to hex string
-std::string BytesToHex(const std::vector<std::uint8_t>& bytes) {
-  std::ostringstream oss;
-  oss << std::hex << std::setfill('0');
-  for (auto byte : bytes) {
-    oss << std::setw(2) << static_cast<int>(byte);
-  }
-  return oss.str();
-}
-
 bool StartsWith(std::string_view value, std::string_view prefix) {
   return value.size() >= prefix.size() && value.substr(0, prefix.size()) == prefix;
 }
@@ -128,6 +110,21 @@ bool EndsWith(std::string_view value, std::string_view suffix) {
   return value.size() >= suffix.size() && value.substr(value.size() - suffix.size()) == suffix;
 }
 
+/// Determines the entrypoint script(s) for a client-side resource.
+///
+/// Only `client/main.lua` (or `client/main.luac` if compiled) is treated as an
+/// entrypoint. This file is executed automatically when the resource loads on
+/// the client.
+///
+/// Other scripts in the resource should be loaded using Lua's `require()`
+/// function from within main.lua. For example:
+///
+///   -- client/main.lua
+///   local utils = require("client.utils")   -- loads client/utils.lua
+///   local ui = require("shared.ui")         -- loads shared/ui.lua
+///
+/// The packer includes all .lua files from `client/` and `shared/` directories
+/// in the archive, but only main.lua is auto-executed.
 std::vector<std::string> DeriveEntrypoints(const std::vector<FileMeta>& files) {
   std::vector<std::string> entrypoints;
 
@@ -135,19 +132,12 @@ std::vector<std::string> DeriveEntrypoints(const std::vector<FileMeta>& files) {
     return std::any_of(files.begin(), files.end(), [&](const FileMeta& meta) { return meta.path == candidate; });
   };
 
+  // Prefer compiled bytecode (.luac) over source (.lua) if both exist.
   const std::array<const char*, 2> preferred = {"client/main.luac", "client/main.lua"};
   for (const auto* candidate : preferred) {
     if (has_path(candidate)) {
       entrypoints.emplace_back(candidate);
       break;
-    }
-  }
-
-  if (entrypoints.empty()) {
-    for (const auto& meta : files) {
-      if (StartsWith(meta.path, "client/") && (EndsWith(meta.path, ".luac") || EndsWith(meta.path, ".lua"))) {
-        entrypoints.push_back(meta.path);
-      }
     }
   }
 
@@ -161,7 +151,7 @@ std::string ComputeFileSHA256(const fs::path& file_path) {
     throw std::runtime_error("Failed to open file for hashing: " + file_path.string());
   }
 
-  EnsureSodiumInitialized();
+  gmp::crypto::EnsureSodiumInitialized();
 
   crypto_hash_sha256_state state;
   crypto_hash_sha256_init(&state);
@@ -173,10 +163,10 @@ std::string ComputeFileSHA256(const fs::path& file_path) {
     crypto_hash_sha256_update(&state, reinterpret_cast<const unsigned char*>(buffer.data()), file.gcount());
   }
 
-  std::vector<std::uint8_t> hash(crypto_hash_sha256_BYTES);
-  crypto_hash_sha256_final(&state, hash.data());
+  unsigned char hash[crypto_hash_sha256_BYTES];
+  crypto_hash_sha256_final(&state, hash);
 
-  return BytesToHex(hash);
+  return gmp::crypto::BytesToHex(hash, crypto_hash_sha256_BYTES);
 }
 
 // Get current UTC timestamp in ISO 8601 format

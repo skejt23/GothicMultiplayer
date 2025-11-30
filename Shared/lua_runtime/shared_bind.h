@@ -1,8 +1,5 @@
-
 /*
 MIT License
-
-Copyright (c) 2022 Gothic Multiplayer Team (pampi, skejt23, mecio)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -25,46 +22,27 @@ SOFTWARE.
 
 #pragma once
 
+#include <functional>
+#include <string>
 #include <vector>
-#include <memory>
-#include <singleton.h>
 
-#include "CServerList.h"
-#include "ExtendedServerList.h"
-#include "ZenGin/zGothicAPI.h"
+#include "sol/sol.hpp"
 
-// Forward declarations for new menu system
-namespace menu {
-  class MenuStateMachine;
-  struct MenuContext;
-}
+namespace lua {
+namespace bindings {
 
-class CMainMenu : public TSingleton<CMainMenu> {
-private:
-  CServerList server_list_;
-  int Hour, Minute;
-
-  // Menu state machine system
-  std::unique_ptr<menu::MenuStateMachine> stateMachine_;
-  std::unique_ptr<menu::MenuContext> menuContext_;
-
-public:
-  zVEC3 HeroPos;
-  zVEC3 Angle;
-  zVEC3 NAngle;
-  int hbX, hbY;  // Health bar dimensions
-
-public:
-  CMainMenu();
-  ~CMainMenu();
-  void RenderMenu();
-  void ReLaunchMainMenu();
-  void ClearNpcTalents(oCNpc* Npc);
-  void static __stdcall MainMenuLoop();
-  void InitializeStateMachine();
-  void PrepareForMenuEntry();
-  
-private:
-  void PreparePlayerForMenuReentry();
-  static void __stdcall ReLaunchMenuCallback();
+struct ServerInfoProvider {
+  std::function<std::string()> get_hostname;
+  std::function<int()> get_max_slots;
+  std::function<std::vector<int>()> get_online_players;
+  std::function<int()> get_players_count;
 };
+
+void BindSharedConstants(sol::state& lua);
+
+void BindSharedFunctions(sol::state& lua);
+
+void SetServerInfoProvider(ServerInfoProvider provider);
+
+}  // namespace bindings
+}  // namespace lua

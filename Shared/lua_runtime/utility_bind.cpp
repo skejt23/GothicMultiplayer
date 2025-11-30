@@ -33,6 +33,10 @@ SOFTWARE.
 #include <string>
 #include <vector>
 
+#include <sodium.h>
+
+#include "shared/crypto_utils.h"
+
 namespace lua {
 namespace bindings {
 
@@ -129,10 +133,21 @@ sol::object Function_Sscanf(const std::string& format, const std::string& text, 
   std::istringstream stream(text);
   int index = 1;
 
-  for (char specifier : format) {
+  for (std::size_t i = 0; i < format.size(); ++i) {
+    char specifier = format[i];
+
     if (std::isspace(static_cast<unsigned char>(specifier))) {
       continue;
     }
+
+    bool is_last = true;
+    for (std::size_t j = i + 1; j < format.size(); ++j) {
+      if (!std::isspace(static_cast<unsigned char>(format[j]))) {
+        is_last = false;
+        break;
+      }
+    }
+
     switch (specifier) {
       case 'd': {
         long long value;
@@ -152,9 +167,17 @@ sol::object Function_Sscanf(const std::string& format, const std::string& text, 
       }
       case 's': {
         std::string value;
-        if (!(stream >> value)) {
-          return sol::make_object(lua, sol::lua_nil);
+
+        if (is_last) {
+          if (!std::getline(stream >> std::ws, value)) {
+            return sol::make_object(lua, sol::lua_nil);
+          }
+        } else {
+          if (!(stream >> value)) {
+            return sol::make_object(lua, sol::lua_nil);
+          }
         }
+
         result[index++] = value;
         break;
       }
@@ -166,8 +189,21 @@ sol::object Function_Sscanf(const std::string& format, const std::string& text, 
   return result;
 }
 
+
 std::int64_t Function_GetTickCount() {
   return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - kStartTime).count();
+}
+
+std::string Function_HashSha256(const std::string& input) {
+  unsigned char digest[crypto_hash_sha256_BYTES];
+  crypto_hash_sha256(digest, reinterpret_cast<const unsigned char*>(input.data()), input.size());
+  return gmp::crypto::BytesToHex(digest, crypto_hash_sha256_BYTES);
+}
+
+std::string Function_HashSha512(const std::string& input) {
+  unsigned char digest[crypto_hash_sha512_BYTES];
+  crypto_hash_sha512(digest, reinterpret_cast<const unsigned char*>(input.data()), input.size());
+  return gmp::crypto::BytesToHex(digest, crypto_hash_sha512_BYTES);
 }
 
 }  // namespace
@@ -177,6 +213,8 @@ void BindUtilities(sol::state& lua) {
   lua["hexToRgb"] = Function_HexToRgb;
   lua["rgbToHex"] = Function_RgbToHex;
   lua["sscanf"] = Function_Sscanf;
+  lua["sha256"] = Function_HashSha256;
+  lua["sha512"] = Function_HashSha512;
 }
 
 void BindTimers(sol::state& lua, TimerManager& timer_manager) {

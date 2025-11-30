@@ -134,6 +134,36 @@ std::vector<std::string> ResourceManager::DiscoverResources() {
   return discovered;
 }
 
+void ResourceManager::LogResourceInfo() const {
+  const auto count_scripts_in_directory = [](const fs::path& directory) {
+    std::size_t count = 0;
+
+    if (!fs::exists(directory) || !fs::is_directory(directory)) {
+      return count;
+    }
+
+    for (const auto& entry : fs::directory_iterator(directory)) {
+      if (entry.is_regular_file() && entry.path().extension() == ".lua") {
+        ++count;
+      }
+    }
+
+    return count;
+  };
+
+  std::size_t scripts_count = 0;
+  for (const auto& resource : discovered_resources_) {
+    scripts_count += count_scripts_in_directory(resource.root_path / "shared");
+    scripts_count += count_scripts_in_directory(resource.root_path / "server");
+    scripts_count += count_scripts_in_directory(resource.root_path / "client");
+  }
+
+  SPDLOG_INFO("");
+  SPDLOG_INFO("-= Resources =-");
+  SPDLOG_INFO("* {:<18}: {}", "Resources count", discovered_resources_.size());
+  SPDLOG_INFO("* {:<18}: {}", "Scripts count", scripts_count);
+}
+
 bool ResourceManager::LoadResource(const std::string& name, LuaScript& lua_script) {
   // Check if already loaded
   if (resources_.find(name) != resources_.end() && resources_[name]->IsLoaded()) {

@@ -90,6 +90,9 @@ public:
     return discovered_resources_;
   }
 
+  // Log resource statistics (call after DiscoverResources)
+  void LogResourceInfo() const;
+
   // RAII guard for setting current resource context
   class ScopedResourceContext {
   public:

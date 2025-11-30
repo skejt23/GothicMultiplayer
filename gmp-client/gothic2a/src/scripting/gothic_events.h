@@ -24,14 +24,45 @@ SOFTWARE.
 
 #pragma once
 
+#include <cstdint>
+#include <optional>
+#include <string>
+
 #include "sol/sol.hpp"
 
 namespace gmp::gothic {
 
-// Bind all Gothic-specific Lua bindings (players, NPCs, input, Discord, Draw, Texture, Sound, Time)
-void BindGothicSpecific(sol::state& lua);
+// Gothic-specific event names
+constexpr const char* kEventOnInitName = "onInit";
+constexpr const char* kEventOnExitName = "onExit";
+constexpr const char* kEventOnRenderName = "onRender";
+constexpr const char* kEventOnKeyDownName = "onKeyDown";
+constexpr const char* kEventOnKeyUpName = "onKeyUp";
+constexpr const char* kEventOnPlayerCreateName = "onPlayerCreate";
+constexpr const char* kEventOnPlayerDestroyName = "onPlayerDestroy";
+constexpr const char* kEventOnPlayerMessageName = "onPlayerMessage";
 
-// Cleanup Gothic UI views (Draw, Texture) - call on disconnect/cleanup
-void CleanupGothicViews();
+// Gothic-specific event structs
+struct OnKeyEvent {
+  int key;
+};
+
+struct PlayerLifecycleEvent {
+  std::uint64_t player_id;
+};
+
+struct OnPlayerMessageEvent {
+  std::optional<std::uint64_t> sender_id;
+  std::uint8_t r;
+  std::uint8_t g;
+  std::uint8_t b;
+  std::string message;
+};
+
+// Bind Gothic-specific events to Lua
+void BindGothicEvents(sol::state& lua);
+
+// Reset Gothic-specific events (call when disconnecting/reconnecting)
+void ResetGothicEvents();
 
 }  // namespace gmp::gothic

@@ -86,6 +86,7 @@ public:
     return player_manager_;
   }
 
+  const std::string& GetServerName() const { return server_name_; }
   const std::string& GetServerIp() const {
     return server_ip_;
   }
@@ -93,6 +94,8 @@ public:
   std::uint32_t GetServerPort() const {
     return server_port_;
   }
+
+  std::uint32_t GetMaxSlots() const { return max_slots_; }
 
   std::vector<ResourcePayload> ConsumeDownloadedResources();
 
@@ -123,7 +126,6 @@ private:
   void OnTakeItem(Packet packet);
   void OnWhisper(Packet packet);
   void OnMessage(Packet packet);
-  void OnServerMessage(Packet packet);
   void OnRcon(Packet packet);
   void OnExistingPlayers(Packet packet);
   void OnPlayerSpawn(Packet packet);
@@ -141,8 +143,10 @@ private:
   std::map<int, PacketHandlerFunc> packet_handlers_;
   std::vector<World> worlds_;
 
+  std::string server_name_;
   std::string server_ip_;
   std::uint32_t server_port_{0};
+  std::uint32_t max_slots_{0};
   bool connection_lost_{false};
   bool is_in_game_{false};
 

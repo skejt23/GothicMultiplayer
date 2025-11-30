@@ -30,6 +30,8 @@ SOFTWARE.
 #include <cstdint>
 #include <ostream>
 #include <string>
+#include <stdexcept>
+#include <utility>
 #include <toml.hpp>
 #include <unordered_map>
 #include <variant>
@@ -47,6 +49,20 @@ public:
     return std::get<T>(value);
   }
 
+  template <typename T>
+  void Set(const std::string& key, T value) {
+    auto it = values_.find(key);
+    if (it == values_.end()) {
+      throw std::out_of_range("Attempted to set unknown config key");
+    }
+
+    if (!std::holds_alternative<T>(it->second)) {
+      throw std::invalid_argument("Config value type mismatch");
+    }
+
+    it->second = std::move(value);
+  }
+  
   void LogConfigValues() const;
 
   // Binary accessors - for network transmission and crypto operations
