@@ -28,14 +28,14 @@ SOFTWARE.
 #include <tlhelp32.h>
 // clang-format on
 
+#include <spdlog/sinks/basic_file_sink.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/spdlog.h>
+
 #include <filesystem>
 #include <iostream>
 #include <string>
 #include <vector>
-
-#include <spdlog/spdlog.h>
-#include <spdlog/sinks/stdout_color_sinks.h>
-#include <spdlog/sinks/basic_file_sink.h>
 
 namespace fs = std::filesystem;
 
@@ -45,6 +45,7 @@ private:
   std::string gmpDllPath;
   std::string workingDirectory;
   std::shared_ptr<spdlog::logger> logger;
+  bool waitForDebugger = false;
 
   void InitializeLogger() {
     try {
@@ -72,9 +73,11 @@ private:
 
   // Helper function to convert UTF-8 string to UTF-16 for Windows APIs
   std::wstring Utf8ToWide(const std::string& utf8) {
-    if (utf8.empty()) return {};
+    if (utf8.empty())
+      return {};
     int size = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, nullptr, 0);
-    if (size <= 0) return {};
+    if (size <= 0)
+      return {};
     std::wstring result(size - 1, 0);
     MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, &result[0], size);
     return result;
@@ -82,9 +85,11 @@ private:
 
   // Helper function to convert UTF-16 string to UTF-8
   std::string WideToUtf8(const std::wstring& wide) {
-    if (wide.empty()) return {};
+    if (wide.empty())
+      return {};
     int size = WideCharToMultiByte(CP_UTF8, 0, wide.c_str(), -1, nullptr, 0, nullptr, nullptr);
-    if (size <= 0) return {};
+    if (size <= 0)
+      return {};
     std::string result(size - 1, 0);
     WideCharToMultiByte(CP_UTF8, 0, wide.c_str(), -1, &result[0], size, nullptr, nullptr);
     return result;
@@ -143,8 +148,9 @@ public:
     return allFound;
   }
 
-  bool InjectDLLManual(HANDLE hProcess, const std::string& dllPath) {
-    SPDLOG_INFO("Performing manual DLL injection...");
+  // Inject DLL while acting as the debugger - handles debug events to allow injection
+  bool InjectDLL(HANDLE hProcess, DWORD processId, const std::string& dllPath) {
+    SPDLOG_INFO("Injecting DLL as debugger...");
 
     // Get the address of LoadLibraryA in kernel32.dll
     HMODULE hKernel32 = GetModuleHandleA("kernel32.dll");
@@ -178,14 +184,7 @@ public:
     }
 
     // Create a remote thread that calls LoadLibraryA with our DLL path
-    HANDLE hRemoteThread = CreateRemoteThread(hProcess,                               // Target process handle
-                                              nullptr,                                // Security attributes
-                                              0,                                      // Stack size (default)
-                                              (LPTHREAD_START_ROUTINE)pLoadLibraryA,  // Thread function (LoadLibraryA)
-                                              pDllPath,                               // Parameter (DLL path)
-                                              0,                                      // Creation flags
-                                              nullptr                                 // Thread ID
-    );
+    HANDLE hRemoteThread = CreateRemoteThread(hProcess, nullptr, 0, (LPTHREAD_START_ROUTINE)pLoadLibraryA, pDllPath, 0, nullptr);
 
     if (!hRemoteThread) {
       DWORD error = GetLastError();
@@ -194,77 +193,100 @@ public:
       return false;
     }
 
-    SPDLOG_INFO("Remote thread created, waiting for DLL injection to complete...");
+    SPDLOG_INFO("Remote thread created, pumping debug events...");
 
-    // Wait for the remote thread to complete (LoadLibraryA to finish)
-    DWORD waitResult = WaitForSingleObject(hRemoteThread, 10000);  // Wait up to 10 seconds
+    // Pump debug events until the remote thread completes
+    // This is necessary because we're the debugger - the process won't run without us
+    DEBUG_EVENT debugEvent;
+    bool injectionComplete = false;
+    bool injectionSuccess = false;
+    DWORD startTime = GetTickCount();
+    const DWORD timeout = 10000;  // 10 seconds
 
-    if (waitResult == WAIT_TIMEOUT) {
-      SPDLOG_ERROR("DLL injection timed out");
-      TerminateThread(hRemoteThread, 0);
-      CloseHandle(hRemoteThread);
-      VirtualFreeEx(hProcess, pDllPath, 0, MEM_RELEASE);
-      return false;
-    } else if (waitResult != WAIT_OBJECT_0) {
-      DWORD error = GetLastError();
-      SPDLOG_ERROR("Error waiting for injection thread. Error: {}", error);
-      CloseHandle(hRemoteThread);
-      VirtualFreeEx(hProcess, pDllPath, 0, MEM_RELEASE);
-      return false;
+    while (!injectionComplete) {
+      if (GetTickCount() - startTime > timeout) {
+        SPDLOG_ERROR("DLL injection timed out while pumping debug events");
+        break;
+      }
+
+      if (WaitForDebugEvent(&debugEvent, 100)) {
+        DWORD continueStatus = DBG_CONTINUE;
+
+        switch (debugEvent.dwDebugEventCode) {
+          case EXCEPTION_DEBUG_EVENT:
+            // For first-chance exceptions, let the process handle them
+            if (debugEvent.u.Exception.dwFirstChance) {
+              continueStatus = DBG_EXCEPTION_NOT_HANDLED;
+            }
+            break;
+
+          case EXIT_THREAD_DEBUG_EVENT:
+            // Check if this is our injection thread completing
+            // We can't easily match thread IDs, so just check if LoadLibrary is done
+            break;
+
+          case EXIT_PROCESS_DEBUG_EVENT:
+            SPDLOG_ERROR("Target process exited during injection!");
+            injectionComplete = true;
+            break;
+
+          default:
+            // Handle other events (CREATE_THREAD, LOAD_DLL, etc.)
+            break;
+        }
+
+        ContinueDebugEvent(debugEvent.dwProcessId, debugEvent.dwThreadId, continueStatus);
+      }
+
+      // Check if injection thread has completed
+      DWORD waitResult = WaitForSingleObject(hRemoteThread, 0);
+      if (waitResult == WAIT_OBJECT_0) {
+        injectionComplete = true;
+
+        DWORD exitCode;
+        if (GetExitCodeThread(hRemoteThread, &exitCode) && exitCode != 0) {
+          SPDLOG_INFO("DLL injection successful! LoadLibraryA returned: 0x{:x}", exitCode);
+          injectionSuccess = true;
+        } else {
+          SPDLOG_ERROR("LoadLibraryA returned NULL - DLL injection failed");
+        }
+      }
     }
 
-    // Get the exit code of the remote thread (return value of LoadLibraryA)
-    DWORD exitCode;
-    if (!GetExitCodeThread(hRemoteThread, &exitCode)) {
-      DWORD error = GetLastError();
-      SPDLOG_ERROR("Failed to get injection thread exit code. Error: {}", error);
-      CloseHandle(hRemoteThread);
-      VirtualFreeEx(hProcess, pDllPath, 0, MEM_RELEASE);
-      return false;
-    }
-
-    // Clean up
     CloseHandle(hRemoteThread);
     VirtualFreeEx(hProcess, pDllPath, 0, MEM_RELEASE);
 
-    if (exitCode == 0) {
-      SPDLOG_ERROR("LoadLibraryA returned NULL - DLL injection failed");
-      SPDLOG_ERROR("This usually means:");
-      SPDLOG_ERROR("  1. The DLL file could not be found");
-      SPDLOG_ERROR("  2. The DLL has missing dependencies");
-      SPDLOG_ERROR("  3. The DLL's DllMain function returned FALSE");
-      SPDLOG_ERROR("  4. Architecture mismatch (32-bit vs 64-bit)");
-      return false;
-    } else {
-      SPDLOG_INFO("DLL injection successful! LoadLibraryA returned: 0x{:x}", exitCode);
-      return true;
-    }
+    return injectionSuccess;
   }
 
   bool LaunchAndInject() {
-    SPDLOG_INFO("Starting Gothic2.exe in suspended mode...");
+    SPDLOG_INFO("Starting Gothic2.exe...");
 
     // Convert UTF-8 strings to UTF-16 for Windows APIs
     std::wstring gothicPathWide = Utf8ToWide(gothicPath);
     std::wstring workingDirWide = Utf8ToWide(workingDirectory);
-    
+
     // Create the command line (must be mutable for CreateProcess)
     std::wstring cmdLineWide = L"\"" + gothicPathWide + L"\"";
 
-    // Create process in suspended state using Unicode API
     STARTUPINFOW si = {sizeof(STARTUPINFOW)};
     PROCESS_INFORMATION pi = {};
 
-    BOOL success = CreateProcessW(gothicPathWide.c_str(),            // Application name
+    // Use DEBUG_ONLY_THIS_PROCESS | CREATE_SUSPENDED to:
+    // 1. Prevent VS child process debugging from attaching first
+    // 2. Keep the main thread suspended so we control when it runs
+    DWORD creationFlags = DEBUG_ONLY_THIS_PROCESS | CREATE_SUSPENDED;
+
+    BOOL success = CreateProcessW(gothicPathWide.c_str(),                     // Application name
                                   const_cast<wchar_t*>(cmdLineWide.c_str()),  // Command line (must be mutable)
-                                  nullptr,                           // Process security attributes
-                                  nullptr,                           // Thread security attributes
-                                  FALSE,                             // Inherit handles
-                                  CREATE_SUSPENDED,                  // Creation flags - SUSPENDED!
-                                  nullptr,                           // Environment
-                                  workingDirWide.c_str(),           // Current directory
-                                  &si,                              // Startup info
-                                  &pi                               // Process information
+                                  nullptr,                                    // Process security attributes
+                                  nullptr,                                    // Thread security attributes
+                                  FALSE,                                      // Inherit handles
+                                  creationFlags,                              // We are the debugger initially
+                                  nullptr,                                    // Environment
+                                  workingDirWide.c_str(),                     // Current directory
+                                  &si,                                        // Startup info
+                                  &pi                                         // Process information
     );
 
     if (!success) {
@@ -273,10 +295,10 @@ public:
       return false;
     }
 
-    SPDLOG_INFO("Gothic2.exe created in suspended mode. Process ID: {}", pi.dwProcessId);
+    SPDLOG_INFO("Gothic2.exe created as debuggee. Process ID: {}", pi.dwProcessId);
 
-    // Inject the DLL while the process is suspended
-    bool injectionSuccess = InjectDLLManual(pi.hProcess, gmpDllPath);
+    // Inject the DLL - the process is stopped at initial breakpoint, we're the debugger
+    bool injectionSuccess = InjectDLL(pi.hProcess, pi.dwProcessId, gmpDllPath);
 
     if (!injectionSuccess) {
       SPDLOG_ERROR("DLL injection failed. Terminating Gothic2.exe process.");
@@ -286,19 +308,38 @@ public:
       return false;
     }
 
-    SPDLOG_INFO("DLL injection completed successfully. Resuming Gothic2.exe...");
+    SPDLOG_INFO("DLL injection completed successfully.");
 
-    // Resume the main thread to start execution
-    if (ResumeThread(pi.hThread) == (DWORD)-1) {
+    // Detach from being the debugger first - only one debugger can attach at a time
+    SPDLOG_INFO("Detaching launcher debugger...");
+    if (!DebugActiveProcessStop(pi.dwProcessId)) {
       DWORD error = GetLastError();
-      SPDLOG_ERROR("Failed to resume Gothic2.exe main thread. Error: {}", error);
-      TerminateProcess(pi.hProcess, 1);
-      CloseHandle(pi.hThread);
-      CloseHandle(pi.hProcess);
-      return false;
+      SPDLOG_WARN("Failed to detach debugger (error {})", error);
+    } else {
+      SPDLOG_INFO("Debugger detached.");
     }
 
-    SPDLOG_INFO("Gothic2.exe resumed and running with GMP.dll injected!");
+    // If --debug flag was passed, wait for user to attach external debugger (e.g., IDA)
+    if (waitForDebugger) {
+      SPDLOG_INFO("");
+      SPDLOG_INFO("===============================================================");
+      SPDLOG_INFO("  DEBUG MODE: Gothic2.exe with GMP.dll injected");
+      SPDLOG_INFO("  Process ID: {}", pi.dwProcessId);
+      SPDLOG_INFO("");
+      SPDLOG_INFO("  The process is SUSPENDED. Attach debbuger now, then press ENTER.");
+      SPDLOG_INFO("===============================================================");
+      SPDLOG_INFO("");
+      std::cin.get();
+    }
+
+    // Resume the main thread so the game starts running
+    SPDLOG_INFO("Resuming Gothic2.exe...");
+    if (ResumeThread(pi.hThread) == (DWORD)-1) {
+      DWORD error = GetLastError();
+      SPDLOG_ERROR("Failed to resume main thread. Error: {}", error);
+    }
+
+    SPDLOG_INFO("Gothic2.exe running with GMP.dll injected!");
 
     // Monitor the process for a few seconds to ensure it doesn't crash immediately
     DWORD waitResult = WaitForSingleObject(pi.hProcess, 3000);  // Wait up to 3 seconds
@@ -346,6 +387,8 @@ public:
         gmpDllPath = WideToUtf8(argv[++i]);
       } else if (arg == L"--workdir" && i + 1 < argc) {
         workingDirectory = WideToUtf8(argv[++i]);
+      } else if (arg == L"--debug" || arg == L"-d") {
+        waitForDebugger = true;
       } else if (arg == L"--help" || arg == L"-h") {
         PrintHelp();
         exit(0);
@@ -362,10 +405,15 @@ public:
     SPDLOG_INFO("  --gothic <path>   Path to Gothic2.exe (default: Gothic2.exe in launcher directory)");
     SPDLOG_INFO("  --dll <path>      Path to GMP.dll (default: GMP.dll in launcher directory)");
     SPDLOG_INFO("  --workdir <path>  Working directory for Gothic2.exe (default: launcher directory)");
+    SPDLOG_INFO("  --debug, -d       Pause after injection to attach IDA/debugger");
     SPDLOG_INFO("  --help, -h        Show this help message");
     SPDLOG_INFO("");
     SPDLOG_INFO("Example:");
     SPDLOG_INFO("  GMPLauncher.exe --gothic \"C:\\Gothic2\\Gothic2.exe\" --dll \"C:\\GMP\\GMP.dll\"");
+    SPDLOG_INFO("");
+    SPDLOG_INFO("Debugging with IDA/debugger:");
+    SPDLOG_INFO("  GMPLauncher.exe --debug");
+    SPDLOG_INFO("  Attach IDA/debugger to the PID shown, then press ENTER to continue");
   }
 
   int Run(int argc, wchar_t* argv[]) {

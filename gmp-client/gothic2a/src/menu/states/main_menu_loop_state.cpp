@@ -184,7 +184,6 @@ void MainMenuLoopState::ExecuteMenuItem(MenuItem item) {
       break;
 
     case LEAVE_GAME:
-      SPDLOG_INFO("Selected: Leave Game");
       if (context_.game) {
         gameMan->Done();
       }

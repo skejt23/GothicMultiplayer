@@ -92,6 +92,13 @@ public:
     // Update current state and check if it wants to exit
     StateResult result = currentState_->Update();
 
+    // Re-check currentState_ after Update() - it may have been invalidated
+    // by engine callbacks or other side effects triggered during Update()
+    if (!currentState_) {
+      SPDLOG_WARN("State was invalidated during Update()");
+      return false;
+    }
+
     if (result == StateResult::Exit) {
       // State requested shutdown - call OnExit and clear
       SPDLOG_INFO("State {} requested exit", currentState_->GetStateName());

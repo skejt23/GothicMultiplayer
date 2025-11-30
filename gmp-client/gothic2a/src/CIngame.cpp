@@ -30,12 +30,12 @@ SOFTWARE.
 #include <format>
 
 #include "CActiveAniID.h"
-#include "main_menu.h"
 #include "CMenu.h"
 #include "CWatch.h"
 #include "HooksManager.h"
 #include "config.h"
 #include "keyboard.h"
+#include "main_menu.h"
 #include "net_game.h"
 #include "patch.h"
 #include "random_utils.h"
@@ -143,7 +143,7 @@ void CIngame::Loop() {
     zCModel* model = player->GetModel();
     if (model && model->numActiveAnis > 0) {
       zCModelAni* AniUnusual = model->numActiveAnis > 1 ? model->aniChannels[1]->protoAni : nullptr;  // TALK, TURNR ETC
-      zCModelAni* Ani = model->aniChannels[0] ? model->aniChannels[0]->protoAni : nullptr;         // ZWYKLE
+      zCModelAni* Ani = model->aniChannels[0] ? model->aniChannels[0]->protoAni : nullptr;            // ZWYKLE
       if (Ani) {
         if (Ani->GetAniName().Search(TURN) < 2) {
           CActiveAniID::GetInstance()->AddAni(Ani->GetAniID());
@@ -275,6 +275,26 @@ void CIngame::HandleInput() {
       AMenu->Open();
     else
       AMenu->Close();
+  }
+  // SPAWN FIRE PARTICLE EFFECTS - Stress test for alpha batching
+  if (zinput->KeyToggled(KEY_F5) && !WritingOnChat) {
+    zVEC3 basePos = player->GetPositionWorld();
+    int spawnCount = 0;
+    // Spawn a 10x10 grid of fire effects (100 total)
+    for (int x = -5; x < 5; x++) {
+      for (int z = -5; z < 5; z++) {
+        oCVisualFX* fireVob = new oCVisualFX();
+        zCParticleFX* fireParticle = zCParticleFX::Load("FIRE_HOT.PFX");
+        if (fireParticle) {
+          fireVob->SetVisual(fireParticle);
+          zVEC3 offset(x * 150.0f, 0.0f, z * 150.0f);  // 150 units apart
+          fireVob->SetPositionWorld(basePos + offset);
+          ogame->GetWorld()->AddVob(fireVob);
+          spawnCount++;
+        }
+      }
+    }
+    CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(0, 255, 0, 255), "Spawned %d fire effects for stress test", spawnCount);
   }
   if (AMenu->Opened) {
     if (zinput->KeyToggled(KEY_ESCAPE))

@@ -72,8 +72,10 @@
     #include "zViewPrint.h"
     #include "zViewDialog.h"
     #include "zViewDialogChoice.h"
-    #include "zRndD3d.h"
+    #include "zVertexBuffer.h"
+    // #include "zRndD3d.h"
     #include "zFonts.h"
+    
     #include "zConsole.h"
   #endif
 #endif
@@ -240,7 +242,7 @@
 #if 1
   #ifdef __ZCON_B_VER3__
     #define __ZRND_B_VER3__
-    #include "zRndD3d_Init.h"
+    // #include "zRndD3d_Init.h"
     #include "zRenderLightContainer.h"
   #endif
 #endif

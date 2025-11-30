@@ -19,6 +19,10 @@ namespace Gothic_II_Addon {
 
     zCVertexTransform() {}
 
+    static zCVertexTransform* GetVert(int index) {
+        return &s_MemMan[index];
+    }
+
     // user API
     #include "zCVertexTransform.inl"
   };
