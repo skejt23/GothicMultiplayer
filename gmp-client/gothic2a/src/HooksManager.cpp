@@ -26,6 +26,7 @@ SOFTWARE.
 
 #include <spdlog/spdlog.h>
 
+#include <cmath>
 #include <cstdio>
 
 #include "ZenGin/zGothicAPI.h"
@@ -36,6 +37,7 @@ namespace {
 constexpr DWORD kRenderHookAddress = 0x006C86A0;
 constexpr DWORD kAiMovingHookAddress = 0x0050E750;
 constexpr DWORD kVidIsResolutionValidAddress = 0x0042C140;  // VidIsResolutionValid
+constexpr DWORD kSetFOV2Address = 0x0054A960;  // zCCamera::SetFOV(float, float)
 
 using RenderOriginalFn = void(__thiscall*)(oCGame*);
 using AiMovingOriginalFn = void(__thiscall*)(zCAIPlayer*, zCVob*);
@@ -46,6 +48,10 @@ AiMovingOriginalFn g_aiMovingOriginal = nullptr;
 // Original VidIsResolutionValid function pointer
 using VidIsResolutionValidFn = int(__cdecl*)(int x, int y, int bpp);
 VidIsResolutionValidFn g_vidIsResolutionValidOriginal = nullptr;
+
+// Original zCCamera::SetFOV(float, float) function pointer
+using SetFOV2Fn = void(__thiscall*)(zCCamera*, float, float);
+SetFOV2Fn g_setFOV2Original = nullptr;
 
 // Hook for VidIsResolutionValid - bypasses hardcoded 1600x1200 limit
 // The original function rejects resolutions above 1600x1200 and enforces aspect ratio limits.
@@ -67,6 +73,54 @@ int __cdecl Hook_VidIsResolutionValid(int x, int y, int bpp) {
   SPDLOG_INFO("VidIsResolutionValid[{}] ACCEPTED {}x{} @ {}bpp", s_resolutionCheckCount, x, y, bpp);
   // Accept the resolution - D3D9 mode enumeration already filters valid modes
   return 1;
+}
+
+// =============================================================================
+// FOV 180° BUG WORKAROUND - Hook for zCCamera::SetFOV(float, float)
+// =============================================================================
+//
+// SYMPTOM:
+//   When using the D3D9 renderer with launcher injection, the camera receives
+//   fovH=180° instead of the expected 90°, causing extreme fisheye distortion.
+//   This ONLY happens with D3D9 renderer + launcher; D3D7 renderer works fine.
+//
+// OBSERVATIONS:
+//   - The CALL at 0x0054A214 in zCCamera's constructor gets redirected to a
+//     dynamically generated thunk at runtime (observed at ~0x0082D2xx).
+//   - This thunk performs widescreen FOV correction using FPU math, reading
+//     aspect ratio from dynamically allocated memory (e.g., 0x00110000).
+//   - When that memory contains 0.0, division by zero causes infinity,
+//     which leads to: atan(inf) = π/2 → fovH = 180°.
+//
+// ROOT CAUSE: Unknown - needs further investigation.
+//
+// WORKAROUND:
+//   Detect the broken 180°/67.5° FOV combination and replace with 90°/67.5°.
+//   This is a safety net until the root cause is properly fixed.
+// =============================================================================
+static int s_setFOV2Count = 0;
+void __fastcall Hook_SetFOV2(zCCamera* camera, void* /*edx*/, float fovH_deg, float fovV_deg) {
+  s_setFOV2Count++;
+  
+  // WORKAROUND: Detect and fix the 180° FOV bug.
+  // The broken case has fovH ≈ 180° and fovV ≈ 67.5° (the correct vertical FOV).
+  // This happens when the widescreen thunk's aspect ratio memory is uninitialized (0.0),
+  // causing: tan(half_fov) / 0.0 = infinity → atan(inf) = π/2 → fovH = 180°.
+  float correctedFovH = fovH_deg;
+  if (fovH_deg >= 179.9f && fovH_deg <= 180.1f && fovV_deg >= 67.0f && fovV_deg <= 68.0f) {
+    correctedFovH = 90.0f;  // Replace with the intended default FOV
+    static bool s_loggedFix = false;
+    if (!s_loggedFix) {
+      SPDLOG_WARN("SetFOV2: Detected 180° FOV bug, correcting to 90°. "
+                  "This indicates uninitialized widescreen thunk memory.");
+      s_loggedFix = true;
+    }
+  }
+  
+  // Call original function with corrected value
+  if (g_setFOV2Original) {
+    g_setFOV2Original(camera, correctedFovH, fovV_deg);
+  }
 }
 
 }  // namespace
@@ -134,7 +188,30 @@ void HooksManager::RemoveHook(HOOK_TYPE type, DWORD callback) {
 
 constexpr bool kUseDx9Renderer = true;
 
+// Address of the CALL instruction in zCCamera constructor that calls SetFOV(float)
+// Original: E8 07 07 00 00 -> CALL 0x0054A920 (SetFOV(float))
+// Patched by widescreen mods: varies -> CALL to dynamically generated thunk
+constexpr uintptr_t kCameraCtorSetFOVCallAddress = 0x0054A214;
+constexpr uintptr_t kOriginalSetFOVAddress = 0x0054A920;
+
 void HooksManager::InitAllPatches() {
+  // Check if the SetFOV CALL in the camera constructor has been patched by something.
+  // This is for diagnostic purposes - we log if it's different from the original.
+  {
+    BYTE* pCall = reinterpret_cast<BYTE*>(kCameraCtorSetFOVCallAddress);
+    if (pCall[0] == 0xE8) {
+      int32_t currentOffset = *reinterpret_cast<int32_t*>(pCall + 1);
+      uintptr_t currentTarget = kCameraCtorSetFOVCallAddress + 5 + currentOffset;
+      
+      if (currentTarget != kOriginalSetFOVAddress) {
+        SPDLOG_WARN("Camera constructor SetFOV CALL is patched! Target=0x{:08X} (expected 0x{:08X})",
+                    currentTarget, kOriginalSetFOVAddress);
+      } else {
+        SPDLOG_DEBUG("Camera constructor SetFOV CALL is original (0x{:08X})", currentTarget);
+      }
+    }
+  }
+
   if (kUseDx9Renderer) {
     // Inject DX9 Renderer
     // First, patch the allocation size to match our renderer class size
@@ -174,6 +251,17 @@ void HooksManager::InitAllPatches() {
       MemoryPatch::WriteMemory(0x0042C67B, jmpNear, 2);
       SPDLOG_DEBUG("Patched inlined VidIsResolutionValid in Apply_Options_Video at 0x0042C67B");
     }
+  }
+
+  // =============================================================================
+  // Hook zCCamera::SetFOV(float, float) to work around the 180° FOV bug.
+  // See the long comment above Hook_SetFOV2 for full explanation.
+  // =============================================================================
+  if (auto original = CreateHook(kSetFOV2Address, (DWORD)Hook_SetFOV2)) {
+    g_setFOV2Original = reinterpret_cast<SetFOV2Fn>(*original);
+    SPDLOG_DEBUG("Hooked zCCamera::SetFOV at 0x{:08X}", kSetFOV2Address);
+  } else {
+    SPDLOG_ERROR("Failed to hook zCCamera::SetFOV at 0x{:08X}", kSetFOV2Address);
   }
 
   if (auto original = CreateHook(kRenderHookAddress, (DWORD)&HooksManager::OnRender)) {

@@ -103,13 +103,16 @@ void DynamicVertexBuffer::Release() {
     buffer_->Release();
     buffer_ = nullptr;
   }
-  capacity_ = 0;
+  // Note: We preserve capacity_ and fvf_ so Recreate() can restore the buffer
+  // after a device reset. Only reset runtime state.
   write_offset_ = 0;
   need_discard_ = true;
 }
 
 bool DynamicVertexBuffer::Recreate(IDirect3DDevice9* device) {
   if (!device || capacity_ == 0) {
+    SPDLOG_WARN("DynamicVertexBuffer::Recreate failed: device={} capacity_={}", 
+                static_cast<void*>(device), capacity_);
     return false;
   }
 
@@ -278,13 +281,16 @@ void DynamicIndexBuffer::Release() {
     buffer_->Release();
     buffer_ = nullptr;
   }
-  capacity_ = 0;
+  // Note: We preserve capacity_ so Recreate() can restore the buffer
+  // after a device reset. Only reset runtime state.
   write_offset_ = 0;
   need_discard_ = true;
 }
 
 bool DynamicIndexBuffer::Recreate(IDirect3DDevice9* device) {
   if (!device || capacity_ == 0) {
+    SPDLOG_WARN("DynamicIndexBuffer::Recreate failed: device={} capacity_={}", 
+                static_cast<void*>(device), capacity_);
     return false;
   }
 
