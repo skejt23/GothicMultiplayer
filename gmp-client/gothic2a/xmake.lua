@@ -7,7 +7,7 @@ target("ClientMain")
     add_includedirs("src")
     
     add_deps("common", "SharedLib", "LuaRuntime", "ResourceLoader", "zNetInterface", "Client.Net", "Client.Resources", "SDL3", "BugTrap", "gothic_api")
-    add_packages("spdlog", "fmt", "cpp-httplib", "dylib", "glm", "bitsery", "nlohmann_json", "polyhook2")
+    add_packages("spdlog", "fmt", "cpp-httplib", "dylib", "glm", "bitsery", "nlohmann_json", "polyhook2", "sol2", "minimp3", "stb")
     add_syslinks("wsock32", "ws2_32", "Iphlpapi", "user32", "gdi32", "kernel32", "d3d9")
 
     add_defines("SPDLOG_FMT_EXTERNAL")
@@ -51,6 +51,7 @@ target("ClientMain")
         os.mkdir(path.join(installdir, "Multiplayer"))
         os.cp(path.join(scriptdir, "resources/Data/*"), path.join(installdir, "Data"))
         os.cp(path.join(scriptdir, "resources/Multiplayer/*"), path.join(installdir, "Multiplayer"))
+        os.cp(path.join(scriptdir, "resources/Multiplayer/Music/*"), path.join(installdir, "Multiplayer", "Music"))
         print("Installed resources to " .. installdir)
 
         local discord_pkg = target:pkg("discord")

@@ -34,6 +34,7 @@ SOFTWARE.
 #include "HooksManager.h"
 #include "Mod.h"
 #include "ZenGin/zGothicAPI.h"
+#include "audio/gothic_music_bridge.h"
 #include "common.h"
 #include "config.h"
 #include "discord_presence.h"
@@ -151,6 +152,9 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
       SPDLOG_ERROR("GMP.dll initialization failed with unknown exception");
       return FALSE;
     }
+  } else if (fdwReason == DLL_PROCESS_DETACH) {
+    // Cleanup - shutdown music bridge to restore Gothic music if needed.
+    gmp::audio::GothicMusicBridge::Shutdown();
   }
   return TRUE;
 }

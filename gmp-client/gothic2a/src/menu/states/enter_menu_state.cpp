@@ -40,6 +40,7 @@ void EnterMenuState::OnEnter() {
   SPDLOG_INFO("Entering menu bootstrap state");
 
   PrepareMenuEnvironment();
+  StartMenuMusic();
 
   switch (flow_) {
     case InitialFlow::ChooseLanguage:
@@ -115,6 +116,23 @@ void EnterMenuState::PrepareMenuEnvironment() {
 
   // Note: Player and HUD preparation is done by CMainMenu::InitializeStateMachine()
   // before the state machine is created, to avoid singleton re-entry issues
+}
+
+void EnterMenuState::StartMenuMusic() {
+  // Create music player if not already created
+  if (!context_.menuMusicPlayer) {
+    context_.menuMusicPlayer = std::make_unique<gmp::audio::MusicPlayer>();
+  }
+
+  // Load and play the menu theme
+  const char* kMenuMusicPath = ".\\Multiplayer\\Music\\main_menu_theme_1.mp3";
+  if (context_.menuMusicPlayer->Load(kMenuMusicPath)) {
+    context_.menuMusicPlayer->SetMuteGothicMusic(true);  // Mute Gothic's music while playing.
+    context_.menuMusicPlayer->Play(true);  // Loop the music.
+    SPDLOG_INFO("Menu music started: {}", kMenuMusicPath);
+  } else {
+    SPDLOG_WARN("Failed to load menu music: {}", kMenuMusicPath);
+  }
 }
 
 }  // namespace states

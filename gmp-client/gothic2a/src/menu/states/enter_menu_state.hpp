@@ -55,6 +55,7 @@ private:
   void PrepareMenuEnvironment();
   void CreateTitleLogo();
   void SetupMenuScene();
+  void StartMenuMusic();
 
   MenuContext& context_;
   InitialFlow flow_;

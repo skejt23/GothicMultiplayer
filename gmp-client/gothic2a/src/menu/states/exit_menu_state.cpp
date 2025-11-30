@@ -34,6 +34,7 @@ ExitMenuState::ExitMenuState(MenuContext& context) : context_(context) {
 
 void ExitMenuState::OnEnter() {
   SPDLOG_INFO("Entering exit menu state - beginning cleanup");
+  StopMenuMusic();
   CleanUpMenuResources();
   cleanupComplete_ = true;
 }
@@ -103,6 +104,14 @@ void ExitMenuState::CleanUpMenuResources() {
   context_.game->CamInit();
 
   SPDLOG_INFO("Menu cleanup complete");
+}
+
+void ExitMenuState::StopMenuMusic() {
+  if (context_.menuMusicPlayer) {
+    context_.menuMusicPlayer->Stop();  // Stop() also unmutes Gothic's music.
+    context_.menuMusicPlayer.reset();
+    SPDLOG_INFO("Menu music stopped, Gothic music control restored");
+  }
 }
 
 }  // namespace states

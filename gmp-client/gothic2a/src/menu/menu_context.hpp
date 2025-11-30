@@ -24,9 +24,12 @@ SOFTWARE.
 
 #pragma once
 
+#include <memory>
+
 #include "CServerList.h"
 #include "ExtendedServerList.h"
 #include "ZenGin/zGothicAPI.h"
+#include "audio/music_player.h"
 #include "config.h"
 #include "language.h"
 #include "menu/menu_scene.h"
@@ -73,6 +76,9 @@ struct MenuContext {
 
   // ===== Menu Scene (for FPS-independent animations) =====
   MenuScene scene;
+
+  // ===== Menu Music Player =====
+  std::unique_ptr<gmp::audio::MusicPlayer> menuMusicPlayer;
 
   // ===== Player State Backup (for restoration) =====
   zVEC3 savedPlayerPosition;

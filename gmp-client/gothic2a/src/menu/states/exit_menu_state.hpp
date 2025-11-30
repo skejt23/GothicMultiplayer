@@ -60,6 +60,7 @@ public:
 
 private:
   void CleanUpMenuResources();
+  void StopMenuMusic();
 };
 
 }  // namespace states

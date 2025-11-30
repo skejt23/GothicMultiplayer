@@ -37,6 +37,7 @@ SOFTWARE.
 #include "CActiveAniID.h"
 #include "CIngame.h"
 #include "language.h"
+#include "audio/gothic_music_bridge.h"
 #include <ctime>
 #include <memory>
 
@@ -442,6 +443,8 @@ void Initialize(void)
 		SetupExceptionHandler();
 		// Initialize language system
 		LanguageManager::Instance().LoadLanguages(".\\Multiplayer\\Localization\\", Config::Instance().lang);
+		// Initialize music bridge for zCOptions integration
+		gmp::audio::GothicMusicBridge::Initialize();
 		MainMenu = CMainMenu::GetInstance();
 		Patch::FixSetTime();
 		Patch::DisableCheat();

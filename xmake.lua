@@ -65,7 +65,9 @@ add_requires("fmt 11.0.2",
              "minizip 1.2.13",
              "openssl 1.1.1-w",
              "libsodium 1.0.*",
-             "polyhook2")
+             "polyhook2",
+             "stb",
+             "minimp3")
 
 includes("common", "shared", "gmp-server", "thirdparty", "tests")
 
