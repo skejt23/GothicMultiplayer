@@ -67,7 +67,6 @@ struct zTRndSimpleVertex;
 // Compatibility behaviors (required by Gothic's engine):
 // - Standard perspective Z-buffer mapping: z_ndc = A + B/eye_z
 // - Back-to-front alpha polygon sorting (painter's algorithm)
-// - Two-pass lightmap rendering for world geometry
 // - Radial (range-based) fog for outdoor scenes
 //
 // New features and optimizations:
