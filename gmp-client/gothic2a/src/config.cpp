@@ -135,6 +135,7 @@ void Config::LoadConfigFromFile() {
   }
 
   window_always_on_top_ = toml.GetValue<bool>("window_always_on_top", window_always_on_top_);
+  use_dx9_renderer_ = toml.GetValue<bool>("use_dx9_renderer", use_dx9_renderer_);
 
   // If nickname is empty, the user didn't set up the config yet.
   is_default_ = Nickname.IsEmpty();
@@ -152,6 +153,7 @@ void Config::DefaultSettings() {
   ChatLines = 6;
   window_position_.reset();
   console_position_.reset();
+  use_dx9_renderer_ = true;
   is_default_ = true;
 };
 
@@ -186,6 +188,7 @@ void Config::SaveConfigToFile() {
   }
 
   toml["window_always_on_top"] = toml::value(window_always_on_top_);
+  toml["use_dx9_renderer"] = toml::value(use_dx9_renderer_);
 
   toml.Serialize(config_file_path_.string());
   is_default_ = Nickname.IsEmpty();

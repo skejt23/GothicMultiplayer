@@ -30,6 +30,7 @@ SOFTWARE.
 #include <cstdio>
 
 #include "ZenGin/zGothicAPI.h"
+#include "config.h"
 #include "renderer/D3D9Renderer.h"
 
 namespace {
@@ -194,7 +195,10 @@ void HooksManager::RemoveHook(HOOK_TYPE type, DWORD callback) {
   }
 }
 
-constexpr bool kUseDx9Renderer = true;
+// Check if D3D9 renderer is enabled via config (default: true)
+static bool UseDx9Renderer() {
+  return Config::Instance().UseDx9Renderer();
+}
 
 // Address of the CALL instruction in zCCamera constructor that calls SetFOV(float)
 // Original: E8 07 07 00 00 -> CALL 0x0054A920 (SetFOV(float))
@@ -219,7 +223,7 @@ void HooksManager::InitAllPatches() {
     }
   }
 
-  if (kUseDx9Renderer) {
+  if (UseDx9Renderer()) {
     // Inject DX9 Renderer
     // First, patch the allocation size to match our renderer class size
     DWORD newSize = sizeof(zCRnd_D3D_DX9);

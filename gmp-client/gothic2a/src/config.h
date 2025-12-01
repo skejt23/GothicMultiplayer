@@ -74,6 +74,10 @@ public:
     return window_always_on_top_;
   }
 
+  bool UseDx9Renderer() const {
+    return use_dx9_renderer_;
+  }
+
   static Config& Instance() {
     static Config instance;
     return instance;
@@ -87,4 +91,5 @@ private:
   std::optional<WindowPosition> window_position_;
   std::optional<ConsolePosition> console_position_;
   bool window_always_on_top_ = false;
+  bool use_dx9_renderer_ = true;  // Enable D3D9 renderer by default (experimental)
 };

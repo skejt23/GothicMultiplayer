@@ -26,6 +26,7 @@ SOFTWARE.
 
 #include <spdlog/spdlog.h>
 
+#include "config.h"
 #include "keyboard.h"
 #include "language.h"
 #include "menu/states/online_options_state.hpp"
@@ -115,6 +116,12 @@ void MainMenuLoopState::RenderMenu() {
 void MainMenuLoopState::RenderVersionInfo() {
   context_.screen->SetFont(FDefault);
   context_.screen->SetFontColor(Normal);
+
+  // D3D9 experimental warning in top left
+  if (Config::Instance().UseDx9Renderer()) {
+    static zSTRING d3d9_warning = "D3D9 experimental (may display visual glitches)";
+    context_.screen->Print(100, 100, d3d9_warning);
+  }
 
   // Version in bottom right
   context_.screen->Print(8192 - context_.screen->FontSize(GetVersionString()), 8192 - context_.screen->FontY(), GetVersionString());
