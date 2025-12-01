@@ -67,15 +67,6 @@ void MainMenuLoopState::OnEnter() {
 
   // Enable title weapon animation
   context_.ShowTitleWeapon();
-
-  // Play menu music
-  if (context_.soundSystem) {
-    zCSoundFX* menuMusic = context_.soundSystem->LoadSoundFX("K_KURKOWSKI_A_CERTAIN_PLACE.WAV");
-    if (menuMusic) {
-      menuMusic->SetLooping(1);
-      context_.soundSystem->PlaySound(menuMusic, 1);
-    }
-  }
 }
 
 void MainMenuLoopState::OnExit() {

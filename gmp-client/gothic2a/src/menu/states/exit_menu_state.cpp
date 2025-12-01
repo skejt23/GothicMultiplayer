@@ -60,11 +60,6 @@ MenuState* ExitMenuState::CheckTransition() {
 void ExitMenuState::CleanUpMenuResources() {
   SPDLOG_INFO("Cleaning up all menu resources");
 
-  // Stop all sounds
-  if (context_.soundSystem) {
-    context_.soundSystem->StopAllSounds();
-  }
-
   // Remove weapons from world
   context_.HideTitleWeapon();
   if (context_.titleWeapon) {

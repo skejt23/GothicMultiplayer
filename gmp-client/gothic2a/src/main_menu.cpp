@@ -99,7 +99,6 @@ void CMainMenu::InitializeStateMachine() {
   menuContext_->input = zinput;
   menuContext_->screen = screen;
   menuContext_->options = zoptions;
-  menuContext_->soundSystem = zsound;
 
   // Menu visual elements - logo will be created by EnterMenuState
   menuContext_->logoView = nullptr;

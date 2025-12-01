@@ -53,7 +53,6 @@ struct MenuContext {
   zCInput* input = nullptr;
   zCView* screen = nullptr;
   zCOption* options = nullptr;
-  zCSoundSystem* soundSystem = nullptr;
 
   // ===== Menu Visual Elements =====
   zCView* logoView = nullptr;
@@ -96,7 +95,6 @@ struct MenuContext {
     input = zinput;
     screen = Gothic_II_Addon::screen;
     options = zoptions;
-    soundSystem = zsound;
   }
 
   // ===== Helper Methods =====
