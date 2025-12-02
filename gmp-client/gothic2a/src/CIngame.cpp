@@ -34,6 +34,7 @@ SOFTWARE.
 #include "CWatch.h"
 #include "HooksManager.h"
 #include "config.h"
+#include "gothic2a_player.hpp"
 #include "keyboard.h"
 #include "main_menu.h"
 #include "net_game.h"
@@ -276,6 +277,106 @@ void CIngame::HandleInput() {
     else
       AMenu->Close();
   }
+#ifndef NDEBUG
+  // ============================================================================
+  // NOCLIP MODE - F8 toggles free-fly mode with collision disabled
+  // ============================================================================
+  static clock_t lastNoclipUpdate = 0;
+  constexpr float kMinSpeed = 100.0f;
+  constexpr float kMaxSpeed = 7000.0f;
+  constexpr float kSpeedStep = 100.0f;
+
+  // F8: Toggle noclip on/off
+  if (zinput->KeyToggled(KEY_F8) && !WritingOnChat) {
+    if (!zinput->KeyPressed(KEY_LCONTROL) && !zinput->KeyPressed(KEY_RCONTROL) && !zinput->KeyPressed(KEY_LALT) && !zinput->KeyPressed(KEY_RALT)) {
+      CIngame::noclipEnabled = !CIngame::noclipEnabled;
+      lastNoclipUpdate = clock();
+
+      if (!CIngame::noclipEnabled) {
+        // Re-enable physics when exiting noclip
+        player->SetCollDet(1);
+        player->SetPhysicsEnabled(1);
+        player->GetAnictrl()->SetPhysicsEnabled(1);
+      }
+    }
+  }
+
+  // Process noclip movement when active
+  if (CIngame::noclipEnabled && !WritingOnChat) {
+    // Disable physics each frame to prevent gravity from kicking in
+    player->SetCollDet(0);
+    player->SetPhysicsEnabled(0);
+    player->GetAnictrl()->SetPhysicsEnabled(0);
+
+    // Zero out velocity to prevent any momentum/falling
+    auto* anictrl = player->GetAnictrl();
+    anictrl->velocity[VX] = 0.0f;
+    anictrl->velocity[VY] = 0.0f;
+    anictrl->velocity[VZ] = 0.0f;
+
+    // Set fly state to prevent gravity calculations
+    anictrl->state = zCAIPlayer::zMV_STATE_FLY;
+
+    clock_t now = clock();
+    float deltaTime = (now - lastNoclipUpdate) / 1000.0f;  // Convert to seconds
+    if (deltaTime > 0.0f) {
+      lastNoclipUpdate = now;
+
+      // Speed adjustment: +/- keys
+      if (zinput->KeyPressed(KEY_ADD)) {
+        CIngame::noclipSpeed = std::min(CIngame::noclipSpeed + kSpeedStep, kMaxSpeed);
+      }
+      if (zinput->KeyPressed(KEY_SUBTRACT)) {
+        CIngame::noclipSpeed = std::max(CIngame::noclipSpeed - kSpeedStep, kMinSpeed);
+      }
+
+      // Calculate movement delta
+      zVEC3 movement(0.0f, 0.0f, 0.0f);
+      float moveDistance = CIngame::noclipSpeed * deltaTime;
+
+      // Get player orientation vectors
+      zVEC3 forward = player->GetAtVectorWorld();
+      zVEC3 right = player->trafoObjToWorld.GetRightVector();
+      forward.Normalize();
+      right.Normalize();
+
+      // Forward/Backward (W/S or UP/DOWN arrows)
+      if (zinput->KeyPressed(KEY_W) || zinput->KeyPressed(KEY_UP)) {
+        movement[VX] += forward[VX] * moveDistance;
+        movement[VZ] += forward[VZ] * moveDistance;
+      }
+      if (zinput->KeyPressed(KEY_S) || zinput->KeyPressed(KEY_DOWN)) {
+        movement[VX] -= forward[VX] * moveDistance;
+        movement[VZ] -= forward[VZ] * moveDistance;
+      }
+
+      // Strafe Left/Right (A/D or LEFT/RIGHT arrows)
+      if (zinput->KeyPressed(KEY_A) || zinput->KeyPressed(KEY_LEFT)) {
+        movement[VX] -= right[VX] * moveDistance;
+        movement[VZ] -= right[VZ] * moveDistance;
+      }
+      if (zinput->KeyPressed(KEY_D) || zinput->KeyPressed(KEY_RIGHT)) {
+        movement[VX] += right[VX] * moveDistance;
+        movement[VZ] += right[VZ] * moveDistance;
+      }
+
+      // Vertical movement (Space = up, Ctrl = down)
+      if (zinput->KeyPressed(KEY_SPACE)) {
+        movement[VY] += moveDistance;
+      }
+      if (zinput->KeyPressed(KEY_LCONTROL) || zinput->KeyPressed(KEY_RCONTROL)) {
+        movement[VY] -= moveDistance;
+      }
+
+      // Apply movement - use SetPositionWorld for direct position control
+      zVEC3 newPos = player->GetPositionWorld();
+      newPos[VX] += movement[VX];
+      newPos[VY] += movement[VY];
+      newPos[VZ] += movement[VZ];
+      player->SetPositionWorld(newPos);
+    }
+  }
+#endif
   // SPAWN FIRE PARTICLE EFFECTS - Stress test for alpha batching
   if (zinput->KeyToggled(KEY_F5) && !WritingOnChat) {
     zVEC3 basePos = player->GetPositionWorld();
@@ -403,6 +504,60 @@ void CIngame::Draw() {
   this->chat_interface->PrintChat();
   if (Config::Instance().watch)
     CWatch::GetInstance()->PrintWatch();
+
+#ifndef NDEBUG
+  // Display noclip controls when active
+  if (CIngame::noclipEnabled) {
+    screen->SetFont("FONT_OLD_10_WHITE.TGA");
+    screen->SetFontColor(zCOLOR(0, 255, 0));
+
+    // Move the UI to bottom-right using font metrics so it looks good at any resolution
+    const int marginX = 100;  // distance from right edge
+    const int marginY = 100;  // distance from bottom edge
+
+    // Prepare lines
+    std::vector<std::string> lines;
+    lines.push_back("=== NOCLIP MODE ACTIVE ===");
+    char speedBuffer[64];
+    sprintf(speedBuffer, "Speed: %.0f units/s", CIngame::noclipSpeed);
+    lines.push_back(speedBuffer);
+    lines.push_back("WASD/Arrows: Move horizontally");
+    lines.push_back("Space: Move up");
+    lines.push_back("Ctrl: Move down");
+    lines.push_back("+/-: Adjust speed");
+    lines.push_back("F8: Toggle noclip off");
+
+    int fontH = screen->FontY();
+    int spacing = fontH;  // keep line spacing equal to font height
+    int totalHeight = spacing * static_cast<int>(lines.size());
+
+    // y coordinate of the top of the block so the block is marginY above the bottom
+    int yStart = 8192 - marginY - totalHeight;
+
+    // Draw each line aligned to the right
+    for (size_t i = 0; i < lines.size(); ++i) {
+      const std::string& ln = lines[i];
+      int textW = screen->FontSize(ln.c_str());
+      int x = 8192 - marginX - textW;  // right aligned
+      int y = yStart + static_cast<int>(i) * spacing;
+
+      // emphasize the header
+      if (i == 0) {
+        screen->SetFontColor(zCOLOR(0, 255, 0));
+        screen->Print(x, y, ln.c_str());
+        screen->SetFontColor(zCOLOR(200, 200, 200));
+      } else if (i == 1) {
+        // speed line should remain green-ish
+        screen->SetFontColor(zCOLOR(0, 255, 0));
+        screen->Print(x, y, ln.c_str());
+        screen->SetFontColor(zCOLOR(200, 200, 200));
+      } else {
+        screen->Print(x, y, ln.c_str());
+      }
+    }
+  }
+#endif
+
   /*if(client->IsConnected()){
                   char buffer[32];
                   sprintf(buffer, "Your ping: %d", client->GetPing());

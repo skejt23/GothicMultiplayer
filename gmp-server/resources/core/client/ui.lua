@@ -1,6 +1,13 @@
 ------------------------------------------------------------
 -- Draw: one instance, methods + properties
 ------------------------------------------------------------
+-- Toggle this file's demo UI output. Set to true to enable the demo.
+local display_demo = false
+
+if not display_demo then
+	return
+end
+
 local title = Draw.new(0, 0, "Hello UI")
 
 -- Configure via methods
