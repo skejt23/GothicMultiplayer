@@ -50,6 +50,7 @@ public:
 	~HooksManager(void);
 	void AddHook(HOOK_TYPE type, DWORD callback);
 	void RemoveHook(HOOK_TYPE type, DWORD callback);
+	void ClearAllHooks();
 private:
 	void InitAllPatches();
 	typedef std::set<DWORD> HooksSet;

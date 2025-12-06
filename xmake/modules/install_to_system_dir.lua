@@ -45,6 +45,13 @@ local function _copy_file(target)
 
     os.cp(file, dst)
     print("Installed " .. path.filename(file) .. " → " .. dst)
+
+    -- Also copy PDB file if it exists (for debugging)
+    local pdb = path.join(path.directory(file), path.basename(file) .. ".pdb")
+    if os.isfile(pdb) then
+        os.cp(pdb, dst)
+        print("Installed " .. path.filename(pdb) .. " → " .. dst)
+    end
 end
 
 function main(target)

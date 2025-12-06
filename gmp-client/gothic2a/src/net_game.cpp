@@ -475,14 +475,16 @@ void NetGame::OnPlayerLeft(std::uint64_t player_id, const std::string& player_na
 }
 
 void NetGame::OnPlayerStateUpdate(std::uint64_t player_id, const PlayerState& state) {
-  static const zSTRING Door = "DOOR";
-  static const zSTRING BowSound = "BOWSHOOT";
-  static const zSTRING CrossbowSound = "CROSSBOWSHOOT";
-  static const zSTRING Lever = "LEVER";
-  static const zSTRING Touchplate = "TOUCHPLATE";
-  static const zSTRING VWheel = "VWHEEL";
-  static const zSTRING Arrows = "ITRW_ARROW";
-  static const zSTRING Bolt = "ITRW_BOLT";
+  // Use const char* instead of static zSTRING to avoid Gothic allocator issues during shutdown.
+  // zSTRING can be constructed from const char* when needed.
+  static constexpr const char* Door = "DOOR";
+  static constexpr const char* BowSound = "BOWSHOOT";
+  static constexpr const char* CrossbowSound = "CROSSBOWSHOOT";
+  static constexpr const char* Lever = "LEVER";
+  static constexpr const char* Touchplate = "TOUCHPLATE";
+  static constexpr const char* VWheel = "VWHEEL";
+  static constexpr const char* Arrows = "ITRW_ARROW";
+  static constexpr const char* Bolt = "ITRW_BOLT";
 
   Gothic2APlayer* cplayer = GetPlayerById(player_id);
   if (!cplayer) {

@@ -50,7 +50,6 @@ Config::Config() {
 }
 
 Config::~Config() {
-  SaveConfigToFile();
 };
 
 void Config::LoadConfigFromFile() {

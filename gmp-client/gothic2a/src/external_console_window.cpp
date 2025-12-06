@@ -26,6 +26,7 @@ SOFTWARE.
 
 #include <windows.h>
 
+#include <atomic>
 #include <exception>
 #include <memory>
 #include <mutex>
@@ -36,7 +37,17 @@ namespace {
 static std::unique_ptr<ExternalConsoleWindow> g_instance;
 static std::once_flag g_once;
 static HWND hwnd = nullptr;
+// Flag to prevent atexit callback from running after DLL cleanup.
+// Set to false during DLL_PROCESS_DETACH to skip config saving.
+static std::atomic<bool> g_atexit_enabled{true};
+
 void SaveConsoleConfigOnExit() {
+  // Skip if DLL cleanup has already started (e.g., during DLL_PROCESS_DETACH).
+  // At that point, Config and other static objects may already be invalid.
+  if (!g_atexit_enabled.load(std::memory_order_acquire)) {
+    return;
+  }
+  
   try {
     RECT rc{};
     if (::GetWindowRect(hwnd, &rc)) {
@@ -52,6 +63,10 @@ void SaveConsoleConfigOnExit() {
 
 void ExternalConsoleWindow::Init() {
   std::call_once(g_once, [] { g_instance = std::unique_ptr<ExternalConsoleWindow>(new ExternalConsoleWindow()); });
+}
+
+void ExternalConsoleWindow::DisableAtExitCallback() {
+  g_atexit_enabled.store(false, std::memory_order_release);
 }
 
 ExternalConsoleWindow::ExternalConsoleWindow() {

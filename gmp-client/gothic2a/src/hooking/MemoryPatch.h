@@ -53,6 +53,8 @@ void CallPatch(DWORD dwAddress, DWORD dwDest, int nNops);
 // Returns the original function pointer (PolyHook trampoline) on success, std::nullopt on failure.
 std::optional<void*> CreateHook(DWORD destination, DWORD callback);
 
+void CleanupAllHooks();
+
 }  // namespace MemoryPatch
 
 // Legacy global wrappers retained for existing call sites

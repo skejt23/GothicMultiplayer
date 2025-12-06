@@ -75,6 +75,11 @@ public:
     return languageDir_;
   }
 
+  // Clear all loaded data to prevent zSTRING destructor issues during shutdown
+  void Clear() {
+    availableLanguages_.clear();
+  }
+
   // Singleton instance for convenience
   static LanguageManager& Instance();
 
@@ -183,6 +188,11 @@ public:
   bool LoadFromJsonFile(const std::filesystem::path& file);
   bool IsLoaded() const {
     return !data.empty();
+  }
+
+  // Clear all loaded data to prevent zSTRING destructor issues during shutdown
+  void Clear() {
+    data.clear();
   }
 
   const zSTRING& operator[](unsigned long) const;

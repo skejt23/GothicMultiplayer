@@ -72,11 +72,26 @@ public:                                                                         
       shi_free( mem );                                                                              \
     }      
 
+#if defined(__clang__)
+// clang-cl compatible version using GCC-style inline assembly
+#define XCALL(uAddr)                        \
+    __asm__ __volatile__(                   \
+        "mov %%ebp, %%esp\n\t"              \
+        "pop %%ebp\n\t"                     \
+        "mov %0, %%eax\n\t"                 \
+        "jmp *%%eax"                        \
+        :                                   \
+        : "i" (uAddr)                       \
+        : "eax"                             \
+    );
+#else
+// MSVC inline assembly version
 #define XCALL(uAddr)          \
 	__asm { mov esp, ebp } 	    \
 	__asm { pop ebp }           \
 	__asm { mov eax, uAddr }    \
 	__asm { jmp eax }
+#endif
 
 
 #define SafeDiv( a, b ) \

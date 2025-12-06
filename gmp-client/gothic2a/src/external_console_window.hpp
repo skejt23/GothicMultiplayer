@@ -27,6 +27,10 @@ SOFTWARE.
 class ExternalConsoleWindow {
 public:
   static void Init();
+  
+  // Disable the atexit callback to prevent it from running during DLL shutdown.
+  // Call this early in DLL_PROCESS_DETACH before other cleanup.
+  static void DisableAtExitCallback();
 
   ~ExternalConsoleWindow();
 

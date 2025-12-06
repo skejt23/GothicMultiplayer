@@ -58,7 +58,7 @@ void LanguageManager::LoadLanguages(const char* languageDir, int languageIndex) 
     fallback.encoding = localization::LanguageEncoding::kNone;
     availableLanguages_.push_back(fallback);
     SPDLOG_INFO("LanguageManager: Added fallback English language");
-    
+
     // Load the fallback language
     std::string langPath = languageDir_ + fallback.filename;
     Language::Instance().LoadFromJsonFile(langPath);
@@ -151,7 +151,7 @@ void LanguageManager::LoadLanguages(const char* languageDir, int languageIndex) 
   std::string langPath = languageDir_ + langInfo.filename;
 
   SPDLOG_INFO("LanguageManager: Loading active language: {} from {}", langInfo.displayName.ToChar(), langPath);
-  
+
   bool success = Language::Instance().LoadFromJsonFile(langPath);
   if (!success) {
     SPDLOG_ERROR("LanguageManager: Failed to load language file {}", langPath);
@@ -406,6 +406,6 @@ void Language::RemovePolishCharactersFromWideString(std::wstring& txt) {
 };
 
 const zSTRING& Language::operator[](unsigned long i) const {
-  static zSTRING kUnknown = "UNKNOWN TRANSLATION STRING";
-  return (i < data.size()) ? data[i] : kUnknown;
+  thread_local zSTRING tl_unknown = "UNKNOWN TRANSLATION STRING";
+  return (i < data.size()) ? data[i] : tl_unknown;
 }

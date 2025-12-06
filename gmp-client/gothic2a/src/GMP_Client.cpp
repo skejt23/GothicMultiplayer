@@ -40,6 +40,9 @@ SOFTWARE.
 #include "discord_presence.h"
 #include "external_console_window.hpp"
 #include "game_client.hpp"
+#include "hooking/MemoryPatch.h"
+#include "language.h"
+#include "main_menu.h"
 #include "patch.h"
 #include "patch_install.hpp"
 
@@ -153,8 +156,19 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
       return FALSE;
     }
   } else if (fdwReason == DLL_PROCESS_DETACH) {
-    // Cleanup - shutdown music bridge to restore Gothic music if needed.
-    gmp::audio::GothicMusicBridge::Shutdown();
+    ExternalConsoleWindow::DisableAtExitCallback();
+    if (HooksManager* hm = HooksManager::GetInstance()) {
+      hm->ClearAllHooks();
+    }
+    MemoryPatch::CleanupAllHooks();
+    CMainMenu::DeleteInstance();
+    Language::Instance().Clear();
+    LanguageManager::Instance().Clear();
+
+    // Shutdown spdlog before returning to prevent issues during CRT static destruction.
+    // This must be the last thing we do before returning because after this point
+    // we can't use any logging.
+    spdlog::shutdown();
   }
   return TRUE;
 }

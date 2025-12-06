@@ -51,15 +51,13 @@ constexpr const char* DrawSoundWo = "DRAWSOUND_WO.WAV";
 constexpr const char* UnDrawSoundWo = "UNDRAWSOUND_WO.WAV";
 
 void CSyncFuncs::RunSpellLogic(short SpellId, oCNpc* Caster, oCNpc* Target) {
-  static zSTRING SpellLogicTemporary;
   switch (SpellId) {
     case SPL_SLEEP:
       if (!Target)
         return;
       zCParser::GetParser()->SetInstance("SELF", Caster);
       zCParser::GetParser()->SetInstance("OTHER", Target);
-      SpellLogicTemporary = "SPELL_LOGIC_SLEEP";
-      zCParser::GetParser()->CallFunc(SpellLogicTemporary);
+      zCParser::GetParser()->CallFunc(zSTRING("SPELL_LOGIC_SLEEP"));
       break;
     case SPL_SHRINK: {
       if (!Target)
@@ -75,7 +73,6 @@ void CSyncFuncs::RunSpellLogic(short SpellId, oCNpc* Caster, oCNpc* Target) {
 
 // Urchamianie skryptu danego spella, np SPELL_CAST_FIREBALL
 void CSyncFuncs::RunSpellScript(const char* SpellName, oCNpc* Caster, oCNpc* Target) {
-  static zSTRING SpellCastTemp;
   if (!Caster || !SpellName)
     return;
   char buffer[128];
@@ -85,10 +82,10 @@ void CSyncFuncs::RunSpellScript(const char* SpellName, oCNpc* Caster, oCNpc* Tar
   else
     zCParser::GetParser()->SetInstance("OTHER", Target);
   sprintf(buffer, "SPELL_CAST_%s", SpellName);
-  SpellCastTemp = buffer;
-  SpellCastTemp.Upper();
+  zSTRING spellCastTemp = buffer;
+  spellCastTemp.Upper();
   if (memcmp(buffer, "SPELL_CAST_TRANSFORM", 19) != 0)
-    zCParser::GetParser()->CallFunc(SpellCastTemp);
+    zCParser::GetParser()->CallFunc(spellCastTemp);
 };
 
 // Sprawdzanie czy wielkosc pozycji nie jest wieksza niz dopuszcza radius, risen chcial to koniecznie

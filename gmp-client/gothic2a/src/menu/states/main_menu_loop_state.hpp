@@ -57,7 +57,7 @@ private:
     
 public:
     explicit MainMenuLoopState(MenuContext& context);
-    ~MainMenuLoopState() override = default;
+    ~MainMenuLoopState() override;
     
     // MenuState interface
     void OnEnter() override;

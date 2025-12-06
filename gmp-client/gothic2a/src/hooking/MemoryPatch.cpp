@@ -41,6 +41,22 @@ struct HookInfo {
 
 static std::map<DWORD, HookInfo> g_hookInfo;
 
+void CleanupAllHooks() {
+  if (g_hookInfo.empty()) {
+    return;
+  }
+  SPDLOG_DEBUG("MemoryPatch::CleanupAllHooks: Cleaning up {} hook(s)", g_hookInfo.size());
+  for (auto& [address, info] : g_hookInfo) {
+    if (info.detour) {
+      info.detour->unHook();
+      // Release the detour now while memory is still valid
+      // This prevents the destructor from running later during static destruction
+      info.detour.reset();
+    }
+  }
+  g_hookInfo.clear();
+}
+
 void WriteMemory(DWORD dwAddress, PBYTE pbBytes, DWORD dwLength) {
   if (!dwAddress || !pbBytes || !dwLength)
     return;

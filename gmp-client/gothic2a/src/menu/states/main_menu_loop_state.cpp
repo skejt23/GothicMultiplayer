@@ -26,6 +26,8 @@ SOFTWARE.
 
 #include <spdlog/spdlog.h>
 
+#include <string>
+
 #include "config.h"
 #include "keyboard.h"
 #include "language.h"
@@ -45,17 +47,24 @@ namespace menu {
 namespace states {
 
 namespace {
-const zSTRING& GetVersionString() {
-  static zSTRING version_string;
-  if (version_string.IsEmpty()) {
+// Version string stored as std::string to avoid zSTRING static destruction issues.
+// zSTRING uses Gothic's allocator which may be invalid during CRT shutdown.
+std::string g_version_string_storage;
+
+const char* GetVersionString() {
+  if (g_version_string_storage.empty()) {
     constexpr std::string_view version = GIT_TAG_LONG;
-    version_string = zSTRING{version.empty() ? "Unknown build" : version.data()};
+    g_version_string_storage = version.empty() ? "Unknown build" : std::string(version);
   }
-  return version_string;
+  return g_version_string_storage.c_str();
 }
 }  // namespace
 
 MainMenuLoopState::MainMenuLoopState(MenuContext& context) : context_(context), selectedMenuItem_(CHOOSE_SERVER), nextState_(nullptr) {
+}
+
+MainMenuLoopState::~MainMenuLoopState() {
+  SPDLOG_INFO("~MainMenuLoopState: destructor called");
 }
 
 void MainMenuLoopState::OnEnter() {
@@ -119,16 +128,14 @@ void MainMenuLoopState::RenderVersionInfo() {
 
   // D3D9 experimental warning in top left
   if (Config::Instance().UseDx9Renderer()) {
-    static zSTRING d3d9_warning = "D3D9 experimental (may display visual glitches)";
-    context_.screen->Print(100, 100, d3d9_warning);
+    context_.screen->Print(100, 100, "D3D9 experimental (may display visual glitches)");
   }
 
   // Version in bottom right
   context_.screen->Print(8192 - context_.screen->FontSize(GetVersionString()), 8192 - context_.screen->FontY(), GetVersionString());
 
   // Shortcut in bottom left
-  static zSTRING fast_localhost_join_text = "F5 - Fast join localhost server";
-  context_.screen->Print(100, 8192 - context_.screen->FontY(), fast_localhost_join_text);
+  context_.screen->Print(100, 8192 - context_.screen->FontY(), "F5 - Fast join localhost server");
 }
 
 void MainMenuLoopState::HandleInput() {
@@ -182,6 +189,7 @@ void MainMenuLoopState::ExecuteMenuItem(MenuItem item) {
       break;
 
     case LEAVE_GAME:
+      SPDLOG_INFO("Selected: Leave Game");
       if (context_.game) {
         gameMan->Done();
       }

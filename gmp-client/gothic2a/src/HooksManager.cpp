@@ -145,6 +145,28 @@ HooksManager::HooksManager(void) {
 HooksManager::~HooksManager(void) {
 }
 
+void HooksManager::ClearAllHooks() {
+  EnterCriticalSection(&this->RenderCs);
+  this->OnRenderHooks.clear();
+  this->RenderCallbacksToDelete.clear();
+  LeaveCriticalSection(&this->RenderCs);
+
+  EnterCriticalSection(&this->CloseLoadScreenCs);
+  this->OnCloseLoadScreenHooks.clear();
+  LeaveCriticalSection(&this->CloseLoadScreenCs);
+
+  EnterCriticalSection(&this->DoneCs);
+  this->OnDoneHooks.clear();
+  LeaveCriticalSection(&this->DoneCs);
+
+  EnterCriticalSection(&this->AiMovingCs);
+  this->OnAiMovingHooks.clear();
+  this->AiMovingCallbacksToDelete.clear();
+  LeaveCriticalSection(&this->AiMovingCs);
+
+  SPDLOG_DEBUG("HooksManager: All hooks cleared for shutdown");
+}
+
 void HooksManager::AddHook(HOOK_TYPE type, DWORD callback) {
   switch (type) {
     case HT_RENDER:
