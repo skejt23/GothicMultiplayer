@@ -34,7 +34,6 @@ SOFTWARE.
 #include "CWatch.h"
 #include "HooksManager.h"
 #include "config.h"
-#include "gothic2a_player.hpp"
 #include "keyboard.h"
 #include "main_menu.h"
 #include "net_game.h"

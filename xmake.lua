@@ -66,6 +66,7 @@ add_requires("fmt 11.0.2",
              "openssl 1.1.1-w",
              "libsodium 1.0.*",
              "polyhook2",
+             "asmjit",
              "stb",
              "minimp3")
 
