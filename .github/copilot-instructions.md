@@ -1,6 +1,7 @@
 # GothicMultiplayer AI Guide
 - **Project layout**: `gmp-client/gothic2a` builds the injected client DLL (`ClientMain`) that patches the Gothic II process via `HooksManager` and `Patch`; `gmp-server` hosts the dedicated server core around `GameServer`; `shared/` and `common/` expose cross-cutting math, event, and zNet protocol headers.
 - **Build workflow**: Use `xmake f -m releasedbg -p windows -a x86` (Gothic hooks are 32-bit) then `xmake build ClientMain`/`ServerApp`; plain `xmake` builds everything; pass `--discord_app_id=` or `--master_server_endpoint=` via `xmake f` when needed.
+Don't try to use `xmake install` or copy targets directly to the Gothic directory unless explicitly requested.
 - **Editor tasks**: VS Code tasks `Build ClientMain (xmake)` and `Build GMP Launcher` mirror the usual commands; prefer them when compiling in this workspace.
 - **Install step**: Run `xmake install -o "C:\Program Files (x86)\Gothic II"` to copy DLLs and data via the custom `install_to_system_dir` helper (also deploys resources/Discord SDK when configured).
 - **Version stamping**: `version.h.in` becomes `build/config/version.h` during configure; include `version.h` only from targets that already depend on the generated config directory.

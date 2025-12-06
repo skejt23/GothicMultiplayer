@@ -43,6 +43,9 @@ SOFTWARE.
 #include <unordered_map>
 #include <vector>
 
+#include "shared/crypto_utils.h"
+#include "spdlog/spdlog.h"
+
 namespace fs = std::filesystem;
 
 namespace gmp {
@@ -132,26 +135,6 @@ void SetupMemoryFileFunc(zlib_filefunc_def& funcs, MemoryZipSource& source) {
 
 constexpr std::size_t kIOBufferSize = 64 * 1024;
 
-void EnsureSodiumInitialized() {
-  static bool sodium_initialized = []() {
-    if (sodium_init() < 0) {
-      throw std::runtime_error("Failed to initialize libsodium");
-    }
-    return true;
-  }();
-  (void)sodium_initialized;
-}
-
-// Convert bytes to hex string
-std::string BytesToHex(const std::vector<std::uint8_t>& bytes) {
-  std::ostringstream oss;
-  oss << std::hex << std::setfill('0');
-  for (auto byte : bytes) {
-    oss << std::setw(2) << static_cast<int>(byte);
-  }
-  return oss.str();
-}
-
 // Compute SHA-256 hash of a file
 std::string ComputeFileSHA256(const fs::path& file_path) {
   std::ifstream file(file_path, std::ios::binary);
@@ -159,7 +142,7 @@ std::string ComputeFileSHA256(const fs::path& file_path) {
     throw std::runtime_error("Failed to open file for hashing: " + file_path.string());
   }
 
-  EnsureSodiumInitialized();
+  gmp::crypto::EnsureSodiumInitialized();
 
   crypto_hash_sha256_state state;
   crypto_hash_sha256_init(&state);
@@ -174,17 +157,12 @@ std::string ComputeFileSHA256(const fs::path& file_path) {
   std::vector<std::uint8_t> hash(crypto_hash_sha256_BYTES);
   crypto_hash_sha256_final(&state, hash.data());
 
-  return BytesToHex(hash);
+  return gmp::crypto::BytesToHex(hash.data(), hash.size());
 }
 
 // Compute SHA-256 hash of a buffer
 std::string ComputeBufferSHA256(const std::vector<std::uint8_t>& buffer) {
-  EnsureSodiumInitialized();
-
-  std::vector<std::uint8_t> hash(crypto_hash_sha256_BYTES);
-  crypto_hash_sha256(hash.data(), buffer.data(), buffer.size());
-
-  return BytesToHex(hash);
+  return gmp::crypto::ComputeSHA256(buffer.data(), buffer.size());
 }
 
 // RAII wrapper for unzFile
@@ -313,7 +291,7 @@ void VerifyArchiveIntegrity(const fs::path& pak_path, const std::string& expecte
 struct ResourcePack::Impl {
   Manifest manifest;
   fs::path pak_path;
-  std::unordered_map<std::string, const FileMeta*> file_map;
+  std::unordered_map<std::string, std::size_t> file_index_map;  // Maps path -> index in manifest.files
   std::vector<std::uint8_t> pak_memory;
   bool in_memory{false};
 };
@@ -323,32 +301,38 @@ ResourcePack::ResourcePack() : impl_(std::make_unique<Impl>()) {
 
 ResourcePack::~ResourcePack() = default;
 
-ResourcePack::ResourcePack(ResourcePack&&) noexcept = default;
-ResourcePack& ResourcePack::operator=(ResourcePack&&) noexcept = default;
+ResourcePack::ResourcePack(ResourcePack&& other) noexcept = default;
+ResourcePack& ResourcePack::operator=(ResourcePack&& other) noexcept = default;
 
 const Manifest& ResourcePack::GetManifest() const {
   return impl_->manifest;
 }
 
 bool ResourcePack::HasFile(const std::string& path) const {
-  return impl_->file_map.find(path) != impl_->file_map.end();
+  return impl_->file_index_map.find(path) != impl_->file_index_map.end();
 }
 
 std::optional<std::reference_wrapper<const FileMeta>> ResourcePack::GetFileMetadata(const std::string& path) const {
-  auto it = impl_->file_map.find(path);
-  if (it == impl_->file_map.end()) {
+  auto it = impl_->file_index_map.find(path);
+  if (it == impl_->file_index_map.end()) {
     return std::nullopt;
   }
-  return std::cref(*it->second);
+  return std::cref(impl_->manifest.files[it->second]);
 }
 
 LoadedFile ResourcePack::LoadFile(const std::string& path, bool verify_hash) const {
-  auto it = impl_->file_map.find(path);
-  if (it == impl_->file_map.end()) {
+  if (!impl_) {
+    throw std::runtime_error("ResourcePack::LoadFile called on moved-from object");
+  }
+
+  // Direct lookup
+  if (impl_->file_index_map.count(path) == 0) {
     throw std::runtime_error("File not found in resource: " + path);
   }
 
-  const FileMeta* meta = it->second;
+  const std::size_t index = impl_->file_index_map.at(path);
+  const FileMeta& meta = impl_->manifest.files[index];
+
   auto read_from_zip = [&](unzFile zip) {
     if (unzLocateFile(zip, path.c_str(), 0) != UNZ_OK) {
       throw std::runtime_error("File not found in archive: " + path);
@@ -381,21 +365,21 @@ LoadedFile ResourcePack::LoadFile(const std::string& path, bool verify_hash) con
     unzCloseCurrentFile(zip);
 
     if (total_read != buffer.size()) {
-      throw std::runtime_error("File size mismatch for " + path + ": expected " + std::to_string(meta->size) + ", got " + std::to_string(total_read));
+      throw std::runtime_error("File size mismatch for " + path + ": expected " + std::to_string(meta.size) + ", got " + std::to_string(total_read));
     }
 
     if (verify_hash) {
       const std::string computed_hash = ComputeBufferSHA256(buffer);
-      if (computed_hash != meta->sha256) {
-        throw std::runtime_error("File integrity check failed for " + path + ": expected " + meta->sha256 + ", got " + computed_hash);
+      if (computed_hash != meta.sha256) {
+        throw std::runtime_error("File integrity check failed for " + path + ": expected " + meta.sha256 + ", got " + computed_hash);
       }
     }
 
     LoadedFile result;
     result.path = path;
     result.data = std::move(buffer);
-    result.size = meta->size;
-    result.sha256 = meta->sha256;
+    result.size = meta.size;
+    result.sha256 = meta.sha256;
     return result;
   };
 
@@ -412,6 +396,20 @@ LoadedFile ResourcePack::LoadFile(const std::string& path, bool verify_hash) con
     throw std::runtime_error("Failed to open archive: " + impl_->pak_path.string());
   }
   return read_from_zip(handle.get());
+}
+
+std::optional<LoadedFile> ResourcePack::TryLoadFile(const std::string& path, bool verify_hash) const {
+  if (!impl_) {
+    throw std::runtime_error("ResourcePack::TryLoadFile called on moved-from object");
+  }
+
+  // Check if file exists first (non-throwing)
+  if (impl_->file_index_map.count(path) == 0) {
+    return std::nullopt;
+  }
+
+  // File exists, delegate to LoadFile which handles actual loading
+  return LoadFile(path, verify_hash);
 }
 
 std::vector<std::string> ResourcePack::GetFilePaths() const {
@@ -461,9 +459,9 @@ ResourcePack ResourcePackLoader::Load(const std::string& manifest_path, bool ver
   pack.impl_->manifest = std::move(manifest);
   pack.impl_->pak_path = std::move(pak_file_path);
 
-  pack.impl_->file_map.reserve(pack.impl_->manifest.files.size());
-  for (const auto& file : pack.impl_->manifest.files) {
-    pack.impl_->file_map.emplace(file.path, &file);
+  pack.impl_->file_index_map.reserve(pack.impl_->manifest.files.size());
+  for (std::size_t i = 0; i < pack.impl_->manifest.files.size(); ++i) {
+    pack.impl_->file_index_map.emplace(pack.impl_->manifest.files[i].path, i);
   }
 
   return pack;
@@ -480,7 +478,8 @@ ResourcePack ResourcePackLoader::LoadFromMemory(std::string manifest_json, std::
   }
 
   if (manifest.archive.size != archive_bytes.size()) {
-    throw std::runtime_error("Archive size mismatch: expected " + std::to_string(manifest.archive.size) + ", got " + std::to_string(archive_bytes.size()));
+    throw std::runtime_error("Archive size mismatch: expected " + std::to_string(manifest.archive.size) + ", got " +
+                             std::to_string(archive_bytes.size()));
   }
 
   if (verify_integrity) {
@@ -496,9 +495,9 @@ ResourcePack ResourcePackLoader::LoadFromMemory(std::string manifest_json, std::
   pack.impl_->pak_path.clear();
   pack.impl_->in_memory = true;
 
-  pack.impl_->file_map.reserve(pack.impl_->manifest.files.size());
-  for (const auto& file : pack.impl_->manifest.files) {
-    pack.impl_->file_map.emplace(file.path, &file);
+  pack.impl_->file_index_map.reserve(pack.impl_->manifest.files.size());
+  for (std::size_t i = 0; i < pack.impl_->manifest.files.size(); ++i) {
+    pack.impl_->file_index_map.emplace(pack.impl_->manifest.files[i].path, i);
   }
 
   return pack;

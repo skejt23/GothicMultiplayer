@@ -74,6 +74,10 @@ public:
   // Returns LoadedFile with the buffer, throws std::runtime_error if file not found or hash mismatch
   LoadedFile LoadFile(const std::string& path, bool verify_hash = true) const;
 
+  // Try to load a file's content into memory (non-throwing version)
+  // Returns empty optional if file doesn't exist, throws only for other errors (hash mismatch, etc.)
+  std::optional<LoadedFile> TryLoadFile(const std::string& path, bool verify_hash = true) const;
+
   // Get list of all file paths in the loaded resource
   std::vector<std::string> GetFilePaths() const;
 

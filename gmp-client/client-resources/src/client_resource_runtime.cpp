@@ -1,12 +1,37 @@
-#include "client_resources/client_resource_runtime.h"
+/*
+MIT License
 
-#include "shared/lua_runtime/shared_bind.h"
+Copyright (c) 2025 Gothic Multiplayer Team
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
+#include "client_resources/client_resource_runtime.h"
 
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <array>
+#include <memory>
+
+#include "shared/lua_runtime/shared_bind.h"
 
 ClientResourceRuntime::ClientResourceRuntime() = default;
 ClientResourceRuntime::~ClientResourceRuntime() = default;
@@ -21,17 +46,17 @@ bool ClientResourceRuntime::LoadResources(std::vector<gmp::client::GameClient::R
   resources_.reserve(payloads.size());
 
   for (auto& payload : payloads) {
-    ResourceInstance instance;
-    instance.name = payload.descriptor.name;
+    auto instance = std::make_unique<ResourceInstance>();
+    instance->name = payload.descriptor.name;
 
     // Create environment table with globals fallback
-    instance.env = sol::table(script_.GetLuaState(), sol::create);
+    instance->env = sol::table(script_.GetLuaState(), sol::create);
     sol::table globals = script_.GetLuaState().globals();
     sol::table mt = script_.GetLuaState().create_table_with(sol::meta_function::index, globals);
-    instance.env[sol::metatable_key] = mt;
+    instance->env[sol::metatable_key] = mt;
 
     try {
-      instance.pack.emplace(gmp::resource::ResourcePackLoader::LoadFromMemory(std::move(payload.manifest_json), std::move(payload.archive_bytes)));
+      instance->pack.emplace(gmp::resource::ResourcePackLoader::LoadFromMemory(std::move(payload.manifest_json), std::move(payload.archive_bytes)));
     } catch (const std::exception& ex) {
       error_message = fmt::format("Failed to initialize client resource '{}': {}", payload.descriptor.name, ex.what());
       SPDLOG_ERROR(error_message);
@@ -40,7 +65,7 @@ bool ClientResourceRuntime::LoadResources(std::vector<gmp::client::GameClient::R
     }
 
     resources_.push_back(std::move(instance));
-    ResourceInstance& stored_instance = resources_.back();
+    ResourceInstance& stored_instance = *resources_.back();
 
     SetupRequire(stored_instance);
 
@@ -76,9 +101,9 @@ bool ClientResourceRuntime::LoadResources(std::vector<gmp::client::GameClient::R
 void ClientResourceRuntime::UnloadResources() {
   if (!resources_.empty()) {
     for (auto it = resources_.rbegin(); it != resources_.rend(); ++it) {
-      if (it->started) {
+      if ((*it)->started) {
         std::string error_message;
-        if (!InvokeLifecycle(*it, "onResourceStop", error_message)) {
+        if (!InvokeLifecycle(**it, "onResourceStop", error_message)) {
           SPDLOG_WARN(error_message);
         }
       }
@@ -97,9 +122,9 @@ void ClientResourceRuntime::ProcessTimers() {
 }
 
 std::optional<sol::table> ClientResourceRuntime::GetExports(const std::string& resource_name) const {
-  auto it = std::find_if(resources_.begin(), resources_.end(), [&](const auto& r) { return r.name == resource_name; });
+  auto it = std::find_if(resources_.begin(), resources_.end(), [&](const auto& r) { return r->name == resource_name; });
   if (it != resources_.end()) {
-    return it->exports;
+    return (*it)->exports;
   }
   return std::nullopt;
 }
@@ -120,9 +145,7 @@ void ClientResourceRuntime::SetServerInfoProvider(gmp::client::GameClient& game_
         const auto port = game_client.GetServerPort();
         return port != 0 && !host.empty() ? fmt::format("{}:{}", host, port) : host;
       },
-      [&game_client]() {
-        return static_cast<int>(game_client.GetMaxSlots());
-      },
+      [&game_client]() { return static_cast<int>(game_client.GetMaxSlots()); },
       [&game_client]() {
         std::vector<int> player_ids;
         auto& manager = game_client.player_manager();
@@ -169,85 +192,92 @@ void ClientResourceRuntime::SetupRequire(ResourceInstance& instance) {
   sol::table module_cache = lua.create_table();
   instance.env["package"] = lua.create_table_with("loaded", module_cache);
 
-  ResourceInstance* instance_ptr = &instance;
+  // Capture the resource name to safely look it up later
+  std::string resource_name = instance.name;
 
-  instance.env.set_function("require", [this, instance_ptr, module_cache](const std::string& module_name, sol::this_state ts) mutable -> sol::object {
-    sol::state_view lua_state(ts);
+  instance.env.set_function(
+      "require", [this, resource_name, module_cache](const std::string& module_name, sol::this_state ts) mutable -> sol::object {
+        sol::state_view lua_state(ts);
 
-    sol::object cached = module_cache[module_name];
-    if (cached.valid() && cached.get_type() != sol::type::nil) {
-      return cached;
-    }
+        sol::object cached = module_cache[module_name];
+        if (cached.valid() && cached.get_type() != sol::type::nil) {
+          return cached;
+        }
 
-    if (!instance_ptr->pack) {
-      throw sol::error(fmt::format("Resource '{}' has no pack loaded", instance_ptr->name));
-    }
+        // Find the resource instance by name to avoid dangling pointer/index issues
+        auto it = std::find_if(resources_.begin(), resources_.end(), [&resource_name](const auto& r) { return r->name == resource_name; });
+        if (it == resources_.end()) {
+          throw sol::error(fmt::format("Resource '{}' is no longer loaded", resource_name));
+        }
+        ResourceInstance& instance_ref = **it;
 
-    std::string normalized = module_name;
-    std::replace(normalized.begin(), normalized.end(), '.', '/');
+        if (!instance_ref.pack) {
+          throw sol::error(fmt::format("Resource '{}' has no pack loaded", instance_ref.name));
+        }
 
-    const std::array<std::string, 6> search_paths = {"client/" + normalized + ".luac",
-                                                     "client/" + normalized + ".lua",
-                                                     "shared/" + normalized + ".luac",
-                                                     "shared/" + normalized + ".lua",
-                                                     normalized + ".luac",
-                                                     normalized + ".lua"};
+        std::string normalized = module_name;
+        std::replace(normalized.begin(), normalized.end(), '.', '/');
 
-    gmp::resource::LoadedFile file;
-    std::string used_path;
-    bool loaded = false;
-    for (const auto& candidate : search_paths) {
-      try {
-        file = instance_ptr->pack->LoadFile(candidate, true);
-        used_path = candidate;
-        loaded = true;
-        break;
-      } catch (const std::exception&) {
-        continue;
-      }
-    }
+        const std::array<std::string, 6> search_paths = {"client/" + normalized + ".luac",
+                                                         "client/" + normalized + ".lua",
+                                                         "shared/" + normalized + ".luac",
+                                                         "shared/" + normalized + ".lua",
+                                                         normalized + ".luac",
+                                                         normalized + ".lua"};
 
-    if (!loaded) {
-      throw sol::error(fmt::format("module '{}' not found in resource '{}'", module_name, instance_ptr->name));
-    }
+        std::optional<gmp::resource::LoadedFile> file_opt;
+        std::string used_path;
+        for (const auto& candidate : search_paths) {
+          file_opt = instance_ref.pack->TryLoadFile(candidate, true);
+          if (file_opt) {
+            used_path = candidate;
+            break;
+          }
+        }
 
-    sol::load_result chunk = lua_state.load_buffer(reinterpret_cast<const char*>(file.data.data()), file.data.size(), used_path.c_str());
-    if (!chunk.valid()) {
-      sol::error err = chunk;
-      throw err;
-    }
+        if (!file_opt) {
+          throw sol::error(fmt::format("module '{}' not found in resource '{}'", module_name, resource_name));
+        }
 
-    sol::protected_function pf = chunk;
+        gmp::resource::LoadedFile& file = *file_opt;
 
-    // Manually set the environment as the first upvalue (_ENV)
-    // sol::set_environment fails here because the upvalue is nameless (debug info stripped)
-    lua_State* L = pf.lua_state();
-    pf.push();                 // Push function
-    instance_ptr->env.push();  // Push environment table
+        sol::load_result chunk = lua_state.load_buffer(reinterpret_cast<const char*>(file.data.data()), file.data.size(), used_path.c_str());
+        if (!chunk.valid()) {
+          sol::error err = chunk;
+          throw err;
+        }
 
-    const char* upvalue_name = lua_setupvalue(L, -2, 1);
-    if (!upvalue_name) {
-      // This might happen if the module has no upvalues (doesn't use globals)
-      // We pop the env table, but we don't error out as it might be valid.
-      lua_pop(L, 1);
-    }
+        sol::protected_function pf = chunk;
 
-    lua_pop(L, 1);  // Pop function
+        // Manually set the environment as the first upvalue (_ENV)
+        // sol::set_environment fails here because the upvalue is nameless (debug info stripped)
+        lua_State* L = pf.lua_state();
+        pf.push();                // Push function
+        instance_ref.env.push();  // Push environment table
 
-    sol::protected_function_result result = pf();
-    if (!result.valid()) {
-      sol::error err = result;
-      throw err;
-    }
+        const char* upvalue_name = lua_setupvalue(L, -2, 1);
+        if (!upvalue_name) {
+          // This might happen if the module has no upvalues (doesn't use globals)
+          // We pop the env table, but we don't error out as it might be valid.
+          lua_pop(L, 1);
+        }
 
-    sol::object exported = result.get<sol::object>();
-    if (!exported.valid() || exported.get_type() == sol::type::nil) {
-      exported = sol::make_object(lua_state, true);
-    }
+        lua_pop(L, 1);  // Pop function
 
-    module_cache[module_name] = exported;
-    return exported;
-  });
+        sol::protected_function_result result = pf();
+        if (!result.valid()) {
+          sol::error err = result;
+          throw err;
+        }
+
+        sol::object exported = result.get<sol::object>();
+        if (!exported.valid() || exported.get_type() == sol::type::nil) {
+          exported = sol::make_object(lua_state, true);
+        }
+
+        module_cache[module_name] = exported;
+        return exported;
+      });
 }
 
 bool ClientResourceRuntime::ExecuteEntryPoints(ResourceInstance& instance, std::string& error_message) {
