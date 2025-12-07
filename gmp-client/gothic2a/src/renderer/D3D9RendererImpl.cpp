@@ -1180,9 +1180,11 @@ void D3D9RendererImpl::SetFillMode(D3DFILLMODE mode) {
     device->SetRenderState(D3DRS_FILLMODE, mode);
 }
 
-void D3D9RendererImpl::SetZBias(float bias) {
-  if (device)
-    device->SetRenderState(D3DRS_DEPTHBIAS, std::bit_cast<DWORD>(bias));
+void D3D9RendererImpl::SetZBias(float depth_bias, float slope_bias) {
+  if (device) {
+    device->SetRenderState(D3DRS_DEPTHBIAS, std::bit_cast<DWORD>(depth_bias));
+    device->SetRenderState(D3DRS_SLOPESCALEDEPTHBIAS, std::bit_cast<DWORD>(slope_bias));
+  }
 }
 
 // ----------------------------------------------------------------------------

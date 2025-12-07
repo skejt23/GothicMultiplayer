@@ -370,7 +370,10 @@ struct D3D9RendererImpl {
   void SetFillMode(D3DFILLMODE mode);
 
   // --- Depth Bias ---
-  void SetZBias(float bias);
+  // D3D9 requires two separate bias values for proper decal rendering at all distances:
+  // - depth_bias: constant offset in depth buffer units
+  // - slope_bias: scales with polygon slope (handles angled surfaces)
+  void SetZBias(float depth_bias, float slope_bias);
 };
 
 // --- Global D3D9 State ---

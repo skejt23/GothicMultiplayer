@@ -163,9 +163,14 @@ namespace {
 // Uses std::numeric_limits to clearly express intent: an invalid/uninitialized state.
 constexpr unsigned long kCacheInvalidSentinel = std::numeric_limits<unsigned long>::max();
 
-// Scale factor for converting integer zbias values to D3D depth bias.
-// Gothic uses integer bias values (0-15), D3D expects small float offsets.
-constexpr float kZBiasScale = 0.0001f;
+// Scale factors for converting Gothic's integer zbias (0-15) to D3D9 depth bias.
+// D3D9 uses two separate bias values:
+// - DEPTHBIAS: constant offset in depth buffer units (needs to be small)
+// - SLOPESCALEDEPTHBIAS: scales with polygon slope (needs to be larger for angled surfaces)
+// These values are tuned to match D3D7's behavior where zbias worked at all distances.
+// TODO: Replace these heuristic scales with a projection-aware computation.
+constexpr float kDepthBiasScale = -0.000005f;        // Constant depth offset (negative = closer to camera)
+constexpr float kSlopeScaledBiasScale = -1.0f;       // Slope-dependent offset (negative = closer to camera)
 
 // Linear attenuation coefficient for point lights.
 // Controls how quickly light intensity falls off with distance.
@@ -1071,9 +1076,12 @@ void zCRnd_D3D_DX9::SetZBufferWriteEnabled(int enable) {
 void zCRnd_D3D_DX9::SetZBias(int bias) {
   z_bias_ = bias;
   active_status_.zbias = bias;  // Update for alpha poly system
-  float fBias = static_cast<float>(bias) * kZBiasScale;
+  // Convert Gothic's zbias to D3D9's two-component depth bias.
+  // Negative values push geometry toward the camera (in front of coplanar surfaces).
+  float depth_bias = static_cast<float>(bias) * kDepthBiasScale;
+  float slope_bias = static_cast<float>(bias) * kSlopeScaledBiasScale;
   if (impl_)
-    impl_->SetZBias(fBias);
+    impl_->SetZBias(depth_bias, slope_bias);
 }
 
 int zCRnd_D3D_DX9::GetZBias() const {
@@ -2340,6 +2348,15 @@ void zCRnd_D3D_DX9::DrawQueuedAlphaPoly(const gmp::renderer::QueuedAlphaPoly* ap
   impl_->DrawTriangleFan(reinterpret_cast<const VertexRHW*>(ap->verts.data()), ap->vert_count);
 }
 
+// Renders all translucent (alpha-blended) geometry back-to-front.
+// This renderer keeps translucent drawables in per-depth buckets ("alpha sort" list)
+// so blending composes correctly: objects farther from the camera must draw before
+// nearer ones because the depth buffer cannot resolve semi-transparent layers.
+// This pass walks buckets from far to near and interleaves two sources of alpha
+// content per bucket: engine-managed alpha sort objects (e.g., water surfaces)
+// and queued alpha polys (e.g., particles). Alpha polys are batched to reduce
+// draw calls, while alpha sort objects are rendered immediately. The ordering
+// preserves correct visual blending while keeping state changes minimal.
 void zCRnd_D3D_DX9::RenderAlphaSortList() {
   using namespace gmp::renderer;
 
