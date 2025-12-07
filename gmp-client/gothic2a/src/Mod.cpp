@@ -34,6 +34,7 @@ SOFTWARE.
 #include "ExceptionHandler.h"
 #include "HooksManager.h"
 #include "Interface.h"
+#include "dev/dev_tools.h"
 #include "ZenGin/zGothicAPI.h"
 #include "audio/gothic_music_bridge.h"
 #include "config.h"
@@ -374,6 +375,9 @@ void Initialize(void) {
   if (!MultiplayerLaunched) {
     MultiplayerLaunched = true;
     HooksManager* hm = HooksManager::GetInstance();
+
+    // Initialize dev tools hooks (weather override, etc.)
+    debug::DevTools::Instance().InitHooks();
 
     // Register task scheduler render hook - processes queued main-thread tasks every frame
     hm->AddHook(HT_RENDER, (DWORD)NetGame::ProcessTaskScheduler);

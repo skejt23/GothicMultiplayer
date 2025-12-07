@@ -59,11 +59,6 @@ public:
   CInventory* Inventory;
   std::vector<CInterpolatePos*> Interpolation;
 
-#ifndef NDEBUG
-  static inline bool noclipEnabled = false;
-  static inline float noclipSpeed = 1000.0f;
-#endif
-
 private:
   zSTRING szPing;
   bool SwampLightsOn;
