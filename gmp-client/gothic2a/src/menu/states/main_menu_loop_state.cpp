@@ -126,9 +126,12 @@ void MainMenuLoopState::RenderVersionInfo() {
   context_.screen->SetFont(FDefault);
   context_.screen->SetFontColor(Normal);
 
-  // D3D9 experimental warning in top left
-  if (Config::Instance().UseDx9Renderer()) {
+  // D3D9/D3D11 experimental warning in top left
+  auto renderer_type = Config::Instance().GetRendererType();
+  if (renderer_type == Config::RendererType::D3D9) {
     context_.screen->Print(100, 100, "D3D9 experimental (may display visual glitches)");
+  } else if (renderer_type == Config::RendererType::D3D11) {
+    context_.screen->Print(100, 100, "D3D11 (not yet implemented)");
   }
 
   // Version in bottom right

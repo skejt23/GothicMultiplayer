@@ -54,6 +54,7 @@ public:
   bool watch;
   enum KeyboardLayout { KEYBOARD_POLISH, KEYBOARD_GERMAN, KEYBOARD_CYRYLLIC };
   int keyboardlayout;
+  enum class RendererType { D3D7, D3D9, D3D11 };
   int WatchPosX;
   int WatchPosY;
   int ChatLines;
@@ -74,8 +75,8 @@ public:
     return window_always_on_top_;
   }
 
-  bool UseDx9Renderer() const {
-    return use_dx9_renderer_;
+  RendererType GetRendererType() const {
+    return renderer_type_;
   }
 
   static Config& Instance() {
@@ -91,5 +92,5 @@ private:
   std::optional<WindowPosition> window_position_;
   std::optional<ConsolePosition> console_position_;
   bool window_always_on_top_ = false;
-  bool use_dx9_renderer_ = true;  // Enable D3D9 renderer by default (experimental)
+  RendererType renderer_type_ = RendererType::D3D9;  // D3D9 renderer by default
 };

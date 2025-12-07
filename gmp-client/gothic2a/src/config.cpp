@@ -49,8 +49,7 @@ Config::Config() {
   LoadConfigFromFile();
 }
 
-Config::~Config() {
-};
+Config::~Config() {};
 
 void Config::LoadConfigFromFile() {
   DefaultSettings();
@@ -134,7 +133,17 @@ void Config::LoadConfigFromFile() {
   }
 
   window_always_on_top_ = toml.GetValue<bool>("window_always_on_top", window_always_on_top_);
-  use_dx9_renderer_ = toml.GetValue<bool>("use_dx9_renderer", use_dx9_renderer_);
+
+  // Load renderer type (default: D3D9)
+  if (auto renderer_str = toml.GetValue<std::string>("renderer_type"); renderer_str) {
+    if (*renderer_str == "D3D7") {
+      renderer_type_ = RendererType::D3D7;
+    } else if (*renderer_str == "D3D9") {
+      renderer_type_ = RendererType::D3D9;
+    } else if (*renderer_str == "D3D11") {
+      renderer_type_ = RendererType::D3D11;
+    }
+  }
 
   // If nickname is empty, the user didn't set up the config yet.
   is_default_ = Nickname.IsEmpty();
@@ -152,7 +161,7 @@ void Config::DefaultSettings() {
   ChatLines = 6;
   window_position_.reset();
   console_position_.reset();
-  use_dx9_renderer_ = true;
+  renderer_type_ = RendererType::D3D9;
   is_default_ = true;
 };
 
@@ -187,7 +196,21 @@ void Config::SaveConfigToFile() {
   }
 
   toml["window_always_on_top"] = toml::value(window_always_on_top_);
-  toml["use_dx9_renderer"] = toml::value(use_dx9_renderer_);
+
+  // Save renderer type as string
+  std::string renderer_str;
+  switch (renderer_type_) {
+    case RendererType::D3D7:
+      renderer_str = "D3D7";
+      break;
+    case RendererType::D3D9:
+      renderer_str = "D3D9";
+      break;
+    case RendererType::D3D11:
+      renderer_str = "D3D11";
+      break;
+  }
+  toml["renderer_type"] = toml::value(renderer_str);
 
   toml.Serialize(config_file_path_.string());
   is_default_ = Nickname.IsEmpty();

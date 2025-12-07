@@ -219,7 +219,7 @@ void HooksManager::RemoveHook(HOOK_TYPE type, DWORD callback) {
 
 // Check if D3D9 renderer is enabled via config (default: true)
 static bool UseDx9Renderer() {
-  return Config::Instance().UseDx9Renderer();
+  return Config::Instance().GetRendererType() == Config::RendererType::D3D9;
 }
 
 // Address of the CALL instruction in zCCamera constructor that calls SetFOV(float)
