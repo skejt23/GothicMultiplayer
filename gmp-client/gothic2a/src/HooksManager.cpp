@@ -31,7 +31,7 @@ SOFTWARE.
 
 #include "ZenGin/zGothicAPI.h"
 #include "config.h"
-#include "renderer/D3D9Renderer.h"
+#include "renderer/d3d9/D3D9Renderer.h"
 
 namespace {
 
