@@ -22,35 +22,53 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#include "D3D9DisplayModes.h"
+#include "D3D11DisplayModes.h"
 
-#include <d3d9.h>
+#include <dxgi.h>
 #include <spdlog/spdlog.h>
+#include <wrl/client.h>
 
 #include <set>
 #include <utility>
 #include <vector>
 
-namespace gmp::renderer::d3d9 {
+using Microsoft::WRL::ComPtr;
 
-D3D9DisplayModes::D3D9DisplayModes() {
+namespace gmp::renderer::d3d11 {
+
+D3D11DisplayModes::D3D11DisplayModes() {
   Enumerate();
 }
 
-void D3D9DisplayModes::Enumerate() {
+void D3D11DisplayModes::Enumerate() {
   if (enumerated_) {
     return;
   }
+  enumerated_ = true;
 
-  // Create temporary D3D9 instance for enumeration
-  IDirect3D9* d3d9 = Direct3DCreate9(D3D_SDK_VERSION);
-  if (!d3d9) {
-    SPDLOG_ERROR("D3D9DisplayModes: Failed to create D3D9 for enumeration");
-    enumerated_ = true;
+  // Create DXGI Factory for enumeration
+  ComPtr<IDXGIFactory1> factory;
+  HRESULT hr = CreateDXGIFactory1(__uuidof(IDXGIFactory1), reinterpret_cast<void**>(factory.GetAddressOf()));
+  if (FAILED(hr)) {
+    SPDLOG_ERROR("D3D11DisplayModes: Failed to create DXGI factory: 0x{:08X}", static_cast<uint32_t>(hr));
     return;
   }
 
-  enumerated_ = true;
+  // Get primary adapter
+  ComPtr<IDXGIAdapter1> adapter;
+  hr = factory->EnumAdapters1(0, adapter.GetAddressOf());
+  if (FAILED(hr)) {
+    SPDLOG_ERROR("D3D11DisplayModes: Failed to get primary adapter: 0x{:08X}", static_cast<uint32_t>(hr));
+    return;
+  }
+
+  // Get primary output (monitor)
+  ComPtr<IDXGIOutput> output;
+  hr = adapter->EnumOutputs(0, output.GetAddressOf());
+  if (FAILED(hr)) {
+    SPDLOG_ERROR("D3D11DisplayModes: Failed to get primary output: 0x{:08X}", static_cast<uint32_t>(hr));
+    return;
+  }
 
   // Common/standard resolutions we want to support (sorted by pixel count)
   // We filter to these to keep the menu manageable and ensure important modes are included
@@ -72,45 +90,53 @@ void D3D9DisplayModes::Enumerate() {
       {3840, 2160},  // 16:9 4K
   };
 
-  // Enumerate 32-bit modes (X8R8G8B8) for the default adapter
-  UINT modeCount = d3d9->GetAdapterModeCount(D3DADAPTER_DEFAULT, D3DFMT_X8R8G8B8);
-  SPDLOG_INFO("D3D9DisplayModes: Found {} display modes from adapter", modeCount);
+  // Get number of modes for B8G8R8A8_UNORM format (equivalent to X8R8G8B8)
+  UINT modeCount = 0;
+  hr = output->GetDisplayModeList(DXGI_FORMAT_B8G8R8A8_UNORM, 0, &modeCount, nullptr);
+  if (FAILED(hr) || modeCount == 0) {
+    SPDLOG_ERROR("D3D11DisplayModes: Failed to get display mode count: 0x{:08X}", static_cast<uint32_t>(hr));
+    return;
+  }
 
-  // Build a set of available resolutions from the adapter
+  SPDLOG_INFO("D3D11DisplayModes: Found {} display modes from adapter", modeCount);
+
+  // Get all modes
+  std::vector<DXGI_MODE_DESC> allModes(modeCount);
+  hr = output->GetDisplayModeList(DXGI_FORMAT_B8G8R8A8_UNORM, 0, &modeCount, allModes.data());
+  if (FAILED(hr)) {
+    SPDLOG_ERROR("D3D11DisplayModes: Failed to enumerate display modes: 0x{:08X}", static_cast<uint32_t>(hr));
+    return;
+  }
+
+  // Build a set of available resolutions
   std::set<std::pair<int, int>> availableModes;
-  for (UINT i = 0; i < modeCount; i++) {
-    D3DDISPLAYMODE mode;
-    if (SUCCEEDED(d3d9->EnumAdapterModes(D3DADAPTER_DEFAULT, D3DFMT_X8R8G8B8, i, &mode))) {
-      availableModes.insert({static_cast<int>(mode.Width), static_cast<int>(mode.Height)});
-    }
+  for (const auto& mode : allModes) {
+    availableModes.insert({static_cast<int>(mode.Width), static_cast<int>(mode.Height)});
   }
 
   // Add preferred resolutions that are available on this adapter
   for (const auto& pref : kPreferredResolutions) {
     if (availableModes.count(pref) > 0) {
       modes_.push_back({pref.first, pref.second, 32});
-      SPDLOG_DEBUG("D3D9DisplayModes: Added mode {}x{}", pref.first, pref.second);
+      SPDLOG_DEBUG("D3D11DisplayModes: Added mode {}x{}", pref.first, pref.second);
     }
   }
 
-  SPDLOG_INFO("D3D9DisplayModes: {} modes available", modes_.size());
-
-  // Release temporary D3D9 instance
-  d3d9->Release();
+  SPDLOG_INFO("D3D11DisplayModes: {} modes available", modes_.size());
 }
 
-int D3D9DisplayModes::GetNumModes() const {
+int D3D11DisplayModes::GetNumModes() const {
   return static_cast<int>(modes_.size());
 }
 
-const VideoMode* D3D9DisplayModes::GetMode(int index) const {
+const VideoMode* D3D11DisplayModes::GetMode(int index) const {
   if (index < 0 || index >= static_cast<int>(modes_.size())) {
     return nullptr;
   }
   return &modes_[index];
 }
 
-int D3D9DisplayModes::FindModeIndex(int width, int height, int bpp) const {
+int D3D11DisplayModes::FindModeIndex(int width, int height, int bpp) const {
   for (int i = 0; i < static_cast<int>(modes_.size()); ++i) {
     if (modes_[i].width == width && modes_[i].height == height && modes_[i].bpp == bpp) {
       return i;
@@ -119,12 +145,12 @@ int D3D9DisplayModes::FindModeIndex(int width, int height, int bpp) const {
   return -1;
 }
 
-int D3D9DisplayModes::GetActiveModeNr() const {
+int D3D11DisplayModes::GetActiveModeNr() const {
   return active_mode_nr_;
 }
 
-void D3D9DisplayModes::SetActiveModeNr(int modeNr) {
+void D3D11DisplayModes::SetActiveModeNr(int modeNr) {
   active_mode_nr_ = modeNr;
 }
 
-}  // namespace gmp::renderer::d3d9
+}  // namespace gmp::renderer::d3d11

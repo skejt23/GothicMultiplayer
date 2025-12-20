@@ -29,13 +29,17 @@ SOFTWARE.
 #include <vector>
 
 #include "AlphaPoly.h"
-#include "D3D9DisplayModes.h"
-#include "D3D9FogManager.h"
+#include "D3D11DisplayModes.h"
+#include "D3D11FogManager.h"
 #include "ZenGin/zGothicAPI.h"
 
 // Forward declarations.
-struct D3D9RendererImpl;
-struct IDirect3DDevice9;
+struct ID3D11Device;
+struct ID3D11DeviceContext;
+
+namespace gmp::renderer::d3d11 {
+struct D3D11RendererImpl;
+}
 
 namespace Gothic_II_Addon {
 class zCMaterial;
@@ -47,12 +51,11 @@ struct zTRndSimpleVertex;
 }  // namespace Gothic_II_Addon
 
 // ----------------------------------------------------------------------------
-// D3D9 Renderer Implementation for Gothic II
-// Author: skejt23 | Created: 2025-11-29
+// D3D11 Renderer Implementation for Gothic II
+// Author: skejt23 | Created: 2025-12-20
 // ----------------------------------------------------------------------------
-// This class implements Gothic II's zCRenderer interface using Direct3D 9,
-// replacing the original Direct3D 7 renderer. The implementation must maintain
-// interface and behavioral compatibility with the original renderer because
+// This class implements Gothic II's zCRenderer interface using Direct3D 11.
+// The implementation maintains interface and behavioral compatibility because
 // Gothic's engine has hardcoded expectations throughout its subsystems.
 //
 // Why compatibility matters:
@@ -70,17 +73,17 @@ struct zTRndSimpleVertex;
 // - Radial (range-based) fog for outdoor scenes
 //
 // New features and optimizations:
-// - Native Direct3D 9 (no legacy D3D7 compatibility layer overhead)
+// - Native Direct3D 11 implementation
 // - Widescreen and modern resolution support
 // - Alpha polygon batching (~90% draw call reduction in typical scenes)
-// - 512 depth buckets for alpha sorting (2x original for finer depth precision)
-// - D3D9 render state caching (~50% cache hit rate, reduces API overhead)
+// - 512 depth buckets for alpha sorting with finer depth precision
+// - D3D11 render state caching (~50% cache hit rate, reduces API overhead)
 // - Material and texture stage state caching
 // ----------------------------------------------------------------------------
-class zCRnd_D3D_DX9 : public zCRenderer {
+class zCRnd_D3D_DX11 : public zCRenderer {
 public:
-  zCRnd_D3D_DX9();
-  ~zCRnd_D3D_DX9() override;
+  zCRnd_D3D_DX11();
+  ~zCRnd_D3D_DX11() override;
 
   // zCRenderer interface overrides (vtable must match exactly).
   void BeginFrame() override;
@@ -186,11 +189,12 @@ public:
   int DrawVertexBuffer(zCVertexBuffer* buffer, int startVert, int numVert, unsigned short* indexList, unsigned long numIndices) override;
   zCVertexBuffer* CreateVertexBuffer() override;
 
-  // Public accessors.
-  [[nodiscard]] IDirect3DDevice9* GetDevice() const;
+  // Public accessors - D3D11 device and context
+  [[nodiscard]] ID3D11Device* GetDevice() const;
+  [[nodiscard]] ID3D11DeviceContext* GetContext() const;
 
-  // Renders a QueuedAlphaPoly from our D3D9-native alpha poly queue.
-  void DrawQueuedAlphaPoly(const gmp::renderer::d3d9::QueuedAlphaPoly* ap);
+  // Renders a QueuedAlphaPoly from our D3D11-native alpha poly queue.
+  void DrawQueuedAlphaPoly(const gmp::renderer::d3d11::QueuedAlphaPoly* ap);
 
   // Restores render state for opaque geometry after alpha pass.
   void RestoreOpaqueRenderState();
@@ -217,22 +221,25 @@ private:
   void ApplyAlphaTestStates();     // Configures state for alpha-tested geometry
   void DrawPolyVertexLit(zCPolygon* poly);
   void QueueAlphaPoly(zCPolygon* poly, zCMaterial* mat);
-  void BuildAlphaPolyVertices(gmp::renderer::d3d9::QueuedAlphaPoly* ap, const zCPolygon* poly, const zCMaterial* mat);
-  [[nodiscard]] bool ApplyAlphaBlendState(gmp::renderer::d3d9::AlphaBlendFunc blend_func, bool has_texture, bool texture_has_alpha);
+  void BuildAlphaPolyVertices(gmp::renderer::d3d11::QueuedAlphaPoly* ap, const zCPolygon* poly, const zCMaterial* mat);
+  [[nodiscard]] bool ApplyAlphaBlendState(gmp::renderer::d3d11::AlphaBlendFunc blend_func, bool has_texture, bool texture_has_alpha);
 
   // Batched alpha polygon rendering helpers.
-  void SetupAlphaRenderState(const gmp::renderer::d3d9::AlphaRenderStateKey& state);
+  void SetupAlphaRenderState(const gmp::renderer::d3d11::AlphaRenderStateKey& state);
   void FlushAlphaBatch();
-  void RenderAlphaPolyBatched(const gmp::renderer::d3d9::QueuedAlphaPoly& poly);
+  void RenderAlphaPolyBatched(const gmp::renderer::d3d11::QueuedAlphaPoly& poly);
 
-  // D3D9 implementation details (pImpl pattern with RAII).
-  std::unique_ptr<D3D9RendererImpl> impl_;
+  // Fog synchronization helper - updates impl layer fog constant buffer from fog_manager_.
+  void SyncFogToImpl();
+
+  // D3D11 implementation details (pImpl pattern with RAII).
+  std::unique_ptr<gmp::renderer::d3d11::D3D11RendererImpl> impl_;
 
   // Display mode enumeration (initialized from impl_->d3d in Init).
-  gmp::renderer::d3d9::D3D9DisplayModes display_modes_;
+  gmp::renderer::d3d11::D3D11DisplayModes display_modes_;
 
   // Alpha polygon batcher for reducing draw calls.
-  gmp::renderer::d3d9::AlphaPolyBatcher alpha_batcher_;
+  gmp::renderer::d3d11::AlphaPolyBatcher alpha_batcher_;
 
   // Render state tracking (cached to avoid redundant D3D calls).
   std::array<unsigned long, kMaxRenderStates> render_state_cache_{};
@@ -272,17 +279,20 @@ private:
   zMAT4 view_matrix_{};
   zMAT4 proj_matrix_{};
 
-  // Z buffer scaling (from clip plane setup).
-  // Perspective depth mapping: z_ndc = z_proj_offset_ + z_proj_scale_ / eye_z
-  // Where: z_proj_offset_ = zFar / (zFar - zNear)
-  //        z_proj_scale_ = -zFar * zNear / (zFar - zNear)
+  // Z buffer scaling.
+  // Perspective depth mapping: z_ndc = z_proj_offset_ + z_proj_scale_ * rhw
+  // Where rhw = 1/eye_z. The constants are extracted from the projection matrix
+  // to ensure RHW vertices produce the same depth values as 3D-transformed geometry.
+  //   z_proj_offset_ = proj_matrix[2][2] = zFar / (zFar - zNear)
+  //   z_proj_scale_  = proj_matrix[3][2] = -zFar * zNear / (zFar - zNear)
   float z_max_from_engine_ = 2.0f;
   float z_min_from_engine_ = 0.25f;
   float z_proj_offset_ = 1.0f;
   float z_proj_scale_ = 0.0f;
+  bool z_proj_from_matrix_ = false;  // True when z constants came from projection matrix
 
-  // Fog management (see D3D9FogManager.h for documentation).
-  gmp::renderer::d3d9::D3D9FogManager fog_manager_;
+  // Fog management (see D3D11FogManager.h for documentation).
+  gmp::renderer::d3d11::D3D11FogManager fog_manager_;
 
   // Depth buffer state.
   int z_bias_ = 0;
@@ -304,11 +314,13 @@ private:
   int num_alpha_polys_ = 0;
   std::array<zCRndAlphaSortObject*, kMaxAlphaBuckets> alpha_sort_bucket_{};
   float bucket_size_ = 0.0f;
-  gmp::renderer::d3d9::AlphaPolyQueue alpha_poly_queue_;
-  gmp::renderer::d3d9::AlphaPolyQueue immediate_alpha_poly_queue_;
+  gmp::renderer::d3d11::AlphaPolyQueue alpha_poly_queue_;
+  gmp::renderer::d3d11::AlphaPolyQueue immediate_alpha_poly_queue_;
 
   // Gamma correction state (0.5 = neutral, range 0.1-0.9).
   float gamma_ = 0.5f;
+  float contrast_ = 0.5f;
+  float brightness_ = 0.5f;
 
   // Texture state.
   std::array<zCTexture*, kMaxTextureStages> active_texture_{};
@@ -332,5 +344,5 @@ private:
 };
 
 // Factory functions for the hook.
-zCRenderer* __stdcall CreateDX9Renderer();
-void __fastcall ConstructDX9Renderer(void* mem);
+zCRenderer* __stdcall CreateDX11Renderer();
+void __fastcall ConstructDX11Renderer(void* mem);

@@ -29,7 +29,7 @@ SOFTWARE.
 #include <cstddef>
 #include <cstdint>
 
-namespace gmp::renderer {
+namespace gmp::renderer::d3d9 {
 
 // ----------------------------------------------------------------------------
 // Dynamic Vertex Buffer - Ring Buffer Pattern
@@ -226,4 +226,4 @@ private:
   size_t nooverwrite_count_ = 0;
 };
 
-}  // namespace gmp::renderer
+}  // namespace gmp::renderer::d3d9

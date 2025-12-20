@@ -32,17 +32,26 @@ SOFTWARE.
 #include "server_events.h"
 #include "shared/event.h"
 
-namespace {
-constexpr std::chrono::seconds kGameTimeInterval(4);
-}
-
-GothicClock::GothicClock(Time initial_time) : time_(initial_time) {
+GothicClock::GothicClock(Time initial_time, std::int32_t seconds_per_game_minute)
+    : time_(initial_time), seconds_per_game_minute_(seconds_per_game_minute) {
   EventManager::Instance().RegisterEvent(kEventOnGameTimeName);
+  if (seconds_per_game_minute_ == 0) {
+    SPDLOG_INFO("Gothic clock is frozen (seconds_per_game_minute = 0)");
+  } else {
+    SPDLOG_INFO("Gothic clock: 1 game minute every {} real-world second(s)", seconds_per_game_minute_);
+  }
 }
 
 void GothicClock::RunClock() {
+  // If seconds_per_game_minute is 0, time is frozen - do nothing
+  if (seconds_per_game_minute_ == 0) {
+    return;
+  }
+
   auto now = std::chrono::steady_clock::now();
-  if ((now - last_update_time_) > kGameTimeInterval) {
+  auto interval = std::chrono::seconds(seconds_per_game_minute_);
+  if ((now - last_update_time_) > interval) {
+    // Increment by 1 game minute
     if (++time_.min_ > 59) {
       time_.min_ = 0;
       if (++time_.hour_ > 23) {

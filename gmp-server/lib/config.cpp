@@ -65,6 +65,7 @@ const std::unordered_map<std::string, std::variant<std::string, std::vector<std:
     {"log_level", std::string("trace")},
     {"scripts", std::vector<std::string>{std::string("main.lua")}},
     {"tick_rate_ms", 100},
+    {"seconds_per_game_minute", 4},
 #ifndef WIN32
     {"daemon", true}
 #else
@@ -188,6 +189,7 @@ void Config::LogConfigValues() const {
   SPDLOG_INFO("");
   SPDLOG_INFO("-= Performance =-");
   SPDLOG_INFO("* {:<18}: {} ms", "Tick rate", Get<std::int32_t>("tick_rate_ms"));
+  SPDLOG_INFO("* {:<18}: {} s", "Secs per game min", Get<std::int32_t>("seconds_per_game_minute"));
 
 #ifndef WIN32
   const bool daemon = Get<bool>("daemon");

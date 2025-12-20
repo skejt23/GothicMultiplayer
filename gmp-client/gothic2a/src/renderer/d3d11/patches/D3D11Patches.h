@@ -24,46 +24,10 @@ SOFTWARE.
 
 #pragma once
 
-#include <vector>
+namespace gmp::renderer::d3d11 {
 
-namespace gmp::renderer::d3d9 {
+// Initialize D3D11-specific engine patches and hooks.
+// Call this once during renderer initialization.
+void InitializeD3D11Patches();
 
-struct VideoMode {
-  int width;
-  int height;
-  int bpp;
-};
-
-class D3D9DisplayModes {
-public:
-  D3D9DisplayModes();
-  ~D3D9DisplayModes() = default;
-
-  D3D9DisplayModes(const D3D9DisplayModes&) = delete;
-  D3D9DisplayModes& operator=(const D3D9DisplayModes&) = delete;
-  D3D9DisplayModes(D3D9DisplayModes&&) = delete;
-  D3D9DisplayModes& operator=(D3D9DisplayModes&&) = delete;
-
-  // Get the number of available display modes.
-  [[nodiscard]] int GetNumModes() const;
-
-  // Get mode info by index. Returns nullptr if index is invalid.
-  [[nodiscard]] const VideoMode* GetMode(int index) const;
-
-  // Find the index of a mode matching the given parameters.
-  // Returns -1 if not found.
-  [[nodiscard]] int FindModeIndex(int width, int height, int bpp) const;
-
-  // Get/set the currently active mode index.
-  [[nodiscard]] int GetActiveModeNr() const;
-  void SetActiveModeNr(int modeNr);
-
-private:
-  void Enumerate();
-
-  std::vector<VideoMode> modes_;
-  int active_mode_nr_ = 0;
-  bool enumerated_ = false;
-};
-
-}  // namespace gmp::renderer::d3d9
+}  // namespace gmp::renderer::d3d11

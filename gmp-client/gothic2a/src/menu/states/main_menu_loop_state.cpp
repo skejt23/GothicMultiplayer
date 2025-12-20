@@ -131,7 +131,7 @@ void MainMenuLoopState::RenderVersionInfo() {
   if (renderer_type == Config::RendererType::D3D9) {
     context_.screen->Print(100, 100, "D3D9 experimental (may display visual glitches)");
   } else if (renderer_type == Config::RendererType::D3D11) {
-    context_.screen->Print(100, 100, "D3D11 (not yet implemented)");
+    context_.screen->Print(100, 100, "D3D11 (not yet fully implemented)");
   }
 
   // Version in bottom right

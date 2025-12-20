@@ -26,7 +26,7 @@ SOFTWARE.
 
 #include <spdlog/spdlog.h>
 
-namespace gmp::renderer {
+namespace gmp::renderer::d3d9 {
 
 namespace {
 // Constants for D3D9 boolean render states.
@@ -163,4 +163,4 @@ void D3D9FogManager::ApplyFogModes(bool enable) {
   }
 }
 
-}  // namespace gmp::renderer
+}  // namespace gmp::renderer::d3d9

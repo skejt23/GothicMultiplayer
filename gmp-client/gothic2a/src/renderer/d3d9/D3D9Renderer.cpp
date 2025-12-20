@@ -189,7 +189,7 @@ void SetIdentityMatrix(zMAT4& m) {
 // and restored afterward. This guard handles the save/restore automatically.
 class ScopedRadialFogDisable {
 public:
-  ScopedRadialFogDisable(zCRnd_D3D_DX9* renderer, gmp::renderer::D3D9FogManager& fog_manager)
+  ScopedRadialFogDisable(zCRnd_D3D_DX9* renderer, gmp::renderer::d3d9::D3D9FogManager& fog_manager)
       : renderer_(renderer),
         fog_manager_(fog_manager),
         fog_was_enabled_(renderer->GetFog() != 0),
@@ -216,7 +216,7 @@ public:
 
 private:
   zCRnd_D3D_DX9* renderer_;
-  gmp::renderer::D3D9FogManager& fog_manager_;
+  gmp::renderer::d3d9::D3D9FogManager& fog_manager_;
   bool fog_was_enabled_;
   bool radial_was_enabled_;
 };
@@ -553,8 +553,8 @@ void zCRnd_D3D_DX9::ApplyAlphaTestStates() {
 //    approximate center depth, used for back-to-front alpha sorting (painter's
 //    algorithm).
 //
-void zCRnd_D3D_DX9::BuildAlphaPolyVertices(gmp::renderer::QueuedAlphaPoly* ap, const zCPolygon* poly, const zCMaterial* mat) {
-  using namespace gmp::renderer;
+void zCRnd_D3D_DX9::BuildAlphaPolyVertices(gmp::renderer::d3d9::QueuedAlphaPoly* ap, const zCPolygon* poly, const zCMaterial* mat) {
+  using namespace gmp::renderer::d3d9;
 
   // Configure render state.
   ap->texture = active_texture_[0];
@@ -1199,7 +1199,7 @@ void zCRnd_D3D_DX9::AddAlphaPoly(const zCPolygon* poly) {
 
 // FlushAlphaPolys - Renders and clears the immediate alpha poly queue.
 void zCRnd_D3D_DX9::FlushAlphaPolys() {
-  using namespace gmp::renderer;
+  using namespace gmp::renderer::d3d9;
 
   if (immediate_alpha_poly_queue_.IsEmpty()) {
     return;
@@ -2167,8 +2167,8 @@ void zCRnd_D3D_DX9::AddAlphaSortObject(zCRndAlphaSortObject* obj) {
 //
 // Returns true if fog should be disabled for this blend mode (ADD, MUL).
 //
-bool zCRnd_D3D_DX9::ApplyAlphaBlendState(gmp::renderer::AlphaBlendFunc blend_func, bool has_texture, bool texture_has_alpha) {
-  using namespace gmp::renderer;
+bool zCRnd_D3D_DX9::ApplyAlphaBlendState(gmp::renderer::d3d9::AlphaBlendFunc blend_func, bool has_texture, bool texture_has_alpha) {
+  using namespace gmp::renderer::d3d9;
 
   bool disable_fog = false;
 
@@ -2232,8 +2232,8 @@ bool zCRnd_D3D_DX9::ApplyAlphaBlendState(gmp::renderer::AlphaBlendFunc blend_fun
 // - Z buffer configuration
 // - Texture stage operations
 //
-void zCRnd_D3D_DX9::SetupAlphaRenderState(const gmp::renderer::AlphaRenderStateKey& state) {
-  using namespace gmp::renderer;
+void zCRnd_D3D_DX9::SetupAlphaRenderState(const gmp::renderer::d3d9::AlphaRenderStateKey& state) {
+  using namespace gmp::renderer::d3d9;
 
   // Setup common alpha state
   ResetMultiTexturing();
@@ -2273,7 +2273,7 @@ void zCRnd_D3D_DX9::SetupAlphaRenderState(const gmp::renderer::AlphaRenderStateK
 // a single batched draw call for all polygons in the batch.
 //
 void zCRnd_D3D_DX9::FlushAlphaBatch() {
-  using namespace gmp::renderer;
+  using namespace gmp::renderer::d3d9;
 
   if (!alpha_batcher_.HasPendingGeometry()) {
     return;
@@ -2314,7 +2314,7 @@ void zCRnd_D3D_DX9::FlushAlphaBatch() {
 // If the polygon can be added to the current batch (same render state),
 // it's accumulated. If not, the current batch is flushed first.
 //
-void zCRnd_D3D_DX9::RenderAlphaPolyBatched(const gmp::renderer::QueuedAlphaPoly& poly) {
+void zCRnd_D3D_DX9::RenderAlphaPolyBatched(const gmp::renderer::d3d9::QueuedAlphaPoly& poly) {
   // Try to add to current batch
   if (!alpha_batcher_.Submit(poly)) {
     // Batch is full or state changed - flush current batch
@@ -2327,8 +2327,8 @@ void zCRnd_D3D_DX9::RenderAlphaPolyBatched(const gmp::renderer::QueuedAlphaPoly&
 // DrawQueuedAlphaPoly - renders a QueuedAlphaPoly using D3D9
 // Note: This function is still used for immediate alpha polys (FlushAlphaPolys).
 // For the sorted alpha pass, we use the batched rendering path instead.
-void zCRnd_D3D_DX9::DrawQueuedAlphaPoly(const gmp::renderer::QueuedAlphaPoly* ap) {
-  using namespace gmp::renderer;
+void zCRnd_D3D_DX9::DrawQueuedAlphaPoly(const gmp::renderer::d3d9::QueuedAlphaPoly* ap) {
+  using namespace gmp::renderer::d3d9;
 
   SPDLOG_DEBUG("DrawQueuedAlphaPoly: ENTRY ap={} impl_={} surface_lost_={}", static_cast<const void*>(ap), static_cast<void*>(impl_.get()),
                GetSurfaceLost());
@@ -2358,7 +2358,7 @@ void zCRnd_D3D_DX9::DrawQueuedAlphaPoly(const gmp::renderer::QueuedAlphaPoly* ap
 // draw calls, while alpha sort objects are rendered immediately. The ordering
 // preserves correct visual blending while keeping state changes minimal.
 void zCRnd_D3D_DX9::RenderAlphaSortList() {
-  using namespace gmp::renderer;
+  using namespace gmp::renderer::d3d9;
 
   // Skip rendering during device reset.
   if (GetSurfaceLost()) {

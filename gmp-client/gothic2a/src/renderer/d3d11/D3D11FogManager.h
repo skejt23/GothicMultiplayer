@@ -24,35 +24,43 @@ SOFTWARE.
 
 #pragma once
 
-#include <d3d9.h>
-
-#include <bit>
+#include <d3d11.h>
 
 #include "ZenGin/zGothicAPI.h"
 
-namespace gmp::renderer::d3d9 {
+namespace gmp::renderer::d3d11 {
 
 // ----------------------------------------------------------------------------
-// D3D9 Fog Management System
+// D3D11 Fog Management System (Shader-Based)
 // ----------------------------------------------------------------------------
 // This class encapsulates Gothic II's fog rendering state management for the
-// D3D9 renderer. Gothic's fog system supports two modes:
+// D3D11 renderer. Unlike D3D9's fixed-function fog, D3D11 implements fog
+// entirely in shaders via the FogCB constant buffer.
 //
-// 1. Table Fog (Pixel Fog): Applied per-pixel in the rasterizer using lookup
-//    tables. Uses FOGTABLEMODE.
-//    This is the classic fog mode used in indoor scenes and smaller areas.
+// Gothic's fog system supports two modes:
 //
-// 2. Vertex Fog (Range-Based): Computed per-vertex in the T&L pipeline.
-//    When combined with RANGEFOGENABLE, it calculates fog based on actual
-//    distance from camera rather than just Z-depth, preventing "banding"
-//    artifacts at screen edges. This is Gothic's "radial fog" mode.
+// 1. Linear Fog: Classic fog where density increases linearly between
+//    start and end distances.
 //
-// Note: Fog must be disabled during 2D rendering (UI, menus) to prevent scene
-// fog from affecting overlay elements.
+// 2. Radial Fog (Range-Based): Fog calculated based on actual distance
+//    from camera rather than just Z-depth, preventing "banding"
+//    artifacts at screen edges. This is Gothic's default outdoor mode.
+//
+// The fog parameters are passed to shaders via a constant buffer:
+// - FogEnabled: Master enable flag (0 or 1)
+// - FogColor: RGBA fog color
+// - FogStart/FogEnd: Distance range for linear fog
+// - FogDensity: Fog density for exponential modes
+// - FogMode: 0=Linear, 1=Exp, 2=Exp2, 3=Radial
+//
+// Note: Fog must be disabled during 2D rendering (UI, menus).
 // ----------------------------------------------------------------------------
 
-class D3D9FogManager {
+class D3D11FogManager {
 public:
+  // Fog mode constants (for shader)
+  enum class FogMode : int { Linear = 0, Exponential = 1, ExponentialSquared = 2, Radial = 3 };
+
   // Fog state structure for save/restore operations.
   struct FogState {
     bool enabled = false;
@@ -63,22 +71,26 @@ public:
     int mode = 0;
   };
 
-  D3D9FogManager() = default;
+  // Fog constant buffer data (matches HLSL layout)
+  struct FogCBData {
+    float FogColor[4];  // RGBA
+    float FogStart;
+    float FogEnd;
+    float FogDensity;
+    int FogEnabled;
+    int FogMode;       // 0=Linear, 1=Exp, 2=Exp2, 3=Radial
+    float Padding[3];  // Pad to 16-byte boundary
+  };
 
-  // Initialize with D3D9 device reference.
-  void Init(IDirect3DDevice9* device);
+  D3D11FogManager() = default;
 
   // Enable or disable fog rendering.
-  // When enabled, applies all fog parameters to D3D9 render states.
-  // When disabled, clears fog modes to prevent rendering artifacts.
   void SetEnabled(bool enable);
   bool IsEnabled() const {
     return !disabled_;
   }
 
   // Enable or disable radial (range-based) fog.
-  // Radial fog uses vertex fog with range-based distance calculation,
-  // preventing fog "banding" at screen edges in large outdoor scenes.
   void SetRadialEnabled(bool enable);
   bool IsRadialEnabled() const {
     return radial_enabled_;
@@ -91,9 +103,6 @@ public:
   }
 
   // Set fog distance range.
-  // near_z: Distance where fog begins (0% fog)
-  // far_z: Distance where fog is complete (100% fog)
-  // mode: Fog density mode (reserved for future use)
   void SetRange(float near_z, float far_z, int mode);
   void GetRange(float& near_z, float& far_z, int& mode) const;
 
@@ -101,26 +110,26 @@ public:
   FogState SaveState() const;
   void RestoreState(const FogState& state);
 
-  // Apply current fog settings to D3D9 device.
-  // Call this when re-enabling fog or after device reset.
-  void ApplyToDevice();
+  // Get constant buffer data for shader upload
+  FogCBData GetConstantBufferData() const;
+
+  // Check if fog state has changed since last upload
+  bool IsDirty() const {
+    return dirty_;
+  }
+  void ClearDirty() {
+    dirty_ = false;
+  }
 
 private:
-  // Apply a D3D9 render state, with optional state caching.
-  void ApplyRenderState(D3DRENDERSTATETYPE state, DWORD value);
-
-  // Apply fog mode settings based on radial flag.
-  void ApplyFogModes(bool enable);
-
-  IDirect3DDevice9* device_ = nullptr;
-
-  // Fog state.
+  // Fog state
   bool disabled_ = false;       // Master enable/disable flag
-  bool radial_enabled_ = true;  // Use range-based vertex fog vs table fog
+  bool radial_enabled_ = true;  // Use range-based fog vs depth-based
   zCOLOR color_{};
   float start_ = 0.0f;
   float end_ = 10000.0f;
   int mode_ = 0;
+  bool dirty_ = true;  // True if CB needs update
 };
 
-}  // namespace gmp::renderer::d3d9
+}  // namespace gmp::renderer::d3d11

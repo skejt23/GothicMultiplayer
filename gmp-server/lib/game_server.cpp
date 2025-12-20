@@ -346,7 +346,8 @@ bool GameServer::Init() {
   ban_manager_->Load();
   g_is_server_running = true;
 
-  clock_ = std::make_unique<GothicClock>(GothicClock::Time{});
+  auto seconds_per_game_minute = config_.Get<std::int32_t>("seconds_per_game_minute");
+  clock_ = std::make_unique<GothicClock>(GothicClock::Time{}, seconds_per_game_minute);
   if (IsPublic() && !kMasterServerEndpoint.empty()) {
     public_list_http_thread_future_ = std::async(&GameServer::AddToPublicListHTTP, this);
     SPDLOG_INFO("Master Server connection successful!");

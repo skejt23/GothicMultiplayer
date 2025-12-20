@@ -207,10 +207,10 @@ struct D3D9RendererImpl {
   // --- Ring Buffer Pattern ---
   // Dynamic vertex/index buffers using ring buffer pattern for efficient streaming.
   // See DynamicVertexBuffer.h for detailed documentation on the pattern.
-  gmp::renderer::DynamicVertexBuffer batch_ring_vb_;  // General batching
-  gmp::renderer::DynamicIndexBuffer batch_ring_ib_;   // General batching
-  gmp::renderer::DynamicVertexBuffer alpha_ring_vb_;  // Alpha polygon batching
-  gmp::renderer::DynamicIndexBuffer alpha_ring_ib_;   // Alpha polygon batching
+  gmp::renderer::d3d9::DynamicVertexBuffer batch_ring_vb_;  // General batching
+  gmp::renderer::d3d9::DynamicIndexBuffer batch_ring_ib_;   // General batching
+  gmp::renderer::d3d9::DynamicVertexBuffer alpha_ring_vb_;  // Alpha polygon batching
+  gmp::renderer::d3d9::DynamicIndexBuffer alpha_ring_ib_;   // Alpha polygon batching
 
   // Current batch accumulation (in CPU memory before upload)
   VertexBatch batch_;

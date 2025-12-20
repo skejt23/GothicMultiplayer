@@ -11,6 +11,7 @@ public = false
 slots = 12
 admin_passwd = ""
 auth_key = ""
+seconds_per_game_minute = 0
 
 # --- Server Identity ---------------------------------------------------------
 # This seed is automatically generated on first startup and uniquely identifies this server.

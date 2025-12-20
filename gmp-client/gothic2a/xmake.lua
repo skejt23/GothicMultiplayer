@@ -8,7 +8,8 @@ target("ClientMain")
     
     add_deps("common", "SharedLib", "LuaRuntime", "ResourceLoader", "zNetInterface", "Client.Net", "Client.Resources", "SDL3", "BugTrap", "gothic_api")
     add_packages("spdlog", "fmt", "cpp-httplib", "dylib", "glm", "bitsery", "nlohmann_json", "polyhook2", "asmjit", "sol2", "minimp3", "stb")
-    add_syslinks("wsock32", "ws2_32", "Iphlpapi", "user32", "gdi32", "kernel32", "d3d9")
+    -- D3D9 for legacy renderer, D3D11/DXGI/D3DCompiler for modern renderer
+    add_syslinks("wsock32", "ws2_32", "Iphlpapi", "user32", "gdi32", "kernel32", "d3d9", "d3d11", "dxgi", "d3dcompiler")
 
     add_defines("SPDLOG_FMT_EXTERNAL")
     add_defines("DIRECTINPUT_VERSION=0x0800")

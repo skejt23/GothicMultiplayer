@@ -26,7 +26,7 @@ SOFTWARE.
 
 #include <vector>
 
-namespace gmp::renderer::d3d9 {
+namespace gmp::renderer::d3d11 {
 
 struct VideoMode {
   int width;
@@ -34,15 +34,15 @@ struct VideoMode {
   int bpp;
 };
 
-class D3D9DisplayModes {
+class D3D11DisplayModes {
 public:
-  D3D9DisplayModes();
-  ~D3D9DisplayModes() = default;
+  D3D11DisplayModes();
+  ~D3D11DisplayModes() = default;
 
-  D3D9DisplayModes(const D3D9DisplayModes&) = delete;
-  D3D9DisplayModes& operator=(const D3D9DisplayModes&) = delete;
-  D3D9DisplayModes(D3D9DisplayModes&&) = delete;
-  D3D9DisplayModes& operator=(D3D9DisplayModes&&) = delete;
+  D3D11DisplayModes(const D3D11DisplayModes&) = delete;
+  D3D11DisplayModes& operator=(const D3D11DisplayModes&) = delete;
+  D3D11DisplayModes(D3D11DisplayModes&&) = delete;
+  D3D11DisplayModes& operator=(D3D11DisplayModes&&) = delete;
 
   // Get the number of available display modes.
   [[nodiscard]] int GetNumModes() const;
@@ -66,4 +66,4 @@ private:
   bool enumerated_ = false;
 };
 
-}  // namespace gmp::renderer::d3d9
+}  // namespace gmp::renderer::d3d11

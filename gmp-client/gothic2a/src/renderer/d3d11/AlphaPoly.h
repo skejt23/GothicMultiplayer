@@ -28,11 +28,11 @@ SOFTWARE.
 #include <cstdint>
 #include <vector>
 
-namespace gmp::renderer::d3d9 {
+namespace gmp::renderer::d3d11 {
 
 inline constexpr int kAlphaPolyMaxVerts = 8;     // Max vertices per polygon.
-inline constexpr int kAlphaPolyPoolSize = 8192;  // Max alpha polys per frame (4x original MAXALPHAPOLYS for modern systems)
-inline constexpr int kAlphaSortBuckets = 512;    // Depth sort buckets (2x original for finer depth sorting)
+inline constexpr int kAlphaPolyPoolSize = 8192;  // Max alpha polys per frame
+inline constexpr int kAlphaSortBuckets = 512;    // Depth sort buckets for finer depth sorting
 
 // Alpha blend function (matches Gothic's zTRnd_AlphaBlendFunc)
 enum class AlphaBlendFunc : uint8_t { kMatDefault = 0, kNone = 1, kBlend = 2, kAdd = 3, kSub = 4, kMul = 5, kMul2 = 6, kTest = 7, kBlendTest = 8 };
@@ -62,7 +62,7 @@ struct QueuedAlphaPoly {
   std::array<AlphaVertex, kAlphaPolyMaxVerts> verts;
 
   // Render state
-  void* texture;  // D3D9 texture pointer (or null)
+  void* texture;  // D3D11 texture pointer (or null)
   AlphaBlendFunc blend_func;
   ZBufferCmp z_func;
   int z_bias;  // Z bias for depth layering
@@ -318,4 +318,4 @@ private:
   AlphaBatchStats stats_;
 };
 
-}  // namespace gmp::renderer::d3d9
+}  // namespace gmp::renderer::d3d11

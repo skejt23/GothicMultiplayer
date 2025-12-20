@@ -29,7 +29,7 @@ SOFTWARE.
 #include <cstring>
 #include <utility>
 
-namespace gmp::renderer {
+namespace gmp::renderer::d3d9 {
 
 // ----------------------------------------------------------------------------
 // DynamicVertexBuffer Implementation
@@ -384,4 +384,4 @@ void DynamicIndexBuffer::BeginFrame() {
   }
 }
 
-}  // namespace gmp::renderer
+}  // namespace gmp::renderer::d3d9

@@ -32,6 +32,10 @@ SOFTWARE.
 #include "ZenGin/zGothicAPI.h"
 #include "config.h"
 #include "renderer/d3d9/D3D9Renderer.h"
+#include "renderer/d3d11/D3D11Renderer.h"
+#include "renderer/d3d11/patches/D3D11Patches.h"
+
+#include "ZenGin/Gothic_II_Addon/API/zRenderManager.h"
 
 namespace {
 
@@ -222,6 +226,11 @@ static bool UseDx9Renderer() {
   return Config::Instance().GetRendererType() == Config::RendererType::D3D9;
 }
 
+// Check if D3D11 renderer is enabled via config
+static bool UseDx11Renderer() {
+  return Config::Instance().GetRendererType() == Config::RendererType::D3D11;
+}
+
 // Address of the CALL instruction in zCCamera constructor that calls SetFOV(float)
 // Original: E8 07 07 00 00 -> CALL 0x0054A920 (SetFOV(float))
 // Patched by widescreen mods: varies -> CALL to dynamically generated thunk
@@ -284,6 +293,42 @@ void HooksManager::InitAllPatches() {
       MemoryPatch::WriteMemory(0x0042C67B, jmpNear, 2);
       SPDLOG_DEBUG("Patched inlined VidIsResolutionValid in Apply_Options_Video at 0x0042C67B");
     }
+  } else if (UseDx11Renderer()) {
+    // Inject DX11 Renderer
+    // First, patch the allocation size to match our renderer class size
+    DWORD newSize = sizeof(zCRnd_D3D_DX11);
+    MemoryPatch::WriteMemory(0x00630803, reinterpret_cast<PBYTE>(&newSize), sizeof(DWORD));
+    SPDLOG_DEBUG("Patched renderer allocation size from 0x82E7C to 0x{:X} ({} bytes) for D3D11", newSize, newSize);
+
+    // Replaces the call to zCRnd_D3D constructor in zDieter_StartUp
+    MemoryPatch::CallPatch(0x00630824, (DWORD)ConstructDX11Renderer, 0);
+
+    // Hook VidIsResolutionValid to bypass 1600x1200 resolution limit
+    // This allows the D3D11 renderer to use any resolution the adapter supports
+    if (auto original = CreateHook(kVidIsResolutionValidAddress, (DWORD)Hook_VidIsResolutionValid)) {
+      g_vidIsResolutionValidOriginal = reinterpret_cast<VidIsResolutionValidFn>(*original);
+      SPDLOG_DEBUG("Hooked VidIsResolutionValid to allow higher resolutions (D3D11)");
+    } else {
+      SPDLOG_ERROR("Failed to hook VidIsResolutionValid at 0x{:08X}", kVidIsResolutionValidAddress);
+    }
+
+    // Patch inlined VidIsResolutionValid calls to bypass 1600x1200 limit
+    {
+      BYTE jmpShort = 0xEB;  // JMP SHORT opcode (unconditional)
+
+      // Patch in Update_ChoiceBox (builds resolution list for menu)
+      MemoryPatch::WriteMemory(0x0042E14F, &jmpShort, 1);
+      SPDLOG_DEBUG("Patched inlined VidIsResolutionValid in Update_ChoiceBox at 0x0042E14F (D3D11)");
+
+      // Patch in Apply_Options_Video (loop that finds selected resolution)
+      MemoryPatch::WriteMemory(0x0042C5C3, &jmpShort, 1);
+      SPDLOG_DEBUG("Patched inlined VidIsResolutionValid in Apply_Options_Video at 0x0042C5C3 (D3D11)");
+
+      // Patch in Apply_Options_Video (validation check after loop)
+      BYTE jmpNear[2] = {0x90, 0xE9};  // NOP + JMP near
+      MemoryPatch::WriteMemory(0x0042C67B, jmpNear, 2);
+      SPDLOG_DEBUG("Patched inlined VidIsResolutionValid in Apply_Options_Video at 0x0042C67B (D3D11)");
+    }
   }
 
   // =============================================================================
@@ -304,6 +349,11 @@ void HooksManager::InitAllPatches() {
     SPDLOG_DEBUG("Hooked zCCamera::SetFOV at 0x{:08X} to fix vdfs32g widescreen bug", kSetFOV2Address);
   } else {
     SPDLOG_ERROR("Failed to hook zCCamera::SetFOV at 0x{:08X}", kSetFOV2Address);
+  }
+
+  // Initialize D3D11-specific patches (shader semantic bridge, etc.)
+  if (UseDx11Renderer()) {
+    gmp::renderer::d3d11::InitializeD3D11Patches();
   }
 
   if (auto original = CreateHook(kRenderHookAddress, (DWORD)&HooksManager::OnRender)) {

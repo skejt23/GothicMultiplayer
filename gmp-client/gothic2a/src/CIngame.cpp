@@ -278,7 +278,6 @@ void CIngame::HandleInput() {
       AMenu->Close();
   }
   debug::DevTools::Instance().HandleInput(WritingOnChat);
-  // SPAWN FIRE PARTICLE EFFECTS - Stress test for alpha batching
   if (zinput->KeyToggled(KEY_F5) && !WritingOnChat) {
     zVEC3 basePos = player->GetPositionWorld();
     int spawnCount = 0;
@@ -406,6 +405,21 @@ void CIngame::Draw() {
   if (Config::Instance().watch)
     CWatch::GetInstance()->PrintWatch();
   debug::DevTools::Instance().Render();
+
+  // Display DirectX version in bottom right
+  const char* dx_version = "";
+  switch (Config::Instance().GetRendererType()) {
+    case Config::RendererType::D3D7:
+      dx_version = "DirectX 7";
+      break;
+    case Config::RendererType::D3D9:
+      dx_version = "DirectX 9";
+      break;
+    case Config::RendererType::D3D11:
+      dx_version = "DirectX 11";
+      break;
+  }
+  screen->PrintCX(8000, dx_version);
 
   /*if(client->IsConnected()){
                   char buffer[32];

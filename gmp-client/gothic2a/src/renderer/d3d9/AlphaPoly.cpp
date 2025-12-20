@@ -26,7 +26,7 @@ SOFTWARE.
 
 #include <cmath>
 
-namespace gmp::renderer {
+namespace gmp::renderer::d3d9 {
 
 AlphaPolyQueue::AlphaPolyQueue() : alloc_count_(0), bucket_size_(1.0f) {
   pool_.resize(kAlphaPolyPoolSize);
@@ -254,4 +254,4 @@ bool AlphaPolyBatcher::End() {
   return index_count_ > 0;
 }
 
-}  // namespace gmp::renderer
+}  // namespace gmp::renderer::d3d9
