@@ -26,7 +26,8 @@ SOFTWARE.
 
 #include <spdlog/spdlog.h>
 
-#include "HooksManager.h"
+#include "gmp_core.h"
+#include "world_utils.hpp"
 #include "Patch.h"
 #include "keyboard.h"
 #include "main_menu.h"
@@ -111,9 +112,9 @@ StateResult ServerListState::Update() {
       RenderConnectionProgress();
       return StateResult::Continue;
     } else if (connState == gmp::client::GameClient::ConnectionState::Connected) {
-      // Connection successful - proceed with game setup
+      // Connection successful - schedule game setup to run outside render loop
       if (NetGame::Instance().IsConnected() && NetGame::Instance().IsReadyToJoin) {
-        SetupGameAfterConnection();
+        ScheduleGameSetup();
         connectionAttemptInProgress_ = false;
         // Trigger transition to ExitMenuState
         shouldConnectToServer_ = true;  // Reuse flag for transition
@@ -312,33 +313,48 @@ void ServerListState::RenderConnectionProgress() {
   context_.screen->Print(dotsCenterX, 4300, dots);
 }
 
-void ServerListState::SetupGameAfterConnection() {
-  SPDLOG_INFO("Connection successful, setting up game...");
+void ServerListState::ScheduleGameSetup() {
+  SPDLOG_INFO("Connection successful, scheduling deferred game setup...");
 
-  // Handle initial network sync
+  // Handle initial network sync (safe during render)
   NetGame::Instance().HandleNetwork();
   NetGame::Instance().SyncGameTime();
-
-  // Save spawn position
-  zVEC3 spawnPosition = context_.player->GetPositionWorld();
 
   // Enable player interface
   Patch::PlayerInterfaceEnabled(true);
 
-  // Change level if needed
+  // Check if level change is needed
   if (!NetGame::Instance().map.IsEmpty()) {
-    Patch::ChangeLevelEnabled(true);
-    ogame->ChangeLevel(NetGame::Instance().map, zSTRING("????"));
-    Patch::ChangeLevelEnabled(false);
+    // Level change must be deferred to BEFORE the next render frame starts.
+    // ChangeLevel destroys world/camera state, which would crash if done during rendering.
+    // Capture player position now before level change.
+    zVEC3 spawnPosition = context_.player->GetPositionWorld();
+    zSTRING mapName = NetGame::Instance().map;
+    oCNpc* player = context_.player;
+
+    GMPCore::Instance().DeferToNextFrame([spawnPosition, mapName, player]() {
+      SPDLOG_INFO("Executing deferred game setup (level change to {})...", mapName.ToChar());
+
+      // Now safe to change level - we're at the start of the frame, before rendering
+      Patch::ChangeLevelEnabled(true);
+      ogame->ChangeLevel(mapName, zSTRING("????"));
+      Patch::ChangeLevelEnabled(false);
+
+      // Clean up NPCs and world objects
+      DeleteAllNpcsAndDisableSpawning();
+      player->trafoObjToWorld.SetTranslation(spawnPosition);
+      CleanupWorldObjects(ogame->GetGameWorld());
+
+      // Join game
+      NetGame::Instance().JoinGame();
+    });
+    SPDLOG_INFO("Level change deferred to next frame");
+  } else {
+    // No level change needed, can complete setup immediately
+    DeleteAllNpcsAndDisableSpawning();
+    CleanupWorldObjects(ogame->GetGameWorld());
+    NetGame::Instance().JoinGame();
   }
-
-  // Clean up NPCs and world objects
-  DeleteAllNpcsAndDisableSpawning();
-  context_.player->trafoObjToWorld.SetTranslation(spawnPosition);
-  CleanupWorldObjects(ogame->GetGameWorld());
-
-  // Join game
-  NetGame::Instance().JoinGame();
 }
 
 void ServerListState::HandleConnectionFailure() {

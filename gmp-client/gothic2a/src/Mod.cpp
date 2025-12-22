@@ -38,6 +38,7 @@ SOFTWARE.
 #include "ZenGin/zGothicAPI.h"
 #include "audio/gothic_music_bridge.h"
 #include "config.h"
+#include "gmp_core.h"
 #include "hooking/AsmPatch.h"
 #include "hooking/MemoryPatch.h"
 #include "language.h"
@@ -49,6 +50,8 @@ SOFTWARE.
 
 using namespace Gothic_II_Addon;
 
+// Legacy global - maintained for compatibility, points to GMPCore-owned instance
+// TODO: migrate usages to GMPCore::Instance().GetMainMenu()
 CMainMenu* MainMenu = NULL;
 extern zCOLOR Red;
 extern zCOLOR Normal;
@@ -433,7 +436,9 @@ void Initialize(void) {
     LanguageManager::Instance().LoadLanguages(".\\Multiplayer\\Localization\\", Config::Instance().lang);
     // Initialize music bridge for zCOptions integration
     gmp::audio::GothicMusicBridge::Initialize();
-    MainMenu = CMainMenu::GetInstance();
+    // Initialize GMPCore - the central application owner
+    GMPCore::Instance().Initialize();
+    MainMenu = GMPCore::Instance().GetMainMenu();  // Legacy compatibility
     Patch::FixSetTime();
     Patch::DisableCheat();
     Patch::DisablePause();

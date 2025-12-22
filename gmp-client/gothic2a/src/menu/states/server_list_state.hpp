@@ -72,7 +72,7 @@ private:
   void HandleServerListInput();
   void HandleCustomIPInput();
   void ConnectToServer();
-  void SetupGameAfterConnection();
+  void ScheduleGameSetup();
   void HandleConnectionFailure();
 };
 

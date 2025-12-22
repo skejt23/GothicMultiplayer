@@ -31,6 +31,7 @@ SOFTWARE.
 
 #include "ZenGin/zGothicAPI.h"
 #include "config.h"
+#include "gmp_core.h"
 #include "renderer/d3d9/D3D9Renderer.h"
 #include "renderer/d3d11/D3D11Renderer.h"
 #include "renderer/d3d11/patches/D3D11Patches.h"
@@ -371,6 +372,11 @@ void HooksManager::InitAllPatches() {
 
 void __fastcall HooksManager::OnRender(oCGame* gameInstance) {
   HooksManager* hm = HooksManager::GetInstance();
+  
+  // Process deferred actions at frame start, BEFORE Gothic rendering.
+  // This is the safe point for operations like ChangeLevel that invalidate world state.
+  GMPCore::Instance().OnFrameStart();
+  
   if (g_renderOriginal) {
     g_renderOriginal(gameInstance);
   }
