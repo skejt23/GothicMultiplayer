@@ -429,6 +429,10 @@ struct D3D11RendererImpl {
   ID3D11RasterizerState* current_rasterizer_state = nullptr;
   // The last rasterizer state requested by higher-level code (before applying Z-bias overrides).
   ID3D11RasterizerState* requested_rasterizer_state_ = nullptr;
+  // The last typed raster descriptor set by higher-level code via SetRasterDesc().
+  // This is our best "engine intent" signal for culling (e.g. CullMode::kNone for two-sided foliage).
+  RasterDesc engine_raster_desc_ = {};
+  bool has_engine_raster_desc_ = false;
   // Z-bias parameters (in normalized depth units) requested by the renderer.
   float raster_depth_bias_ = 0.0f;
   float raster_slope_scaled_depth_bias_ = 0.0f;

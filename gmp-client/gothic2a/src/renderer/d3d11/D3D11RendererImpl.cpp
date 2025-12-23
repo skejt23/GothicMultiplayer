@@ -3720,6 +3720,8 @@ void D3D11RendererImpl::SetRasterDesc(const RasterDesc& desc) {
   effective.depth_bias = static_cast<std::int32_t>(std::lround(depth_bias_int_units));
   effective.slope_scaled_depth_bias = raster_slope_scaled_depth_bias_;
   effective.depth_bias_clamp = raster_depth_bias_clamp_;
+  engine_raster_desc_ = effective;
+  has_engine_raster_desc_ = true;
   SetRasterizerState(GetOrCreateRasterizerState(effective));
 }
 
@@ -4396,11 +4398,24 @@ bool D3D11RendererImpl::DrawVertexBuffer(ID3D11Buffer* vertex_buffer, UINT strid
         // Alpha-tested geometry is effectively opaque where it passes the test
         SetBlendState(bs_opaque);
         SetDepthStencilState(dss_default, 0);
-        SetRasterizerState(rs_no_cull);    // Trees often have two-sided leaves
+        // Respect the engine's cull mode (set via SetRasterDesc) and bind it explicitly.
+        // IMPORTANT: do NOT use requested_rasterizer_state_ here because it may reflect
+        // our own overrides from unrelated draws (e.g. forcing rs_no_cull for blends),
+        // which can cause foliage to alternate between culled/unculled and appear to flicker.
+        if (has_engine_raster_desc_) {
+          SetRasterizerState(GetOrCreateRasterizerState(engine_raster_desc_));
+        } else {
+          SetRasterizerState(rs_default);
+        }
       } else if (alpha_blend_func == 8) {  // BLEND_TEST - alpha test + alpha blend, still write Z
         SetBlendState(bs_alpha_blend);
         SetDepthStencilState(dss_default, 0);
-        SetRasterizerState(rs_no_cull);
+        // Same rationale as TEST above.
+        if (has_engine_raster_desc_) {
+          SetRasterizerState(GetOrCreateRasterizerState(engine_raster_desc_));
+        } else {
+          SetRasterizerState(rs_default);
+        }
       } else {
         SetBlendState(bs_opaque);
         SetDepthStencilState(dss_default, 0);
