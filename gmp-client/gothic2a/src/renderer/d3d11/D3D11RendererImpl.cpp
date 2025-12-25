@@ -988,15 +988,28 @@ struct VS_OUTPUT {
 
 VS_OUTPUT main(VS_INPUT input) {
     VS_OUTPUT output;
-    // Convert screen coords to NDC (-1 to 1)
-    // ScreenSize should match the backbuffer/fullscreen viewport size
-    output.Pos.x = (input.PosRhw.x / ScreenSize.x) * 2.0 - 1.0;
-    output.Pos.y = 1.0 - (input.PosRhw.y / ScreenSize.y) * 2.0;
-    // For RHW vertices, z is already in [0,1] range for depth buffer
-    // rhw (input.PosRhw.w) is 1/w, so we use w=1 and pass z directly
-    // D3D9's XYZRHW format passes z directly to the depth buffer
-    output.Pos.z = input.PosRhw.z;
-    output.Pos.w = 1.0;
+  // Convert screen coords to NDC (-1 to 1).
+  //
+  // IMPORTANT (D3D9 XYZRHW emulation):
+  // Gothic supplies rhw = 1/w and expects perspective-correct interpolation
+  // driven by that w (even though x/y/z are already post-projection).
+  //
+  // If we output SV_Position.w = 1.0, D3D11 will interpolate UVs linearly in
+  // screen space, which can cause visible artifacts on sky/particle geometry
+  // at extreme view angles.
+  //
+  // To match D3D9, reconstruct clip-space w from rhw and scale the clip-space
+  // position so that after division we still land on the same NDC.
+  const float2 ndc = float2(
+    (input.PosRhw.x * InvScreenSize.x) * 2.0 - 1.0,
+    1.0 - (input.PosRhw.y * InvScreenSize.y) * 2.0);
+
+  const float rhw = input.PosRhw.w;
+  const float w = (abs(rhw) > 1e-8) ? (1.0 / rhw) : 1.0;
+
+  // For RHW vertices, z is already in [0,1] range for depth buffer.
+  // Provide z in clip space scaled by w, so after division it stays unchanged.
+  output.Pos = float4(ndc.x * w, ndc.y * w, input.PosRhw.z * w, w);
     output.Color = input.Color;
     output.UV = input.UV;
     return output;

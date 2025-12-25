@@ -218,6 +218,19 @@ constexpr float kSlopeScaledBiasScale = -1.0f;  // Slope-dependent offset (negat
 // Controls how quickly light intensity falls off with distance.
 constexpr float kPointLightLinearAttenuation = 0.009f;
 
+constexpr gmp::renderer::d3d11::AddressMode ToAddressMode(unsigned long address) {
+  // Gothic uses D3D9-style numeric values for addressing.
+  // D3DTADDRESS_WRAP=1, MIRROR=2, CLAMP=3, BORDER=4 (fall back to clamp).
+  switch (address) {
+    case 1:
+      return gmp::renderer::d3d11::AddressMode::kWrap;
+    case 2:
+      return gmp::renderer::d3d11::AddressMode::kMirror;
+    default:
+      return gmp::renderer::d3d11::AddressMode::kClamp;
+  }
+}
+
 void SetIdentityMatrix(zMAT4& m) {
   for (int i = 0; i < 4; ++i) {
     for (int j = 0; j < 4; ++j) {
@@ -339,29 +352,29 @@ void zCRnd_D3D_DX11::BeginFrame() {
   alpha_poly_queue_.SetFarClipZ(farClipZ);
 
   // ----------------------------------------------------------------------------
-  // Reciprocal Z-Buffer Scaling
+  // RHW Depth Mapping (computed once per frame)
   // ----------------------------------------------------------------------------
-  // Gothic II uses a hyperbolic depth mapping: z_ndc = A + B * rhw
-  // where rhw = 1/eye_z.
+  // Gothic can change the projection matrix mid-frame (notably the near plane).
+  // RHW vertices (XYZRHW-like) were already transformed using the original
+  // projection state, so these depth constants must stay consistent with that.
   //
-  // The z projection constants (A, B) are preferably extracted directly from the
-  // projection matrix when it's set via SetTransform(). This ensures that RHW
-  // vertices (sky dome, particles, effects) produce identical depth values to
-  // 3D-transformed scene geometry.
+  // Invariant: compute RHW depth constants from BeginFrame near/far and do not
+  // update them from SetTransform(PROJECTION).
   //
-  // Only compute from clip planes as a fallback if no projection matrix has been
-  // set yet (shouldn't happen in normal operation).
-  // ----------------------------------------------------------------------------
-  if (!z_proj_from_matrix_) {
-    const float denom = z_max_from_engine_ - z_min_from_engine_;
-    if (denom <= std::numeric_limits<float>::epsilon()) {
-      SPDLOG_WARN("BeginFrame: Invalid clip range near={} far={} (forcing identity scaling)", z_min_from_engine_, z_max_from_engine_);
-      z_proj_offset_ = 1.0f;
-      z_proj_scale_ = 0.0f;
-    } else {
-      z_proj_offset_ = z_max_from_engine_ / denom;
-      z_proj_scale_ = -z_max_from_engine_ * z_min_from_engine_ / denom;
-    }
+  // Formula: z_ndc = offset + scale * rhw, where rhw = 1/z_eye
+  // With: offset = far/(far-near), scale = -far*near/(far-near)
+  // This produces the standard D3D perspective depth distribution.
+  //
+  // Implementation: z_ndc = rhw_z_proj_offset_ + rhw_z_proj_scale_ * rhw
+  // Where rhw = 1/z_eye (from zCVertexTransform::vertCamSpaceZInv).
+  const float denom = z_max_from_engine_ - z_min_from_engine_;
+  if (denom <= std::numeric_limits<float>::epsilon()) {
+    SPDLOG_WARN("BeginFrame: Invalid clip range near={} far={} (forcing identity scaling)", z_min_from_engine_, z_max_from_engine_);
+    rhw_z_proj_offset_ = 1.0f;
+    rhw_z_proj_scale_ = 0.0f;
+  } else {
+    rhw_z_proj_offset_ = z_max_from_engine_ / denom;
+    rhw_z_proj_scale_ = -z_max_from_engine_ * z_min_from_engine_ / denom;
   }
 
   if (fog_manager_.IsEnabled()) {
@@ -422,6 +435,23 @@ void zCRnd_D3D_DX11::FlushPolys() {
           }
         }
       }
+
+      // Apply stage0 addressing explicitly for this RHW draw.
+      // Ensures the sampler state matches Gothic's intent (from SetTextureStageState)
+      // rather than using stale state left by previous draws.
+      if (impl_) {
+        unsigned long addr_u = tex_stage_state_cache_[0][zRND_TSS_ADDRESSU];
+        unsigned long addr_v = tex_stage_state_cache_[0][zRND_TSS_ADDRESSV];
+        const unsigned long addr_both = tex_stage_state_cache_[0][zRND_TSS_ADDRESS];
+        if (addr_u == kCacheInvalidSentinel) {
+          addr_u = (addr_both != kCacheInvalidSentinel) ? addr_both : (texture_wrap_enabled_ ? 1UL : 3UL);
+        }
+        if (addr_v == kCacheInvalidSentinel) {
+          addr_v = (addr_both != kCacheInvalidSentinel) ? addr_both : (texture_wrap_enabled_ ? 1UL : 3UL);
+        }
+
+        impl_->SetSamplerAddressing(0, ToAddressMode(addr_u), ToAddressMode(addr_v));
+      }
       SetTexture(0, tex);
 
       int numVerts = poly->numClipVert;
@@ -437,7 +467,9 @@ void zCRnd_D3D_DX11::FlushPolys() {
         v.x = vertTrans->vertScrX;
         v.y = vertTrans->vertScrY;
         v.rhw = vertTrans->vertCamSpaceZInv;
-        v.z = z_proj_offset_ + z_proj_scale_ * v.rhw;
+        // Use RHW-based depth with stable BeginFrame constants.
+        // Always clamp to [0,1]: D3D11 clips vertices outside this range anyway.
+        v.z = std::clamp(rhw_z_proj_offset_ + rhw_z_proj_scale_ * v.rhw, 0.0f, 1.0f);
         v.u = feat->texu;
         v.v = feat->texv;
         v.color = feat->lightDyn.dword;
@@ -547,7 +579,17 @@ void zCRnd_D3D_DX11::ApplyTextureAddressMode() {
     return;
   }
 
-  impl_->SetTextureWrap(0, texture_wrap_enabled_ != 0);
+  unsigned long addr_u = tex_stage_state_cache_[0][zRND_TSS_ADDRESSU];
+  unsigned long addr_v = tex_stage_state_cache_[0][zRND_TSS_ADDRESSV];
+  const unsigned long addr_both = tex_stage_state_cache_[0][zRND_TSS_ADDRESS];
+  if (addr_u == kCacheInvalidSentinel) {
+    addr_u = (addr_both != kCacheInvalidSentinel) ? addr_both : (texture_wrap_enabled_ ? 1UL : 3UL);
+  }
+  if (addr_v == kCacheInvalidSentinel) {
+    addr_v = (addr_both != kCacheInvalidSentinel) ? addr_both : (texture_wrap_enabled_ ? 1UL : 3UL);
+  }
+
+  impl_->SetSamplerAddressing(0, ToAddressMode(addr_u), ToAddressMode(addr_v));
 }
 
 // ApplyOpaqueRenderStates - Configures render state for opaque geometry.
@@ -610,10 +652,14 @@ void zCRnd_D3D_DX11::BuildAlphaPolyVertices(gmp::renderer::d3d11::QueuedAlphaPol
 
   // Configure render state.
   ap->texture = active_texture_[0];
-  ap->texture_wrap = texture_wrap_enabled_ != 0;
   ap->texture_has_alpha = active_texture_[0] && active_texture_[0]->HasAlpha();
   ap->z_func = static_cast<ZBufferCmp>(z_buffer_cmp_);
   ap->z_bias = active_status_.zbias;
+
+  // Snapshot the texture wrap state for deferred rendering.
+  ap->texture_wrap = texture_wrap_enabled_ != 0;
+
+  const bool has_texture = (ap->texture != nullptr);
 
   // Determine blend function.
   const auto alpha_source = ap->texture_has_alpha ? zRND_ALPHA_SOURCE_MATERIAL : alpha_blend_source_;
@@ -627,7 +673,6 @@ void zCRnd_D3D_DX11::BuildAlphaPolyVertices(gmp::renderer::d3d11::QueuedAlphaPol
 
   const auto alpha_factor_int = static_cast<unsigned long>(alpha_blend_factor_ * 256.0f);
   const auto mat_alpha = static_cast<unsigned long>(mat->color.alpha);
-  const bool has_texture = (ap->texture != nullptr);
 
   float z_sum = 0.0f;
   for (int i = 0; i < ap->vert_count; ++i) {
@@ -646,26 +691,23 @@ void zCRnd_D3D_DX11::BuildAlphaPolyVertices(gmp::renderer::d3d11::QueuedAlphaPol
     }
 
     const float rhw = vert->vertCamSpaceZInv;
-    z_sum += vert->vertCamSpace.n[2];
+    const float z_cam = vert->vertCamSpace.n[2];
+    z_sum += z_cam;
 
     auto& v = ap->verts[i];
     v.x = vert->vertScrX;
     v.y = vert->vertScrY;
-    v.z = z_proj_offset_ + z_proj_scale_ * rhw;
     v.rhw = rhw;
 
-    // Sky dome fix for D3D11: ADD blend + no texture geometry (sky/atmosphere effects)
-    // must render at maximum depth to appear behind all scene geometry.
-    // This is necessary because the RHW vertex z computation may not produce values
-    // compatible with the depth buffer written by 3D scene geometry in D3D11.
-    // D3D9 with D3DFVF_XYZRHW handles this differently at the hardware level.
-    //
-    // TODO(d3d11-depth): Replace this hack by keeping RHW depth constants stable even
-    // when Gothic flips the projection mid-frame (near=0.25 -> near~10). Options to try:
-    // 1) Freeze z_proj_offset_/z_proj_scale for RHW polys to the BeginFrame near/far.
-    // 2) Carry two projection states (scene vs overlay) and pick the one matching RHW.
-    // 3) Investigate why D3D9 FFP XYZRHW ignores the late projection change for depth
-    //    and mirror that behavior in the shader path without forcing far-plane z.
+    // Use RHW-based depth with stable BeginFrame constants.
+    // The constants are computed once per frame from z_min/max_from_engine_ and are
+    // never updated from SetTransform(PROJECTION), ensuring stable depth values.
+    // Always clamp to [0,1]: D3D11 clips vertices outside this range anyway, and
+    // clamping handles any near/far mismatch gracefully for ALL geometry types.
+    v.z = std::clamp(rhw_z_proj_offset_ + rhw_z_proj_scale_ * rhw, 0.0f, 1.0f);
+
+    // Untextured ADD blend geometry (sky/atmosphere effects) should render at far plane
+    // to ensure it appears behind all scene geometry.
     const bool is_sky_effect = (!has_texture && ap->blend_func == gmp::renderer::d3d11::AlphaBlendFunc::kAdd);
     if (is_sky_effect) {
       v.z = 0.9999f;
@@ -765,7 +807,9 @@ void zCRnd_D3D_DX11::DrawPolyVertexLit(zCPolygon* poly) {
     verts.push_back({
         .x = vertTrans->vertScrX,
         .y = vertTrans->vertScrY,
-        .z = z_proj_offset_ + z_proj_scale_ * vertTrans->vertCamSpaceZInv,
+        // Use RHW-based depth with stable BeginFrame constants.
+        // Always clamp to [0,1]: D3D11 clips vertices outside this range anyway.
+        .z = std::clamp(rhw_z_proj_offset_ + rhw_z_proj_scale_ * vertTrans->vertCamSpaceZInv, 0.0f, 1.0f),
         .rhw = vertTrans->vertCamSpaceZInv,
         .color = color,
         .u = u,
@@ -1350,11 +1394,6 @@ void zCRnd_D3D_DX11::AddAlphaPoly(const zCPolygon* poly) {
 // FlushAlphaPolys - Renders and clears the immediate alpha poly queue.
 void zCRnd_D3D_DX11::FlushAlphaPolys() {
   using namespace gmp::renderer::d3d11;
-
-  if (immediate_alpha_poly_queue_.IsEmpty()) {
-    return;
-  }
-
   SetTextureStageState(0, zRND_TSS_COLOROP, zRND_TOP_MODULATE);
   ApplyRenderState(ToUL(LegacyRenderState::kClipping), kFalse32);
   ApplyRenderState(ToUL(LegacyRenderState::kCullMode), ToUL(LegacyCullMode::kNone));
@@ -1732,15 +1771,11 @@ int zCRnd_D3D_DX11::SetTransform(zTRnd_TrafoType type, const zMAT4& matrix) {
       // Gothic's projection matrix is already in D3D's row-major format.
       proj_matrix_ = matrix;
       impl_->SetProjectionMatrix(reinterpret_cast<const float*>(&proj_matrix_));
-      // Extract z projection constants directly from the projection matrix.
-      // This is critical for matching depth values between 3D-transformed scene geometry
-      // and RHW (pre-transformed) vertices like sky dome, particles, and effects.
-      // Matrix layout (row-major):
-      //   [2][2] = A = zFar / (zFar - zNear)
-      //   [3][2] = B = -zFar * zNear / (zFar - zNear)
-      z_proj_offset_ = matrix[2][2];
-      z_proj_scale_ = matrix[3][2];
-      z_proj_from_matrix_ = true;
+      // Do NOT update RHW depth constants from projection matrix.
+      // RHW vertices were transformed using the camera state at BeginFrame, so we
+      // must use depth constants computed from BeginFrame near/far (z_min/max_from_engine_).
+      // Updating from the projection matrix here would cause depth mismatches when
+      // Gothic changes projection mid-frame for overlays.
       return 1;
     case zRND_TRAFO_TEXTURE0:
       impl_->SetTextureTransformMatrix(0, reinterpret_cast<const float*>(&matrix));
@@ -2091,20 +2126,6 @@ int zCRnd_D3D_DX11::SetTextureStageState(unsigned long stage, zTRnd_TextureStage
     return TexGenMode::kNone;
   };
 
-  // Helper to convert legacy D3D texture address mode (D3D7-D3D9) to native AddressMode.
-  auto to_address_mode = [](unsigned long addr) -> AddressMode {
-    switch (addr) {
-      case 1:  // D3DTADDRESS_WRAP
-        return AddressMode::kWrap;
-      case 2:  // D3DTADDRESS_MIRROR
-        return AddressMode::kMirror;
-      case 3:  // D3DTADDRESS_CLAMP
-      case 4:  // D3DTADDRESS_BORDER (fall back to clamp)
-      default:
-        return AddressMode::kClamp;
-    }
-  };
-
   // Helper to convert legacy D3D texture filter (D3D7-D3D9) to native FilterMode.
   auto to_filter_mode = [](unsigned long filter) -> FilterMode {
     switch (filter) {
@@ -2148,15 +2169,40 @@ int zCRnd_D3D_DX11::SetTextureStageState(unsigned long stage, zTRnd_TextureStage
       impl_->SetTextureStageTransform(s, value != zRND_TTF_DISABLE);
       break;
     case zRND_TSS_ADDRESS:
-      // Both U and V
-      impl_->SetSamplerAddressing(s, to_address_mode(value), to_address_mode(value));
+      // Both U and V.
+      impl_->SetSamplerAddressing(s, ToAddressMode(value), ToAddressMode(value));
+
+      // Keep per-axis cache in sync so later ADDRESSU/ADDRESSV calls can preserve
+      // the other axis correctly.
+      tex_stage_state_cache_[stage][zRND_TSS_ADDRESSU] = value;
+      tex_stage_state_cache_[stage][zRND_TSS_ADDRESSV] = value;
       break;
     case zRND_TSS_ADDRESSU:
-    case zRND_TSS_ADDRESSV:
-      // We use same address mode for U and V; just take whatever is set.
-      // In D3D11 we group U+V together, so this is a simplification.
-      impl_->SetSamplerAddressing(s, to_address_mode(value), to_address_mode(value));
+    case zRND_TSS_ADDRESSV: {
+      // Preserve the axis that wasn't updated.
+      // Gothic can set U and V independently for some materials/effects.
+      // Each axis must be preserved separately when only one is updated.
+      unsigned long u_value = tex_stage_state_cache_[stage][zRND_TSS_ADDRESSU];
+      unsigned long v_value = tex_stage_state_cache_[stage][zRND_TSS_ADDRESSV];
+
+      // Fall back to combined ADDRESS if the per-axis state wasn't set.
+      const unsigned long both_value = tex_stage_state_cache_[stage][zRND_TSS_ADDRESS];
+      if (u_value == kCacheInvalidSentinel) {
+        u_value = (both_value != kCacheInvalidSentinel) ? both_value : value;
+      }
+      if (v_value == kCacheInvalidSentinel) {
+        v_value = (both_value != kCacheInvalidSentinel) ? both_value : value;
+      }
+
+      if (state == zRND_TSS_ADDRESSU) {
+        u_value = value;
+      } else {
+        v_value = value;
+      }
+
+      impl_->SetSamplerAddressing(s, ToAddressMode(u_value), ToAddressMode(v_value));
       break;
+    }
     case zRND_TSS_MAGFILTER:
     case zRND_TSS_MINFILTER:
       // Use the filter mode for all filter types.
@@ -2873,10 +2919,9 @@ void zCRnd_D3D_DX11::RestoreOpaqueRenderState() {
   SetTextureStageState(0, zRND_TSS_COLORARG1, zRND_TA_TEXTURE);
   SetTextureStageState(0, zRND_TSS_COLORARG2, zRND_TA_CURRENT);
 
-  // Restore texture address mode using native API
-  using namespace gmp::renderer::d3d11;
-  const auto address_mode = texture_wrap_enabled_ ? AddressMode::kWrap : AddressMode::kClamp;
-  impl_->SetSamplerAddressing(0, address_mode, address_mode);
+  // Restore texture address mode from the cached stage-state.
+  // Some textures (notably sky domes) require wrap U + clamp V.
+  ApplyTextureAddressMode();
 
   // Clear texture and material state
   SetTexture(0, nullptr);

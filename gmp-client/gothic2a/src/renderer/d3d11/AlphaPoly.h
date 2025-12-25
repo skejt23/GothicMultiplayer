@@ -28,6 +28,8 @@ SOFTWARE.
 #include <cstdint>
 #include <vector>
 
+#include "NativeRenderState.h"
+
 namespace gmp::renderer::d3d11 {
 
 inline constexpr int kAlphaPolyMaxVerts = 8;     // Max vertices per polygon.
@@ -65,8 +67,8 @@ struct QueuedAlphaPoly {
   void* texture;  // D3D11 texture pointer (or null)
   AlphaBlendFunc blend_func;
   ZBufferCmp z_func;
-  int z_bias;  // Z bias for depth layering
-  bool texture_wrap;
+  int z_bias;         // Z bias for depth layering
+  bool texture_wrap;  // true=WRAP both U/V, false=CLAMP both U/V
   bool texture_has_alpha;
 
   // Sorting

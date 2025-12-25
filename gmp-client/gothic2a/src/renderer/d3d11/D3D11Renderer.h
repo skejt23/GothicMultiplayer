@@ -280,16 +280,21 @@ private:
   zMAT4 proj_matrix_{};
 
   // Z buffer scaling.
-  // Perspective depth mapping: z_ndc = z_proj_offset_ + z_proj_scale_ * rhw
-  // Where rhw = 1/eye_z. The constants are extracted from the projection matrix
-  // to ensure RHW vertices produce the same depth values as 3D-transformed geometry.
-  //   z_proj_offset_ = proj_matrix[2][2] = zFar / (zFar - zNear)
-  //   z_proj_scale_  = proj_matrix[3][2] = -zFar * zNear / (zFar - zNear)
-  float z_max_from_engine_ = 2.0f;
+  // 
+  // RHW depth constants are computed ONLY from BeginFrame
+  // near/far values and are NEVER updated from SetTransform(PROJECTION).
+  //
+  // Gothic may change the projection matrix mid-frame (e.g. for overlays),
+  // but RHW vertices were transformed with the ORIGINAL projection. Using
+  // constants derived from a later projection causes depth values outside
+  // [0,1], triggering D3D11 clip-space clipping (visible as sky "cuts").
+  //
+  // By computing constants from the stable BeginFrame near/far (which match
+  // the camera state when vertices were transformed), we ensure correct depth.
+  float z_max_from_engine_ = 65535.0f;
   float z_min_from_engine_ = 0.25f;
-  float z_proj_offset_ = 1.0f;
-  float z_proj_scale_ = 0.0f;
-  bool z_proj_from_matrix_ = false;  // True when z constants came from projection matrix
+  float rhw_z_proj_offset_ = 1.0f;
+  float rhw_z_proj_scale_ = 0.0f;
 
   // Fog management (see D3D11FogManager.h for documentation).
   gmp::renderer::d3d11::D3D11FogManager fog_manager_;
