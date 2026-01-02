@@ -64,12 +64,27 @@ public:
   virtual void OnPlayerLeft(std::uint64_t player_id, const std::string& player_name) {}
   virtual void OnPlayerStateUpdate(std::uint64_t player_id, const PlayerState& state) {}
   virtual void OnPlayerPositionUpdate(std::uint64_t player_id, float x, float y, float z) {}
+  virtual void OnPlayerNameUpdate(std::uint64_t player_id, const std::string& name) {}
+  virtual void OnPlayerInstanceUpdate(std::uint64_t player_id, const std::string& instance) {}
+  virtual void OnPlayerColorUpdate(std::uint64_t player_id, std::uint8_t r, std::uint8_t g, std::uint8_t b) {}
+  virtual void OnPlayerSkillWeaponUpdate(std::uint64_t player_id, std::int32_t skill_id, std::int32_t percentage) {}
+  virtual void OnPlayerTalentUpdate(std::uint64_t player_id, std::int32_t talent_id, std::int32_t talent_value) {}
+  virtual void OnPlayerVisualUpdate(std::uint64_t player_id, const std::string& body_model, std::int16_t body_texture,
+                                    const std::string& head_model, std::int16_t head_texture) {}
+  virtual void OnPlayerFatnessUpdate(std::uint64_t player_id, float fatness) {}
+  virtual void OnPlayerScaleUpdate(std::uint64_t player_id, const glm::vec3& scale) {}
+  virtual void OnPlayerOverlayUpdate(std::uint64_t player_id, const std::string& overlay, bool apply) {}
+  virtual void OnPlayerAttributeUpdate(std::uint64_t player_id, PlayerAttributeId attribute_id, std::int32_t value) {}
+  virtual void OnPlayerWorldUpdate(std::uint64_t player_id, const std::string& world_name, const std::string& start_point) {}
   virtual void OnPlayerDied(std::uint64_t player_id) {}
   virtual void OnPlayerRespawned(std::uint64_t player_id) {}
   
   // Item events
   virtual void OnItemDropped(std::uint64_t player_id, std::uint16_t item_instance, std::uint16_t amount) {}
   virtual void OnItemTaken(std::uint64_t player_id, std::uint16_t item_instance) {}
+  virtual void OnItemGiven(std::uint64_t player_id, const std::string& item_instance, std::int32_t amount) {}
+  virtual void OnItemEquipped(std::uint64_t player_id, const std::string& item_instance, std::int16_t slot_id) {}
+  virtual void OnItemUnequipped(std::uint64_t player_id, const std::string& item_instance) {}
   
   // Spell/combat events
   virtual void OnSpellCast(std::uint64_t caster_id, std::uint16_t spell_id) {}
@@ -78,13 +93,6 @@ public:
   // Chat/messaging events
   virtual void OnPlayerMessage(std::optional<std::uint64_t> sender_id, std::uint8_t r, std::uint8_t g, std::uint8_t b,
                                const std::string& message) {}
-  virtual void OnWhisperReceived(std::uint64_t sender_id, const std::string& sender_name, const std::string& message) {}
-  virtual void OnRconResponse(const std::string& response, bool is_admin) {}
-  
-  // Discord integration
-  virtual void OnDiscordActivityUpdate(const std::string& state, const std::string& details, 
-                                       const std::string& large_image_key, const std::string& large_image_text,
-                                       const std::string& small_image_key, const std::string& small_image_text) {}
 };
 
 }  // namespace gmp::client

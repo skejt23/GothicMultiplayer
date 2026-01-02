@@ -74,18 +74,11 @@ void UpdateMessageAlpha(MsgStruct& message, const std::chrono::steady_clock::tim
 extern zCOLOR Normal;
 
 CChat::CChat() {
-  PrintMsgType = NORMAL;
   tmpanimname = "NULL";
-  tmpnickname = Config::Instance().Nickname;
-  ShowHow = false;
-  WriteMessage(WHISPER, false, zCOLOR(0, 255, 0), Language::Instance()[Language::CHAT_WHISPERTONOONE].ToChar());
 };
 
 CChat::~CChat() {
   ChatMessages.clear();
-  WhisperMessages.clear();
-  AdminMessages.clear();
-  PrintMsgType = NORMAL;
 };
 
 void CChat::StartChatAnimation(int anim) {
@@ -98,12 +91,8 @@ void CChat::StartChatAnimation(int anim) {
   }
 }
 
-void CChat::SetWhisperTo(std::string& whisperto) {
-  sprintf(buffer, "%s : %s", Language::Instance()[Language::CHAT_WHISPERTO].ToChar(), whisperto.c_str());
-  WhisperMessages[0].Message = buffer;
-};
-
 void CChat::WriteMessage(MsgType type, bool PrintTimed, const zCOLOR& rgb, const char* format, ...) {
+  (void)type;
   if (strlen(format) > 512)
     return;
   char text[512];
@@ -117,43 +106,19 @@ void CChat::WriteMessage(MsgType type, bool PrintTimed, const zCOLOR& rgb, const
   msg.FadeStart = std::chrono::steady_clock::now();
   msg.CurrentAlpha = 0;
   msg.IsFadingIn = true;
-  switch (type) {
-    case NORMAL:
-      if (PrintTimed) {
-        ogame->array_view[oCGame::GAME_VIEW_SCREEN]->SetFont("FONT_DEFAULT.TGA");
-        tmp = text;
-        ogame->array_view[oCGame::GAME_VIEW_SCREEN]->PrintTimed(3700, 2800, tmp, 3000.0f, 0);
-      }
-      ChatMessages.push_back(msg);
-      break;
-    case WHISPER:
-      WhisperMessages.push_back(msg);
-      if (PrintTimed) {
-        if (PrintMsgType != WHISPER) {
-          tmp = text;
-          tmpnickname = Config::Instance().Nickname;
-          if (tmp.Search(tmpnickname) < 2) {
-            ogame->array_view[oCGame::GAME_VIEW_SCREEN]->SetFont("FONT_DEFAULT.TGA");
-            ogame->array_view[oCGame::GAME_VIEW_SCREEN]->PrintTimed(3700, 2800, Language::Instance()[Language::WHISPERSTOYOU], 3000.0f, 0);
-            ogame->array_view[oCGame::GAME_VIEW_SCREEN]->PrintTimed(3700, 3000, tmp, 3000.0f, 0);
-            if (!ShowHow) {
-              ogame->array_view[oCGame::GAME_VIEW_SCREEN]->PrintTimed(3700, 3200, Language::Instance()[Language::PRESSFORWHISPER], 3000.0f, 0);
-              ShowHow = true;
-            }
-          }
-        }
-      }
-      break;
-    case ADMIN:
-      AdminMessages.push_back(msg);
-      break;
-  };
+  if (PrintTimed) {
+    ogame->array_view[oCGame::GAME_VIEW_SCREEN]->SetFont("FONT_DEFAULT.TGA");
+    tmp = text;
+    ogame->array_view[oCGame::GAME_VIEW_SCREEN]->PrintTimed(3700, 2800, tmp, 3000.0f, 0);
+  }
+  ChatMessages.push_back(msg);
   if (Config::Instance().logchat) {
     SPDLOG_INFO("{}", text);
   }
 };
 
 void CChat::WriteMessage(MsgType type, bool PrintTimed, const char* format, ...) {
+  (void)type;
   if (strlen(format) > 512)
     return;
   char text[512];
@@ -167,38 +132,12 @@ void CChat::WriteMessage(MsgType type, bool PrintTimed, const char* format, ...)
   msg.FadeStart = std::chrono::steady_clock::now();
   msg.CurrentAlpha = 0;
   msg.IsFadingIn = true;
-  switch (type) {
-    case NORMAL:
-      if (PrintTimed) {
-        ogame->array_view[oCGame::GAME_VIEW_SCREEN]->SetFont("FONT_DEFAULT.TGA");
-        tmp = text;
-        ogame->array_view[oCGame::GAME_VIEW_SCREEN]->PrintTimed(3700, 2800, tmp, 3000.0f, 0);
-      }
-      ChatMessages.push_back(msg);
-      break;
-    case WHISPER:
-      WhisperMessages.push_back(msg);
-      if (PrintTimed) {
-        if (PrintMsgType != WHISPER) {
-          tmp = text;
-          tmpnickname = Config::Instance().Nickname;
-          if (tmp.Search(tmpnickname) < 2) {
-            ogame->array_view[oCGame::GAME_VIEW_SCREEN]->SetFont("FONT_DEFAULT.TGA");
-            ogame->array_view[oCGame::GAME_VIEW_SCREEN]->PrintTimed(3700, 2800, Language::Instance()[Language::WHISPERSTOYOU], 3000.0f, 0);
-            ogame->array_view[oCGame::GAME_VIEW_SCREEN]->PrintTimed(3700, 3000, tmp, 3000.0f, 0);
-            if (!ShowHow) {
-              ogame->array_view[oCGame::GAME_VIEW_SCREEN]->PrintTimed(3700, 3200, Language::Instance()[Language::PRESSFORWHISPER], 3000.0f, 0);
-              ShowHow = true;
-            }
-          }
-        }
-      }
-      break;
-    case ADMIN:
-      // printf("Executed!\n");
-      AdminMessages.push_back(msg);
-      break;
-  };
+  if (PrintTimed) {
+    ogame->array_view[oCGame::GAME_VIEW_SCREEN]->SetFont("FONT_DEFAULT.TGA");
+    tmp = text;
+    ogame->array_view[oCGame::GAME_VIEW_SCREEN]->PrintTimed(3700, 2800, tmp, 3000.0f, 0);
+  }
+  ChatMessages.push_back(msg);
   if (Config::Instance().logchat) {
     SPDLOG_INFO("{}", text);
   }
@@ -206,59 +145,20 @@ void CChat::WriteMessage(MsgType type, bool PrintTimed, const char* format, ...)
 
 void CChat::ClearChat() {
   ChatMessages.clear();
-  WhisperMessages.clear();
-  AdminMessages.clear();
-  WriteMessage(WHISPER, false, zCOLOR(0, 255, 0), Language::Instance()[Language::CHAT_WHISPERTONOONE].ToChar());
 };
 
 void CChat::PrintChat() {
   screen->SetFont("FONT_DEFAULT.TGA");
   const auto now = std::chrono::steady_clock::now();
-  if (zinput->KeyToggled(KEY_F5) && PrintMsgType != NORMAL)
-    PrintMsgType = NORMAL;
-  if (zinput->KeyToggled(KEY_F6) && PrintMsgType != WHISPER)
-    PrintMsgType = WHISPER;
-  if (zinput->KeyToggled(KEY_F7) && PrintMsgType != ADMIN)
-    PrintMsgType = ADMIN;
-  switch (PrintMsgType) {
-    case NORMAL:
-      if (ChatMessages.size() > Config::Instance().ChatLines)
-        ChatMessages.erase(ChatMessages.begin());
-      if (!ChatMessages.empty())
-        for (size_t v = 0; v < ChatMessages.size(); v++) {
-          UpdateMessageAlpha(ChatMessages[v], now);
-          zCOLOR color = ChatMessages[v].MsgColor;
-          color.alpha = ChatMessages[v].CurrentAlpha;
-          screen->SetFontColor(color);
-          screen->Print(0, static_cast<int>(v) * 200, ChatMessages[v].Message);
-          screen->SetFontColor(Normal);
-        }
-      break;
-    case WHISPER:
-      if (WhisperMessages.size() > Config::Instance().ChatLines + 1)
-        WhisperMessages.erase(WhisperMessages.begin() + 1);
-      if (!WhisperMessages.empty())
-        for (size_t v = 0; v < WhisperMessages.size(); v++) {
-          UpdateMessageAlpha(WhisperMessages[v], now);
-          zCOLOR color = WhisperMessages[v].MsgColor;
-          color.alpha = WhisperMessages[v].CurrentAlpha;
-          screen->SetFontColor(color);
-          screen->Print(0, static_cast<int>(v) * 200, WhisperMessages[v].Message);
-          screen->SetFontColor(Normal);
-        }
-      break;
-    case ADMIN:
-      if (AdminMessages.size() > Config::Instance().ChatLines)
-        AdminMessages.erase(AdminMessages.begin());
-      if (!AdminMessages.empty())
-        for (size_t v = 0; v < AdminMessages.size(); v++) {
-          UpdateMessageAlpha(AdminMessages[v], now);
-          zCOLOR color = AdminMessages[v].MsgColor;
-          color.alpha = AdminMessages[v].CurrentAlpha;
-          screen->SetFontColor(color);
-          screen->Print(0, static_cast<int>(v) * 200, AdminMessages[v].Message);
-          screen->SetFontColor(Normal);
-        }
-      break;
-  };
+  if (ChatMessages.size() > Config::Instance().ChatLines)
+    ChatMessages.erase(ChatMessages.begin());
+  if (!ChatMessages.empty())
+    for (size_t v = 0; v < ChatMessages.size(); v++) {
+      UpdateMessageAlpha(ChatMessages[v], now);
+      zCOLOR color = ChatMessages[v].MsgColor;
+      color.alpha = ChatMessages[v].CurrentAlpha;
+      screen->SetFontColor(color);
+      screen->Print(0, static_cast<int>(v) * 200, ChatMessages[v].Message);
+      screen->SetFontColor(Normal);
+    }
 };

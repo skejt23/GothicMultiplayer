@@ -55,9 +55,10 @@ struct ExistingPlayerInfo {
   std::int16_t left_hand_item_instance{0};
   std::int16_t right_hand_item_instance{0};
   std::int16_t equipped_armor_instance{0};
-  std::uint8_t head_model{0};
-  std::uint8_t skin_texture{0};
-  std::uint8_t face_texture{0};
+  std::string body_model;
+  std::uint16_t body_texture{0};
+  std::string head_model;
+  std::uint16_t head_texture{0};
   std::uint8_t walk_style{0};
   std::string player_name;
 };
@@ -69,9 +70,10 @@ void serialize(S& s, ExistingPlayerInfo& info) {
   s.value2b(info.left_hand_item_instance);
   s.value2b(info.right_hand_item_instance);
   s.value2b(info.equipped_armor_instance);
-  s.value1b(info.head_model);
-  s.value1b(info.skin_texture);
-  s.value1b(info.face_texture);
+  s.text1b(info.body_model, 255);
+  s.value2b(info.body_texture);
+  s.text1b(info.head_model, 255);
+  s.value2b(info.head_texture);
   s.value1b(info.walk_style);
   s.text1b(info.player_name, 255);
 }
@@ -81,14 +83,332 @@ inline std::ostream& operator<<(std::ostream& os, const ExistingPlayerInfo& pack
      << " packet_type: " << static_cast<int>(packet.packet_type) << ", player_id: " << packet.player_id << ", position: (" << packet.position.x
      << ", " << packet.position.y << ", " << packet.position.z << ")"
      << ", left_hand_item_instance: " << packet.left_hand_item_instance << ", right_hand_item_instance: " << packet.right_hand_item_instance
-     << ", equipped_armor_instance: " << packet.equipped_armor_instance << ", head_model: " << static_cast<int>(packet.head_model)
-     << ", skin_texture: " << static_cast<int>(packet.skin_texture) << ", face_texture: " << static_cast<int>(packet.face_texture)
+     << ", equipped_armor_instance: " << packet.equipped_armor_instance 
+     << ", body_model: " << packet.body_model << ", body_texture: " << static_cast<int>(packet.body_texture)
+     << ", head_model: " << packet.head_model << ", head_texture: " << static_cast<int>(packet.head_texture)
      << ", walk_style: " << static_cast<int>(packet.walk_style) << ", player_name: " << packet.player_name << " }";
   return os;
 }
 
 template <>
 struct fmt::formatter<ExistingPlayerInfo> : ostream_formatter {};
+
+struct PlayerNameUpdatePacket {
+  std::uint8_t packet_type{0};
+  std::uint32_t player_id{0};
+  std::string name;
+};
+
+template <typename S>
+void serialize(S& s, PlayerNameUpdatePacket& packet) {
+  s.value1b(packet.packet_type);
+  s.value4b(packet.player_id);
+  s.text1b(packet.name, 255);
+}
+
+inline std::ostream& operator<<(std::ostream& os, const PlayerNameUpdatePacket& packet) {
+  os << "PlayerNameUpdatePacket {"
+     << " packet_type: " << static_cast<int>(packet.packet_type) << ", player_id: " << packet.player_id << ", name: " << packet.name << " }";
+  return os;
+}
+
+template <>
+struct fmt::formatter<PlayerNameUpdatePacket> : ostream_formatter {};
+
+struct PlayerInstanceUpdatePacket {
+  std::uint8_t packet_type{0};
+  std::uint32_t player_id{0};
+  std::string instance;
+};
+
+template <typename S>
+void serialize(S& s, PlayerInstanceUpdatePacket& packet) {
+  s.value1b(packet.packet_type);
+  s.value4b(packet.player_id);
+  s.text1b(packet.instance, 255);
+}
+
+inline std::ostream& operator<<(std::ostream& os, const PlayerInstanceUpdatePacket& packet) {
+  os << "PlayerInstanceUpdatePacket {"
+     << " packet_type: " << static_cast<int>(packet.packet_type) << ", player_id: " << packet.player_id
+     << ", instance: " << packet.instance << " }";
+  return os;
+}
+
+template <>
+struct fmt::formatter<PlayerInstanceUpdatePacket> : ostream_formatter {};
+
+struct PlayerColorUpdatePacket {
+  std::uint8_t packet_type{0};
+  std::uint32_t player_id{0};
+  std::uint8_t r{255};
+  std::uint8_t g{255};
+  std::uint8_t b{255};
+};
+
+template <typename S>
+void serialize(S& s, PlayerColorUpdatePacket& packet) {
+  s.value1b(packet.packet_type);
+  s.value4b(packet.player_id);
+  s.value1b(packet.r);
+  s.value1b(packet.g);
+  s.value1b(packet.b);
+}
+
+inline std::ostream& operator<<(std::ostream& os, const PlayerColorUpdatePacket& packet) {
+  os << "PlayerColorUpdatePacket {"
+     << " packet_type: " << static_cast<int>(packet.packet_type) << ", player_id: " << packet.player_id
+     << ", r: " << static_cast<int>(packet.r) << ", g: " << static_cast<int>(packet.g)
+     << ", b: " << static_cast<int>(packet.b) << " }";
+  return os;
+}
+
+template <>
+struct fmt::formatter<PlayerColorUpdatePacket> : ostream_formatter {};
+
+struct PlayerVisualUpdatePacket {
+  std::uint8_t packet_type{0};
+  std::uint32_t player_id{0};
+  std::string body_model;
+  std::uint16_t body_texture{0};
+  std::string head_model;
+  std::uint16_t head_texture{0};
+};
+
+template <typename S>
+void serialize(S& s, PlayerVisualUpdatePacket& packet) {
+  s.value1b(packet.packet_type);
+  s.value4b(packet.player_id);
+  s.text1b(packet.body_model, 255);
+  s.value2b(packet.body_texture);
+  s.text1b(packet.head_model, 255);
+  s.value2b(packet.head_texture);
+}
+
+inline std::ostream& operator<<(std::ostream& os, const PlayerVisualUpdatePacket& packet) {
+  os << "PlayerVisualUpdatePacket {"
+     << " packet_type: " << static_cast<int>(packet.packet_type) << ", player_id: " << packet.player_id
+     << ", body_model: " << packet.body_model << ", body_texture: " << packet.body_texture 
+     << ", head_model: " << packet.head_model << ", head_texture: " << packet.head_texture << " }";
+  return os;
+}
+
+template <>
+struct fmt::formatter<PlayerVisualUpdatePacket> : ostream_formatter {};
+
+struct PlayerFatnessUpdatePacket {
+  std::uint8_t packet_type{0};
+  std::uint32_t player_id{0};
+  float fatness{1.0f};
+};
+
+template <typename S>
+void serialize(S& s, PlayerFatnessUpdatePacket& packet) {
+  s.value1b(packet.packet_type);
+  s.value4b(packet.player_id);
+  s.value4b(packet.fatness);
+}
+
+inline std::ostream& operator<<(std::ostream& os, const PlayerFatnessUpdatePacket& packet) {
+  os << "PlayerFatnessUpdatePacket {"
+     << " packet_type: " << static_cast<int>(packet.packet_type) << ", player_id: " << packet.player_id
+     << ", fatness: " << packet.fatness << " }";
+  return os;
+}
+
+template <>
+struct fmt::formatter<PlayerFatnessUpdatePacket> : ostream_formatter {};
+
+struct PlayerScaleUpdatePacket {
+  std::uint8_t packet_type{0};
+  std::uint32_t player_id{0};
+  glm::vec3 scale{1.0f, 1.0f, 1.0f};
+};
+
+template <typename S>
+void serialize(S& s, PlayerScaleUpdatePacket& packet) {
+  s.value1b(packet.packet_type);
+  s.value4b(packet.player_id);
+  s.object(packet.scale);
+}
+
+inline std::ostream& operator<<(std::ostream& os, const PlayerScaleUpdatePacket& packet) {
+  os << "PlayerScaleUpdatePacket {"
+     << " packet_type: " << static_cast<int>(packet.packet_type) << ", player_id: " << packet.player_id
+     << ", scale: (" << packet.scale.x << ", " << packet.scale.y << ", " << packet.scale.z << ") }";
+  return os;
+}
+
+template <>
+struct fmt::formatter<PlayerScaleUpdatePacket> : ostream_formatter {};
+
+struct PlayerOverlayUpdatePacket {
+  std::uint8_t packet_type{0};
+  std::uint32_t player_id{0};
+  std::string overlay;
+  std::uint8_t apply{1};
+};
+
+template <typename S>
+void serialize(S& s, PlayerOverlayUpdatePacket& packet) {
+  s.value1b(packet.packet_type);
+  s.value4b(packet.player_id);
+  s.text1b(packet.overlay, 255);
+  s.value1b(packet.apply);
+}
+
+inline std::ostream& operator<<(std::ostream& os, const PlayerOverlayUpdatePacket& packet) {
+  os << "PlayerOverlayUpdatePacket {"
+     << " packet_type: " << static_cast<int>(packet.packet_type) << ", player_id: " << packet.player_id
+     << ", overlay: " << packet.overlay << ", apply: " << static_cast<int>(packet.apply) << " }";
+  return os;
+}
+
+template <>
+struct fmt::formatter<PlayerOverlayUpdatePacket> : ostream_formatter {};
+
+struct PlayerSkillWeaponUpdatePacket {
+  std::uint8_t packet_type{0};
+  std::uint32_t player_id{0};
+  std::int32_t skill_id{0};
+  std::int32_t percentage{0};
+};
+
+template <typename S>
+void serialize(S& s, PlayerSkillWeaponUpdatePacket& packet) {
+  s.value1b(packet.packet_type);
+  s.value4b(packet.player_id);
+  s.value4b(packet.skill_id);
+  s.value4b(packet.percentage);
+}
+
+inline std::ostream& operator<<(std::ostream& os, const PlayerSkillWeaponUpdatePacket& packet) {
+  os << "PlayerSkillWeaponUpdatePacket {"
+     << " packet_type: " << static_cast<int>(packet.packet_type) << ", player_id: " << packet.player_id
+     << ", skill_id: " << packet.skill_id << ", percentage: " << packet.percentage << " }";
+  return os;
+}
+
+template <>
+struct fmt::formatter<PlayerSkillWeaponUpdatePacket> : ostream_formatter {};
+
+struct PlayerTalentUpdatePacket {
+  std::uint8_t packet_type{0};
+  std::uint32_t player_id{0};
+  std::int32_t talent_id{0};
+  std::int32_t talent_value{0};
+};
+
+template <typename S>
+void serialize(S& s, PlayerTalentUpdatePacket& packet) {
+  s.value1b(packet.packet_type);
+  s.value4b(packet.player_id);
+  s.value4b(packet.talent_id);
+  s.value4b(packet.talent_value);
+}
+
+inline std::ostream& operator<<(std::ostream& os, const PlayerTalentUpdatePacket& packet) {
+  os << "PlayerTalentUpdatePacket {"
+     << " packet_type: " << static_cast<int>(packet.packet_type) << ", player_id: " << packet.player_id
+     << ", talent_id: " << packet.talent_id << ", talent_value: " << packet.talent_value << " }";
+  return os;
+}
+
+template <>
+struct fmt::formatter<PlayerTalentUpdatePacket> : ostream_formatter {};
+
+struct PlayerAttributeUpdatePacket {
+  std::uint8_t packet_type{0};
+  std::uint32_t player_id{0};
+  PlayerAttributeId attribute_id{0};
+  std::int32_t value{0};
+};
+
+template <typename S>
+void serialize(S& s, PlayerAttributeUpdatePacket& packet) {
+  s.value1b(packet.packet_type);
+  s.value4b(packet.player_id);
+  s.value1b(packet.attribute_id);
+  s.value4b(packet.value);
+}
+
+inline std::ostream& operator<<(std::ostream& os, const PlayerAttributeUpdatePacket& packet) {
+  os << "PlayerAttributeUpdatePacket {"
+     << " packet_type: " << static_cast<int>(packet.packet_type) << ", player_id: " << packet.player_id
+     << ", attribute_id: " << static_cast<int>(packet.attribute_id) << ", value: " << packet.value << " }";
+  return os;
+}
+
+template <>
+struct fmt::formatter<PlayerAttributeUpdatePacket> : ostream_formatter {};
+
+struct PlayerAttributeSnapshotPacket {
+  std::uint8_t packet_type{0};
+  std::uint32_t player_id{0};
+  std::int32_t strength{0};
+  std::int32_t dexterity{0};
+  std::int32_t level{0};
+  std::int32_t exp{0};
+  std::int32_t next_level_exp{0};
+  std::int32_t learn_points{0};
+  std::int32_t health{0};
+  std::int32_t max_health{0};
+  std::int32_t mana{0};
+  std::int32_t max_mana{0};
+};
+
+template <typename S>
+void serialize(S& s, PlayerAttributeSnapshotPacket& packet) {
+  s.value1b(packet.packet_type);
+  s.value4b(packet.player_id);
+  s.value4b(packet.strength);
+  s.value4b(packet.dexterity);
+  s.value4b(packet.level);
+  s.value4b(packet.exp);
+  s.value4b(packet.next_level_exp);
+  s.value4b(packet.learn_points);
+  s.value4b(packet.health);
+  s.value4b(packet.max_health);
+  s.value4b(packet.mana);
+  s.value4b(packet.max_mana);
+}
+
+inline std::ostream& operator<<(std::ostream& os, const PlayerAttributeSnapshotPacket& packet) {
+  os << "PlayerAttributeSnapshotPacket {"
+     << " packet_type: " << static_cast<int>(packet.packet_type) << ", player_id: " << packet.player_id
+     << ", strength: " << packet.strength << ", dexterity: " << packet.dexterity << ", level: " << packet.level << ", exp: " << packet.exp
+     << ", next_level_exp: " << packet.next_level_exp << ", learn_points: " << packet.learn_points << ", health: " << packet.health
+     << ", max_health: " << packet.max_health << ", mana: " << packet.mana << ", max_mana: " << packet.max_mana << " }";
+  return os;
+}
+
+template <>
+struct fmt::formatter<PlayerAttributeSnapshotPacket> : ostream_formatter {};
+
+struct PlayerWorldUpdatePacket {
+  std::uint8_t packet_type{0};
+  std::uint32_t player_id{0};
+  std::string world_name;
+  std::string start_point;
+};
+
+template <typename S>
+void serialize(S& s, PlayerWorldUpdatePacket& packet) {
+  s.value1b(packet.packet_type);
+  s.value4b(packet.player_id);
+  s.text1b(packet.world_name, 64);
+  s.text1b(packet.start_point, 64);
+}
+
+inline std::ostream& operator<<(std::ostream& os, const PlayerWorldUpdatePacket& packet) {
+  os << "PlayerWorldUpdatePacket {"
+     << " packet_type: " << static_cast<int>(packet.packet_type) << ", player_id: " << packet.player_id
+     << ", world_name: " << packet.world_name << ", start_point: " << packet.start_point << " }";
+  return os;
+}
+
+template <>
+struct fmt::formatter<PlayerWorldUpdatePacket> : ostream_formatter {};
 
 struct ExistingPlayersPacket {
   std::uint8_t packet_type{0};
@@ -109,9 +429,10 @@ struct JoinGamePacket {
   std::int16_t right_hand_item_instance{0};
   std::int16_t equipped_armor_instance{0};
   std::int16_t animation{0};
-  std::uint8_t head_model{0};
-  std::uint8_t skin_texture{0};
-  std::uint8_t face_texture{0};
+  std::string body_model;
+  std::uint16_t body_texture{0};
+  std::string head_model;
+  std::uint16_t head_texture{0};
   std::uint8_t walk_style{0};
   std::string player_name;
   // May be used to identify the player (e.g. when relaying the information about the player to other players)
@@ -127,9 +448,10 @@ void serialize(S& s, JoinGamePacket& packet) {
   s.value2b(packet.right_hand_item_instance);
   s.value2b(packet.equipped_armor_instance);
   s.value2b(packet.animation);
-  s.value1b(packet.head_model);
-  s.value1b(packet.skin_texture);
-  s.value1b(packet.face_texture);
+  s.text1b(packet.body_model, 255);
+  s.value2b(packet.body_texture);
+  s.text1b(packet.head_model, 255);
+  s.value2b(packet.head_texture);
   s.value1b(packet.walk_style);
   s.text1b(packet.player_name, 255);
   s.ext4b(packet.player_id, bitsery::ext::StdOptional{});
@@ -142,8 +464,9 @@ inline std::ostream& operator<<(std::ostream& os, const JoinGamePacket& packet) 
      << ", normal: (" << packet.normal.x << ", " << packet.normal.y << ", " << packet.normal.z << ")"
      << ", left_hand_item_instance: " << packet.left_hand_item_instance << ", right_hand_item_instance: " << packet.right_hand_item_instance
      << ", equipped_armor_instance: " << packet.equipped_armor_instance << ", animation: " << packet.animation
-     << ", head_model: " << static_cast<int>(packet.head_model) << ", skin_texture: " << static_cast<int>(packet.skin_texture)
-     << ", face_texture: " << static_cast<int>(packet.face_texture) << ", walk_style: " << static_cast<int>(packet.walk_style)
+     << ", body_model: " << packet.body_model << ", body_texture: " << static_cast<int>(packet.body_texture)
+     << ", head_model: " << packet.head_model << ", head_texture: " << static_cast<int>(packet.head_texture) 
+     << ", walk_style: " << static_cast<int>(packet.walk_style)
      << ", player_name: " << packet.player_name;
 
   if (packet.player_id.has_value()) {
@@ -166,9 +489,10 @@ struct PlayerSpawnPacket {
   std::int16_t right_hand_item_instance{0};
   std::int16_t equipped_armor_instance{0};
   std::int16_t animation{0};
-  std::uint8_t head_model{0};
-  std::uint8_t skin_texture{0};
-  std::uint8_t face_texture{0};
+  std::string body_model;
+  std::uint16_t body_texture{0};
+  std::string head_model;
+  std::uint16_t head_texture{0};
   std::uint8_t walk_style{0};
   std::string player_name;
 };
@@ -183,9 +507,10 @@ void serialize(S& s, PlayerSpawnPacket& packet) {
   s.value2b(packet.right_hand_item_instance);
   s.value2b(packet.equipped_armor_instance);
   s.value2b(packet.animation);
-  s.value1b(packet.head_model);
-  s.value1b(packet.skin_texture);
-  s.value1b(packet.face_texture);
+  s.text1b(packet.body_model, 255);
+  s.value2b(packet.body_texture);
+  s.text1b(packet.head_model, 255);
+  s.value2b(packet.head_texture);
   s.value1b(packet.walk_style);
   s.text1b(packet.player_name, 255);
 }
@@ -197,8 +522,9 @@ inline std::ostream& operator<<(std::ostream& os, const PlayerSpawnPacket& packe
      << ", normal: (" << packet.normal.x << ", " << packet.normal.y << ", " << packet.normal.z << ")"
      << ", left_hand_item_instance: " << packet.left_hand_item_instance << ", right_hand_item_instance: " << packet.right_hand_item_instance
      << ", equipped_armor_instance: " << packet.equipped_armor_instance << ", animation: " << packet.animation
-     << ", head_model: " << static_cast<int>(packet.head_model) << ", skin_texture: " << static_cast<int>(packet.skin_texture)
-     << ", face_texture: " << static_cast<int>(packet.face_texture) << ", walk_style: " << static_cast<int>(packet.walk_style)
+     << ", body_model: " << packet.body_model << ", body_texture: " << static_cast<int>(packet.body_texture)
+     << ", head_model: " << packet.head_model << ", head_texture: " << static_cast<int>(packet.head_texture) 
+     << ", walk_style: " << static_cast<int>(packet.walk_style)
      << ", player_name: " << packet.player_name << " }";
   return os;
 }
@@ -318,6 +644,70 @@ inline std::ostream& operator<<(std::ostream& os, const TakeItemPacket& packet) 
   return os;
 }
 
+struct GiveItemPacket {
+  std::uint8_t packet_type;
+  std::string item_instance;
+  std::int32_t item_amount;
+  std::uint32_t player_id;
+};
+
+template <typename S>
+void serialize(S& s, GiveItemPacket& packet) {
+  s.value1b(packet.packet_type);
+  s.text1b(packet.item_instance, 255);
+  s.value4b(packet.item_amount);
+  s.value4b(packet.player_id);
+}
+
+inline std::ostream& operator<<(std::ostream& os, const GiveItemPacket& packet) {
+  os << "GiveItemPacket {"
+     << " packet_type: " << static_cast<int>(packet.packet_type) << ", item_instance: " << packet.item_instance
+     << ", item_amount: " << packet.item_amount << ", player_id: " << packet.player_id << " }";
+  return os;
+}
+
+struct EquipItemPacket {
+  std::uint8_t packet_type;
+  std::string item_instance;
+  std::int16_t slot_id;
+  std::uint32_t player_id;
+};
+
+template <typename S>
+void serialize(S& s, EquipItemPacket& packet) {
+  s.value1b(packet.packet_type);
+  s.text1b(packet.item_instance, 255);
+  s.value2b(packet.slot_id);
+  s.value4b(packet.player_id);
+}
+
+inline std::ostream& operator<<(std::ostream& os, const EquipItemPacket& packet) {
+  os << "EquipItemPacket {"
+     << " packet_type: " << static_cast<int>(packet.packet_type) << ", item_instance: " << packet.item_instance
+     << ", slot_id: " << packet.slot_id << ", player_id: " << packet.player_id << " }";
+  return os;
+}
+
+struct UnequipItemPacket {
+  std::uint8_t packet_type;
+  std::string item_instance;
+  std::uint32_t player_id;
+};
+
+template <typename S>
+void serialize(S& s, UnequipItemPacket& packet) {
+  s.value1b(packet.packet_type);
+  s.text1b(packet.item_instance, 255);
+  s.value4b(packet.player_id);
+}
+
+inline std::ostream& operator<<(std::ostream& os, const UnequipItemPacket& packet) {
+  os << "UnequipItemPacket {"
+     << " packet_type: " << static_cast<int>(packet.packet_type) << ", item_instance: " << packet.item_instance
+     << ", player_id: " << packet.player_id << " }";
+  return os;
+}
+
 struct PlayerStateUpdatePacket {
   std::uint8_t packet_type;
   PlayerState state;
@@ -367,26 +757,6 @@ inline std::ostream& operator<<(std::ostream& os, const PlayerPositionUpdatePack
   if (packet.player_id.has_value()) {
     os << ", player_id: " << packet.player_id.value();
   }
-  return os;
-}
-
-struct HPDiffPacket {
-  std::uint8_t packet_type;
-  std::uint32_t player_id;
-  std::int16_t hp_difference;
-};
-
-template <typename S>
-void serialize(S& s, HPDiffPacket& packet) {
-  s.value1b(packet.packet_type);
-  s.value4b(packet.player_id);
-  s.value2b(packet.hp_difference);
-}
-
-inline std::ostream& operator<<(std::ostream& os, const HPDiffPacket& packet) {
-  os << "HPDiffPacket {"
-     << " packet_type: " << static_cast<int>(packet.packet_type) << ", player_id: " << packet.player_id << ", hp_difference: " << packet.hp_difference
-     << " }";
   return os;
 }
 
@@ -535,35 +905,3 @@ inline std::ostream& operator<<(std::ostream& os, const GameInfoPacket& packet) 
      << ", flags: " << static_cast<int>(packet.flags) << " }";
   return os;
 }
-
-struct DiscordActivityPacket {
-  std::uint8_t packet_type;
-  std::string state;
-  std::string details;
-  std::string large_image_key;
-  std::string large_image_text;
-  std::string small_image_key;
-  std::string small_image_text;
-};
-
-template <typename S>
-void serialize(S& s, DiscordActivityPacket& packet) {
-  s.value1b(packet.packet_type);
-  s.text1b(packet.state, 128);
-  s.text1b(packet.details, 128);
-  s.text1b(packet.large_image_key, 32);
-  s.text1b(packet.large_image_text, 128);
-  s.text1b(packet.small_image_key, 32);
-  s.text1b(packet.small_image_text, 128);
-}
-
-inline std::ostream& operator<<(std::ostream& os, const DiscordActivityPacket& packet) {
-  os << "DiscordActivityPacket {"
-     << " packet_type: " << static_cast<int>(packet.packet_type) << ", state: '" << packet.state << "', details: '" << packet.details
-     << "', large_image_key: '" << packet.large_image_key << "', large_image_text: '" << packet.large_image_text << "', small_image_key: '"
-     << packet.small_image_key << "', small_image_text: '" << packet.small_image_text << "' }";
-  return os;
-}
-
-template <>
-struct fmt::formatter<DiscordActivityPacket> : ostream_formatter {};

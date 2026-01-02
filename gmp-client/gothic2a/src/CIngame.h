@@ -53,7 +53,6 @@ public:
   CURRENT_MAP RecognizedMap;
   bool PlayerExists(const char* PlayerName);
   time_t NextTimeSync;
-  std::string WhisperingTo;
   CMap* MMap;
   CShrinker* Shrinker;
   CInventory* Inventory;

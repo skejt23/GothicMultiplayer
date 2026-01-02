@@ -76,6 +76,17 @@ void BindInputConstants(sol::state& lua) {
   }
 
   // Bind input query functions
+/* luadoc (func)
+*
+* The function is used to check whether the specified keyboard key is pressed.
+*
+* @name     KeyPressed
+* @side     client
+* @category Input
+* @param    (int) key      The key code to check. For more information about key codes, see [Key Constants](../../client-constants/key.md).
+* @return   (bool)             True if the key is currently pressed, false otherwise.
+*
+*/
   lua.set_function("KeyPressed", [](int key) -> bool {
     if (key < 0 || key > MAX_KEYS_AND_CODES) {
       return false;
@@ -83,6 +94,17 @@ void BindInputConstants(sol::state& lua) {
     return s_pressedThisFrame[key];
   });
 
+/* luadoc (func)
+*
+* The function is used to check whether the specified keyboard key was toggled from unpressed to pressed state.
+*
+* @name     KeyToggled
+* @side     client
+* @category Input
+* @param    (int) key      The key code to check. For more information about key codes, see [Key Constants](../../client-constants/key.md).
+* @return   (bool)             True if the key was toggled, false otherwise.
+*
+*/
   lua.set_function("KeyToggled", [](int key) -> bool {
     if (key < 0 || key > MAX_KEYS_AND_CODES) {
       return false;

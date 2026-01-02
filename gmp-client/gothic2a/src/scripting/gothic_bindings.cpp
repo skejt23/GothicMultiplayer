@@ -105,29 +105,68 @@ oCMenu_Status* GetStatusMenu() {
 }
 }  // namespace
 
-void BindPlayers(sol::state& lua) {
-  lua.set_function("setPlayerInstance", [](std::uint64_t id, const std::string& instance) {
-    if (auto* npc = GetNpcById(id)) {
-      if (auto* parser = zCParser::GetParser()) {
-        zSTRING instance_name(instance.c_str());
-        const int instance_id = parser->GetIndex(instance_name);
+/* luadoc (func)
+*
+* Set a player's instance.
+*
+* @name     setPlayerInstance
+* @side     client
+* @category Player
+* @param    (int) player_id  Target player id.
+* @param    (string) instance       Instance name.
+* @return   (boolean)               True on success, false otherwise.
+*
+*/
+bool Function_SetPlayerInstance(std::uint64_t id, const std::string& instance) {
+  if (auto* npc = GetNpcById(id)) {
+    if (auto* parser = zCParser::GetParser()) {
+      zSTRING instance_name(instance.c_str());
+      const int instance_id = parser->GetIndex(instance_name);
 
-        if (instance_id >= 0) {
-          npc->InitByScript(instance_id, 0);
-        }
+      if (instance_id >= 0) {
+        npc->InitByScript(instance_id, 0);
+        return true;
       }
     }
-  });
+  }
+  return false;
+}
 
-  lua.set_function("getPlayerInstance", [](std::uint64_t id) {
-    if (auto* npc = GetNpcById(id)) {
-      return std::string(npc->GetInstanceName().ToChar());
-    }
+/* luadoc (func)
+*
+* Get a player's instance name.
+*
+* @name     getPlayerInstance
+* @side     client
+* @category Player
+* @param    (int) player_id  Target player id.
+* @return   (string|nil)         Instance name or nil.
+*
+*/
+sol::object Function_GetPlayerInstance(std::uint64_t id, sol::this_state ts) {
+  sol::state_view lua(ts);
 
-    return std::string();
-  });
+  if (auto* npc = GetNpcById(id)) {
+    std::string name = npc->GetInstanceName().ToChar();
+    return sol::make_object(lua, std::move(name));
+  }
 
-  lua.set_function("setPlayerName", [](std::uint64_t id, const std::string& name) {
+  return sol::nil;
+}
+
+/* luadoc (func)
+*
+* Set a player's display name.
+*
+* @name     setPlayerName
+* @side     client
+* @category Player
+* @param    (int) player_id  Target player id.
+* @param    (string) name       New player name.
+* @return   (boolean)           True on success.
+*
+*/
+bool Function_SetPlayerName(std::uint64_t id, const std::string& name) {
     if (auto* player = GetPlayerById(id)) {
       zSTRING new_name(name.c_str());
 
@@ -147,17 +186,44 @@ void BindPlayers(sol::state& lua) {
     }
 
     return false;
-  });
+  }
 
-  lua.set_function("getPlayerName", [](std::uint64_t id) {
-    if (auto* npc = GetNpcById(id)) {
-      return std::string(npc->GetName().ToChar());
-    }
+/* luadoc (func)
+*
+* Get a player's name or nil if unavailable.
+*
+* @name     getPlayerName
+* @side     client
+* @category Player
+* @param    (int) player_id  Target player id.
+* @return   (string|nil)        Player name or nil.
+*
+*/
+sol::object Function_GetPlayerName(std::uint64_t id, sol::this_state ts) {
+  sol::state_view lua(ts);
 
-    return std::string();
-  });
+  if (auto* npc = GetNpcById(id)) {
+    std::string name = npc->GetName().ToChar();
+    return sol::make_object(lua, std::move(name));
+  }
 
-  lua.set_function("setPlayerColor", [](std::uint64_t id, int r, int g, int b) {
+  return sol::nil;
+}
+
+/* luadoc (func)
+*
+* Set a player's name color (RGB 0-255).
+*
+* @name     setPlayerColor
+* @side     client
+* @category Player
+* @param    (int) player_id  Target player id.
+* @param    (int) r          Red (0-255).
+* @param    (int) g          Green (0-255).
+* @param    (int) b          Blue (0-255).
+*
+*/
+bool Function_SetPlayerColor(std::uint64_t id, int r, int g, int b) {
     r = std::clamp(r, 0, 255);
     g = std::clamp(g, 0, 255);
     b = std::clamp(b, 0, 255);
@@ -165,19 +231,51 @@ void BindPlayers(sol::state& lua) {
     if (auto* player = GetPlayerById(id)) {
       player->SetNameColor(zCOLOR(static_cast<unsigned char>(r), static_cast<unsigned char>(g),
                                   static_cast<unsigned char>(b), 255));
+      return true;
     }
-  });
+    return false;
+  }
 
-  lua.set_function("getPlayerColor", [](std::uint64_t id) {
-    if (auto* player = GetPlayerById(id)) {
-      const auto& color = player->GetNameColor();
-      return std::make_tuple(static_cast<int>(color.r), static_cast<int>(color.g), static_cast<int>(color.b));
-    }
+/* luadoc (func)
+*
+* Get a player's name color as a table { r, g, b } or nil if unavailable.
+*
+* @name     getPlayerColor
+* @side     client
+* @category Player
+* @param    (int) player_id  Target player id.
+* @return   ({r, g, b}|nil)  RGB color (0-255) or nil.
+*
+*/
+sol::object Function_GetPlayerColor(std::uint64_t id, sol::this_state ts) {
+  sol::state_view lua(ts);
 
-    return std::make_tuple(0, 0, 0);
-  });
+  if (auto* player = GetPlayerById(id)) {
+    const auto& color = player->GetNameColor();
 
-  lua.set_function("setPlayerHealth", [](std::uint64_t id, int health) {
+    sol::table tbl = lua.create_table();
+    tbl["r"] = static_cast<int>(color.r);
+    tbl["g"] = static_cast<int>(color.g);
+    tbl["b"] = static_cast<int>(color.b);
+
+    return sol::make_object(lua, tbl);
+  }
+
+  return sol::nil;
+}
+
+/* luadoc (func)
+*
+* Set a player's current health (clamped to [0,max]).
+*
+* @name     setPlayerHealth
+* @side     client
+* @category Player
+* @param    (int) player_id  Target player id.
+* @param    (int) health     New health value.
+*
+*/
+bool Function_SetPlayerHealth(std::uint64_t id, int health) {
     if (health < 0) {
       health = 0;
     }
@@ -187,20 +285,46 @@ void BindPlayers(sol::state& lua) {
         const int max_health = npc->GetAttribute(NPC_ATR_HITPOINTSMAX);
         const int clamped_health = std::min(health, max_health);
         npc->SetAttribute(NPC_ATR_HITPOINTS, clamped_health);
-        player->base_player().set_hp(static_cast<short>(clamped_health));
+        player->base_player().set_health(static_cast<short>(clamped_health));
+        return true;
       }
     }
-  });
+    return false;
+  }
 
-  lua.set_function("getPlayerHealth", [](std::uint64_t id) {
-    if (auto* npc = GetNpcById(id)) {
-      return npc->GetAttribute(NPC_ATR_HITPOINTS);
-    }
+/* luadoc (func)
+*
+* Get a player's current health.
+*
+* @name     getPlayerHealth
+* @side     client
+* @category Player
+* @param    (int) player_id  Target player id.
+* @return   (int|nil)              Current health or nil.
+*
+*/
+sol::object Function_GetPlayerHealth(std::uint64_t id, sol::this_state ts) {
+  sol::state_view lua(ts);
 
-    return 0;
-  });
+  if (auto* npc = GetNpcById(id)) {
+    return sol::make_object(lua, npc->GetAttribute(NPC_ATR_HITPOINTS));
+  }
 
-  lua.set_function("setPlayerMaxHealth", [](std::uint64_t id, int max_health) {
+  return sol::nil;
+}
+
+/* luadoc (func)
+*
+* Set a player's maximum health and clamp current health if needed.
+*
+* @name     setPlayerMaxHealth
+* @side     client
+* @category Player
+* @param    (int) player_id   Target player id.
+* @param    (int) max_health  New maximum health.
+*
+*/
+bool Function_SetPlayerMaxHealth(std::uint64_t id, int max_health) {
     if (max_health < 0) {
       max_health = 0;
     }
@@ -212,19 +336,45 @@ void BindPlayers(sol::state& lua) {
         if (current_health > max_health) {
           npc->SetAttribute(NPC_ATR_HITPOINTS, max_health);
         }
+        return true;
       }
     }
-  });
+    return false;
+  }
 
-  lua.set_function("getPlayerMaxHealth", [](std::uint64_t id) {
-    if (auto* npc = GetNpcById(id)) {
-      return npc->GetAttribute(NPC_ATR_HITPOINTSMAX);
-    }
+/* luadoc (func)
+*
+* Get a player's maximum health.
+*
+* @name     getPlayerMaxHealth
+* @side     client
+* @category Player
+* @param    (int) player_id  Target player id.
+* @return   (int|nil)              Max health or nil.
+*
+*/
+sol::object Function_GetPlayerMaxHealth(std::uint64_t id, sol::this_state ts) {
+  sol::state_view lua(ts);
 
-    return 0;
-  });
+  if (auto* npc = GetNpcById(id)) {
+    return sol::make_object(lua, npc->GetAttribute(NPC_ATR_HITPOINTSMAX));
+  }
 
-  lua.set_function("setPlayerMana", [](std::uint64_t id, int mana) {
+  return sol::nil;
+}
+
+/* luadoc (func)
+*
+* Set a player's current mana (clamped to [0,max]).
+*
+* @name     setPlayerMana
+* @side     client
+* @category Player
+* @param    (int) player_id  Target player id.
+* @param    (int) mana       Mana value.
+*
+*/
+bool Function_SetPlayerMana(std::uint64_t id, int mana) {
     if (mana < 0) {
       mana = 0;
     }
@@ -233,18 +383,44 @@ void BindPlayers(sol::state& lua) {
       const int max_mana = npc->GetAttribute(NPC_ATR_MANAMAX);
       const int clamped_mana = std::min(mana, max_mana);
       npc->SetAttribute(NPC_ATR_MANA, clamped_mana);
+      return true;
     }
-  });
+    return false;
+  }
 
-  lua.set_function("getPlayerMana", [](std::uint64_t id) {
-    if (auto* npc = GetNpcById(id)) {
-      return npc->GetAttribute(NPC_ATR_MANA);
-    }
+/* luadoc (func)
+*
+* Get a player's current mana.
+*
+* @name     getPlayerMana
+* @side     client
+* @category Player
+* @param    (int) player_id  Target player id.
+* @return   (int|nil)              Current mana or nil.
+*
+*/
+sol::object Function_GetPlayerMana(std::uint64_t id, sol::this_state ts) {
+  sol::state_view lua(ts);
 
-    return 0;
-  });
+  if (auto* npc = GetNpcById(id)) {
+    return sol::make_object(lua, npc->GetAttribute(NPC_ATR_MANA));
+  }
 
-  lua.set_function("setPlayerMaxMana", [](std::uint64_t id, int max_mana) {
+  return sol::nil;
+}
+
+/* luadoc (func)
+*
+* Set a player's maximum mana and clamp current mana if needed.
+*
+* @name     setPlayerMaxMana
+* @side     client
+* @category Player
+* @param    (int) player_id  Target player id.
+* @param    (int) max_mana   New maximum mana.
+*
+*/
+bool Function_SetPlayerMaxMana(std::uint64_t id, int max_mana) {
     if (max_mana < 0) {
       max_mana = 0;
     }
@@ -255,147 +431,395 @@ void BindPlayers(sol::state& lua) {
       if (current_mana > max_mana) {
         npc->SetAttribute(NPC_ATR_MANA, max_mana);
       }
+      return true;
     }
-  });
+    return false;
+  }
 
-  lua.set_function("getPlayerMaxMana", [](std::uint64_t id) {
-    if (auto* npc = GetNpcById(id)) {
-      return npc->GetAttribute(NPC_ATR_MANAMAX);
-    }
+/* luadoc (func)
+*
+* Get a player's maximum mana.
+*
+* @name     getPlayerMaxMana
+* @side     client
+* @category Player
+* @param    (int) player_id  Target player id.
+* @return   (int|nil)              Max mana or nil.
+*
+*/
+sol::object Function_GetPlayerMaxMana(std::uint64_t id, sol::this_state ts) {
+  sol::state_view lua(ts);
 
-    return 0;
-  });
+  if (auto* npc = GetNpcById(id)) {
+    return sol::make_object(lua, npc->GetAttribute(NPC_ATR_MANAMAX));
+  }
 
-  lua.set_function("setPlayerStrength", [](std::uint64_t id, int strength) {
+  return sol::nil;
+}
+
+/* luadoc (func)
+*
+* Set a player's strength attribute.
+*
+* @name     setPlayerStrength
+* @side     client
+* @category Player
+* @param    (int) player_id  Target player id.
+* @param    (int) strength   Strength value.
+*
+*/
+bool Function_SetPlayerStrength(std::uint64_t id, int strength) {
     if (strength < 0) {
       strength = 0;
     }
 
     if (auto* npc = GetNpcById(id)) {
       npc->SetAttribute(NPC_ATR_STRENGTH, strength);
+      return true;
     }
-  });
+    return false;
+  }
 
-  lua.set_function("getPlayerStrength", [](std::uint64_t id) {
-    if (auto* npc = GetNpcById(id)) {
-      return npc->GetAttribute(NPC_ATR_STRENGTH);
-    }
+/* luadoc (func)
+*
+* Get a player's strength attribute.
+*
+* @name     getPlayerStrength
+* @side     client
+* @category Player
+* @param    (int) player_id  Target player id.
+* @return   (int|nil)              Strength value or nil.
+*
+*/
+sol::object Function_GetPlayerStrength(std::uint64_t id, sol::this_state ts) {
+  sol::state_view lua(ts);
 
-    return 0;
-  });
+  if (auto* npc = GetNpcById(id)) {
+    return sol::make_object(lua, npc->GetAttribute(NPC_ATR_STRENGTH));
+  }
 
-  lua.set_function("setPlayerDexterity", [](std::uint64_t id, int dexterity) {
+  return sol::nil;
+}
+
+/* luadoc (func)
+*
+* Set a player's dexterity attribute.
+*
+* @name     setPlayerDexterity
+* @side     client
+* @category Player
+* @param    (int) player_id  Target player id.
+* @param    (int) dexterity  Dexterity value.
+*
+*/
+bool Function_SetPlayerDexterity(std::uint64_t id, int dexterity) {
     if (dexterity < 0) {
       dexterity = 0;
     }
 
     if (auto* npc = GetNpcById(id)) {
       npc->SetAttribute(NPC_ATR_DEXTERITY, dexterity);
+      return true;
     }
-  });
+    return false;
+  }
 
-  lua.set_function("getPlayerDexterity", [](std::uint64_t id) {
-    if (auto* npc = GetNpcById(id)) {
-      return npc->GetAttribute(NPC_ATR_DEXTERITY);
-    }
+/* luadoc (func)
+*
+* Get a player's dexterity attribute.
+*
+* @name     getPlayerDexterity
+* @side     client
+* @category Player
+* @param    (int) player_id  Target player id.
+* @return   (int|nil)              Dexterity value or nil.
+*
+*/
+sol::object Function_GetPlayerDexterity(std::uint64_t id, sol::this_state ts) {
+  sol::state_view lua(ts);
 
-    return 0;
-  });
+  if (auto* npc = GetNpcById(id)) {
+    return sol::make_object(lua, npc->GetAttribute(NPC_ATR_DEXTERITY));
+  }
 
-  lua.set_function("setPlayerSkillWeapon", [](std::uint64_t id, int skill_id, int percentage) {
+  return sol::nil;
+}
+
+/* luadoc (func)
+*
+* Set a player's weapon skill hit chance (0-100).
+*
+* @name     setPlayerSkillWeapon
+* @side     client
+* @category Player
+* @param    (int) player_id  Target player id.
+* @param    (int) skill_id   Skill identifier.
+* @param    (int) percentage Hit chance (0-100).
+*
+*/
+bool Function_SetPlayerSkillWeapon(std::uint64_t id, int skill_id, int percentage) {
     percentage = std::clamp(percentage, 0, 100);
 
     if (auto* npc = GetNpcById(id)) {
       npc->SetHitChance(skill_id, percentage);
+      return true;
     }
-  });
+    return false;
+  }
 
-  lua.set_function("getPlayerSkillWeapon", [](std::uint64_t id, int skill_id) {
-    if (auto* npc = GetNpcById(id)) {
-      return npc->GetHitChance(skill_id);
-    }
+/* luadoc (func)
+*
+* Get a player's weapon skill hit chance.
+*
+* @name     getPlayerSkillWeapon
+* @side     client
+* @category Player
+* @param    (int) player_id  Target player id.
+* @param    (int) skill_id   Skill identifier.
+* @return   (int|nil)              Hit chance (0-100) or nil.
+*
+*/
+sol::object Function_GetPlayerSkillWeapon(std::uint64_t id, int skill_id, sol::this_state ts) {
+  sol::state_view lua(ts);
 
-    return 0;
-  });
+  if (auto* npc = GetNpcById(id)) {
+    return sol::make_object(lua, npc->GetHitChance(skill_id));
+  }
 
-  lua.set_function("setPlayerTalent", [](std::uint64_t id, int talent_id, int talent_value) {
+  return sol::nil;
+}
+
+/* luadoc (func)
+*
+* Set a player's talent value.
+*
+* @name     setPlayerTalent
+* @side     client
+* @category Player
+* @param    (int) player_id   Target player id.
+* @param    (int) talent_id   Talent identifier.
+* @param    (int) talent_value Talent value.
+*
+*/
+bool Function_SetPlayerTalent(std::uint64_t id, int talent_id, int talent_value) {
     if (auto* npc = GetNpcById(id)) {
       npc->SetTalentSkill(talent_id, talent_value);
+      return true;
     }
-  });
+    return false;
+  }
 
-  lua.set_function("getPlayerTalent", [](std::uint64_t id, int talent_id) {
+/* luadoc (func)
+*
+* Get a player's talent value.
+*
+* @name     getPlayerTalent
+* @side     client
+* @category Player
+* @param    (int) player_id  Target player id.
+* @param    (int) talent_id  Talent identifier.
+* @return   (int|nil)              Talent value or nil.
+*
+*/
+sol::object Function_GetPlayerTalent(std::uint64_t id, int talent_id, sol::this_state ts) {
+  sol::state_view lua(ts);
+
+  if (auto* npc = GetNpcById(id)) {
+    return sol::make_object(lua, npc->GetTalentSkill(talent_id));
+  }
+
+  return sol::nil;
+}
+
+/* luadoc (func)
+*
+* Set a player's experience level.
+*
+* @name     setPlayerLevel
+* @side     client
+* @category Player
+* @param    (int) player_id  Target player id.
+* @param    (int) level         New level.
+*
+*/
+bool Function_SetPlayerLevel(std::uint64_t id, int level) {
     if (auto* npc = GetNpcById(id)) {
-      return npc->GetTalentSkill(talent_id);
+      npc->level = static_cast<int>(std::max(level, 0));
+      return true;
     }
+    return false;
+  }
 
-    return 0;
-  });
+/* luadoc (func)
+*
+* Get a player's level or 0 if unavailable.
+*
+* @name     getPlayerLevel
+* @side     client
+* @category Player
+* @param    (int) player_id  Target player id.
+* @return   (int|nil)        Level or nil.
+*
+*/
+sol::object Function_GetPlayerLevel(std::uint64_t id, sol::this_state ts) {
+  sol::state_view lua(ts);
 
-  lua.set_function("setPlayerWorld", [](std::uint64_t id, const std::string& world, sol::optional<std::string> start_point) {
-    if (auto* player = GetPlayerById(id)) {
-      if (!player->IsLocalPlayer() || !ogame) {
-        return;
+  if (auto* npc = GetNpcById(id)) {
+    return sol::make_object(lua, static_cast<int>(npc->level));
+  }
+
+  return sol::nil;
+}
+
+/* luadoc (func)
+*
+* Set the player's experience points.
+*
+* @name     setExp
+* @side     client
+* @category Hero
+* @param    (int) exp           New exp value.
+*
+*/
+void Function_SetExp(int exp) {
+  if (auto* player = Gothic2APlayer::GetLocalPlayer()) {
+    if (auto* npc = player->GetNpc()) {
+      const unsigned long clamped_exp = static_cast<unsigned long>(std::max(exp, 0));
+      npc->experience_points = clamped_exp;
+
+      if (auto* status_menu = GetStatusMenu()) {
+        status_menu->SetExperience(clamped_exp, 0, npc->experience_points_next_level);
       }
-
-      zSTRING z_world(world.c_str());
-      zSTRING z_start_point = start_point ? zSTRING(start_point->c_str()) : zSTRING("");
-      Patch::ChangeLevelEnabled(true);
-      ogame->ChangeLevel(z_world, z_start_point);
-      Patch::ChangeLevelEnabled(false);
     }
-  });
+  }
+}
 
-  lua.set_function("getPlayerWorld", [](std::uint64_t id) {
-    if (auto* player = GetPlayerById(id)) {
-      if (player->IsLocalPlayer() && ogame && ogame->GetGameWorld()) {
-        return std::string(ogame->GetGameWorld()->GetWorldFilename().ToChar());
+/* luadoc (func)
+*
+* Get the player's experience points.
+*
+* @name     getExp
+* @side     client
+* @category Hero
+* @return   (int|nil)        Exp value or nil.
+*
+*/
+sol::object Function_GetExp(sol::this_state ts) {
+  sol::state_view lua(ts);
+
+  if (auto* player = Gothic2APlayer::GetLocalPlayer()) {
+    if (auto* npc = player->GetNpc()) {
+      return sol::make_object(lua, static_cast<int>(npc->experience_points));
+    }
+  }
+
+  return sol::nil;
+}
+
+/* luadoc (func)
+*
+* Set the experience required for the player's next level.
+*
+* @name     setNextLevelExp
+* @side     client
+* @category Hero
+* @param    (int) next_level_exp    Required exp for next level.
+*
+*/
+void Function_SetNextLevelExp(int next_level_exp) {
+  if (auto* player = Gothic2APlayer::GetLocalPlayer()) {
+    if (auto* npc = player->GetNpc()) {
+      const unsigned long clamped_next_level = static_cast<unsigned long>(std::max(next_level_exp, 0));
+      npc->experience_points_next_level = clamped_next_level;
+
+      if (auto* status_menu = GetStatusMenu()) {
+        status_menu->SetExperience(npc->experience_points, 0, clamped_next_level);
       }
     }
+  }
+}
+/* luadoc (func)
+*
+* Get the experience required for the player's next level.
+*
+* @name     getNextLevelExp
+* @side     client
+* @category Hero
+* @return   (int|nil)        Next level exp or nil.
+*
+*/
+sol::object Function_GetNextLevelExp(sol::this_state ts) {
+  sol::state_view lua(ts);
 
-    return std::string();
-  });
+  if (auto* player = Gothic2APlayer::GetLocalPlayer()) {
+    if (auto* npc = player->GetNpc()) {
+      return sol::make_object(lua, static_cast<int>(npc->experience_points_next_level));
+    }
+  }
 
-  lua.set_function("setPlayerPosition", [](std::uint64_t id, float x, float y, float z) {
-    if (auto* player = GetPlayerById(id)) {
-      if (auto* npc = player->GetNpc()) {
-        zVEC3 position{x, y, z};
-        npc->SetPositionWorld(position);
-        player->SetPosition(position);
-        player->base_player().set_position(x, y, z);
+  return sol::nil;
+}
+
+/* luadoc (func)
+*
+* Set the player's learn points.
+*
+* @name     setLearnPoints
+* @side     client
+* @category Hero
+* @param    (int) learn_points   New learn points value.
+*
+*/
+void Function_SetLearnPoints(int learn_points) {
+  if (auto* player = Gothic2APlayer::GetLocalPlayer()) {
+    if (auto* npc = player->GetNpc()) {
+      const unsigned long clamped_points = static_cast<unsigned long>(std::max(learn_points, 0));
+      npc->learn_points = clamped_points;
+
+      if (auto* status_menu = GetStatusMenu()) {
+        status_menu->SetLearnPoints(clamped_points);
       }
     }
-  });
+  }
+}
 
-  lua.set_function("getPlayerPosition", [](std::uint64_t id) {
-    if (auto* npc = GetNpcById(id)) {
-      const zVEC3 position = npc->GetPositionWorld();
-      return std::make_tuple(position[VX], position[VY], position[VZ]);
+/* luadoc (func)
+*
+* Get the player's learn points.
+*
+* @name     getLearnPoints
+* @side     client
+* @category Hero
+* @return   (int|nil)        Learn points or nil.
+*
+*/
+sol::object Function_GetLearnPoints(sol::this_state ts) {
+  sol::state_view lua(ts);
+
+  if (auto* player = Gothic2APlayer::GetLocalPlayer()) {
+    if (auto* npc = player->GetNpc()) {
+      return sol::make_object(lua, static_cast<int>(npc->learn_points));
     }
+  }
 
-    return std::make_tuple(0.0F, 0.0F, 0.0F);
-  });
+  return sol::nil;
+}
 
-  lua.set_function("setPlayerAngle", [](std::uint64_t id, float angle, sol::optional<bool> /*interpolate*/) {
-    if (auto* npc = GetNpcById(id)) {
-      const float radians = angle;
-      const zVEC3 heading_vector(std::sin(radians), 0.0F, std::cos(radians));
-      npc->SetHeadingYWorld(heading_vector);
-    }
-  });
-
-  lua.set_function("getPlayerAngle", [](std::uint64_t id) {
-    if (auto* npc = GetNpcById(id)) {
-      const zVEC3 forward = npc->GetAtVectorWorld();
-      return std::atan2(forward[VX], forward[VZ]);
-    }
-
-    return 0.0F;
-  });
-
-  lua.set_function(
-      "setPlayerVisual",
-      [](std::uint64_t id, const std::string& body_model, int body_texture, const std::string& head_model, int head_texture,
+/* luadoc (func)
+*
+* Set a player's visual model and textures.
+*
+* @name     setPlayerVisual
+* @side     client
+* @category Player
+* @param    (int) player_id    Target player id.
+* @param    (string) body_model   Body model name.
+* @param    (int) body_texture    Body texture index.
+* @param    (string) head_model   Head model name.
+* @param    (int) head_texture    Head texture index.
+*
+*/
+bool Function_SetPlayerVisual(std::uint64_t id, const std::string& body_model, int body_texture, const std::string& head_model, int head_texture,
          sol::optional<int> teeth_texture, sol::optional<int> skin_color) {
         if (auto* npc = GetNpcById(id); npc) {
           zSTRING body(body_model.c_str());
@@ -403,30 +827,166 @@ void BindPlayers(sol::state& lua) {
           const int color_variant = skin_color.value_or(0);
           const int teeth_variant = teeth_texture.value_or(0);
           npc->SetAdditionalVisuals(body, body_texture, color_variant, head, head_texture, teeth_variant, color_variant);
+          return true;
         }
-      });
+        return false;
+      }
 
-  lua.set_function("setPlayerFatness", [](std::uint64_t id, float fatness) {
+sol::object Function_GetPlayerVisual(std::uint64_t id, sol::this_state ts) {
+  sol::state_view lua(ts);
+
+  if (auto* npc = GetNpcById(id); npc) {
+    sol::table tbl = lua.create_table();
+
+    tbl["body_model"] = std::string(npc->body_visualName.ToChar());
+    tbl["body_texture"] = static_cast<int>(npc->body_TexVarNr);
+    tbl["head_model"] = std::string(npc->head_visualName.ToChar());
+    tbl["head_texture"] = static_cast<int>(npc->head_TexVarNr);
+    return sol::make_object(lua, tbl);
+  }
+  return sol::nil;
+}
+
+/* luadoc (func)
+*
+* Set a player's model fatness.
+*
+* @name     setPlayerFatness
+* @side     client
+* @category Player
+* @param    (int) player_id    Target player id.
+* @param    (float) fatness   Fatness value.
+*
+*/
+bool Function_SetPlayerFatness(std::uint64_t id, float fatness) {
     if (auto* npc = GetNpcById(id); npc) {
       npc->SetFatness(fatness);
+      return true;
     }
-  });
+    return false;
+  }
 
-  lua.set_function("setPlayerScale", [](std::uint64_t id, float x, float y, float z) {
+sol::object Function_GetPlayerFatness(std::uint64_t id, sol::this_state ts) {
+  sol::state_view lua(ts);
+
+  if (auto* npc = GetNpcById(id)) {
+    return sol::make_object(lua, npc->model_fatness);
+  }
+
+  return sol::nil;
+}
+
+/* luadoc (func)
+*
+* Set a player's model scale.
+*
+* @name     setPlayerScale
+* @side     client
+* @category Player
+* @param    (int) player_id    Target player id.
+* @param    (float) x   Scale factor on x axis.
+* @param    (float) y   Scale factor on y axis.
+* @param    (float) z   Scale factor on z axis.
+*
+*/
+bool Function_SetPlayerScale(std::uint64_t id, float x, float y, float z) {
     if (auto* npc = GetNpcById(id); npc) {
       npc->SetModelScale(zVEC3{x, y, z});
+      return true;
     }
-  });
+    return false;
+  }
 
-  lua.set_function("applyPlayerOverlay", [](std::uint64_t id, const std::string& overlay) {
+/* luadoc (func)
+*
+* Get a player's model scale.
+*
+* @name     getPlayerScale
+* @side     client
+* @category Player
+* @param    (int) player_id    Target player id.
+* @return    ({x, y, z}|nil)   Player scale or nil.
+*
+*/
+sol::object Function_GetPlayerScale(std::uint64_t id, sol::this_state ts){
+  sol::state_view lua(ts);
+
+  if (auto* npc = GetNpcById(id); npc) {
+    const zVEC3 scale = npc->model_scale;
+    sol::table tbl = lua.create_table();
+    tbl["x"] = scale[VX];
+    tbl["y"] = scale[VY];
+    tbl["z"] = scale[VZ];
+    return sol::make_object(lua, tbl);
+  }
+
+  return sol::nil;
+}
+
+/* luadoc (func)
+*
+* Apply animation overlay on player.
+*
+* @name     applyPlayerOverlay
+* @side     client
+* @category Player
+* @param    (int) player_id    Target player id.
+* @param    (string) overlay   The name of overlay.
+*
+*/
+bool Function_ApplyPlayerOverlay(std::uint64_t id, const std::string& overlay) {
     if (auto* npc = GetNpcById(id); npc) {
       zSTRING overlay_name(overlay.c_str());
       return npc->ApplyOverlay(overlay_name) != 0;
     }
     return false;
-  });
+  }
 
-  lua.set_function("removePlayerOverlay", [](std::uint64_t id, const std::string& overlay) {
+/* luadoc (func)
+*
+* Get a player's active animation overlays.
+*
+* @name     getPlayerOverlays
+* @side     client
+* @category Player
+* @param    (int) player_id
+* @return   ({...}|nil)   Array of overlay names or nil.
+*
+*/
+sol::object Function_GetPlayerOverlays(std::uint64_t id, sol::this_state ts) {
+  sol::state_view lua(ts);
+
+  if (auto* npc = GetNpcById(id)) {
+    const zCArray<zSTRING>& overlays = npc->activeOverlays;
+
+    if (overlays.GetNum() == 0) {
+      return sol::nil; // or return empty table if you prefer
+    }
+
+    sol::table tbl = lua.create_table(overlays.GetNum(), 0);
+
+    for (int i = 0; i < overlays.GetNum(); ++i) {
+      tbl[i + 1] = overlays[i].ToChar();
+    }
+
+    return tbl;
+  }
+
+  return sol::nil;
+}
+
+/* luadoc (func)
+*
+* Remove animation overlay on player.
+*
+* @name     removePlayerOverlay
+* @side     client
+* @category Player
+* @param    (int) player_id    Target player id.
+* @param    (string) overlay   The name of overlay.
+*
+*/
+bool Function_RemovePlayerOverlay(std::uint64_t id, const std::string& overlay) {
     if (auto* npc = GetNpcById(id); npc) {
       zSTRING overlay_name(overlay.c_str());
       const bool has_overlay = npc->GetOverlay(overlay_name) != 0;
@@ -436,94 +996,244 @@ void BindPlayers(sol::state& lua) {
       return has_overlay;
     }
     return false;
-  });
+  }
 
-  lua.set_function("setPlayerLevel", [](std::uint64_t id, int level) {
-    if (auto* npc = GetNpcById(id)) {
-      npc->level = static_cast<int>(std::max(level, 0));
-    }
-  });
-
-  lua.set_function("getPlayerLevel", [](std::uint64_t id) {
-    if (auto* npc = GetNpcById(id)) {
-      return static_cast<int>(npc->level);
-    }
-
-    return 0;
-  });
-
-  lua.set_function("setLearnPoints", [](int learn_points) {
-    if (auto* player = Gothic2APlayer::GetLocalPlayer()) {
+/* luadoc (func)
+*
+* Set a player's world position.
+*
+* @name     setPlayerPosition
+* @side     client
+* @category Player
+* @param    (int) player_id  Target player id.
+* @param    (float) x       X coordinate.
+* @param    (float) y       Y coordinate.
+* @param    (float) z       Z coordinate.
+*
+*/
+bool Function_SetPlayerPosition(std::uint64_t id, float x, float y, float z) {
+    if (auto* player = GetPlayerById(id)) {
       if (auto* npc = player->GetNpc()) {
-        const unsigned long clamped_points = static_cast<unsigned long>(std::max(learn_points, 0));
-        npc->learn_points = clamped_points;
-
-        if (auto* status_menu = GetStatusMenu()) {
-          status_menu->SetLearnPoints(clamped_points);
-        }
+        zVEC3 position{x, y, z};
+        npc->SetPositionWorld(position);
+        player->SetPosition(position);
+        player->base_player().set_position(x, y, z);
+        return true;
       }
     }
-  });
+    return false;
+  }
 
-  lua.set_function("getLearnPoints", []() {
-    if (auto* player = Gothic2APlayer::GetLocalPlayer()) {
-      if (auto* npc = player->GetNpc()) {
-        return static_cast<int>(npc->learn_points);
-      }
-    }
+/* luadoc (func)
+*
+* Get a player's world position as tuple (x,y,z).
+*
+* @name     getPlayerPosition
+* @side     client
+* @category Player
+* @param    (int) player_id  Target player id.
+* @return   ({x,y,z}|nil)  Table with keys `x`,`y`,`z` or nil.
+*
+*/
+sol::object Function_GetPlayerPosition(std::uint64_t id, sol::this_state ts) {
+  sol::state_view lua(ts);
 
-    return 0;
-  });
+  if (auto* npc = GetNpcById(id)) {
+    const zVEC3 position = npc->GetPositionWorld();
+    sol::table tbl = lua.create_table();
+    tbl["x"] = position[VX];
+    tbl["y"] = position[VY];
+    tbl["z"] = position[VZ];
+    return sol::make_object(lua, tbl);
+  }
 
-  lua.set_function("setExp", [](int exp) {
-    if (auto* player = Gothic2APlayer::GetLocalPlayer()) {
-      if (auto* npc = player->GetNpc()) {
-        const unsigned long clamped_exp = static_cast<unsigned long>(std::max(exp, 0));
-        npc->experience_points = clamped_exp;
-
-        if (auto* status_menu = GetStatusMenu()) {
-          status_menu->SetExperience(clamped_exp, 0, npc->experience_points_next_level);
-        }
-      }
-    }
-  });
-
-  lua.set_function("getExp", []() {
-    if (auto* player = Gothic2APlayer::GetLocalPlayer()) {
-      if (auto* npc = player->GetNpc()) {
-        return static_cast<int>(npc->experience_points);
-      }
-    }
-
-    return 0;
-  });
-
-  lua.set_function("setNextLevelExp", [](int next_level_exp) {
-    if (auto* player = Gothic2APlayer::GetLocalPlayer()) {
-      if (auto* npc = player->GetNpc()) {
-        const unsigned long clamped_next_level = static_cast<unsigned long>(std::max(next_level_exp, 0));
-        npc->experience_points_next_level = clamped_next_level;
-
-        if (auto* status_menu = GetStatusMenu()) {
-          status_menu->SetExperience(npc->experience_points, 0, clamped_next_level);
-        }
-      }
-    }
-  });
-
-  lua.set_function("getNextLevelExp", []() {
-    if (auto* player = Gothic2APlayer::GetLocalPlayer()) {
-      if (auto* npc = player->GetNpc()) {
-        return static_cast<int>(npc->experience_points_next_level);
-      }
-    }
-
-    return 0;
-  });
+  return sol::nil;
 }
 
-void BindNpc(sol::state& lua) {
-  lua.set_function("createNpc", [](const std::string& name) {
+/* luadoc (func)
+*
+* Set a player's facing angle (radians) in world space.
+*
+* @name     setPlayerAngle
+* @side     client
+* @category Player
+* @param    (int) player_id  Target player id.
+* @param    (float) angle    Angle in radians.
+* @param    (boolean|nil) interpolate Optional interpolation flag.
+*
+*/
+bool Function_SetPlayerAngle(std::uint64_t id, float angle, sol::optional<bool> /*interpolate*/) {
+    if (auto* npc = GetNpcById(id)) {
+      const float radians = angle;
+      const zVEC3 heading_vector(std::sin(radians), 0.0F, std::cos(radians));
+      npc->SetHeadingYWorld(heading_vector);
+      return true;
+    }
+    return false;
+  }
+
+/* luadoc (func)
+*
+* Get a player's facing angle (radians) in world space.
+*
+* @name     getPlayerAngle
+* @side     client
+* @category Player
+* @param    (int) player_id  Target player id.
+* @return   (number|nil)           Angle in radians or nil.
+*
+*/
+sol::object Function_GetPlayerAngle(std::uint64_t id, sol::this_state ts) {
+  sol::state_view lua(ts);
+
+  if (auto* npc = GetNpcById(id)) {
+    const zVEC3 forward = npc->GetAtVectorWorld();
+    return sol::make_object(lua, std::atan2(forward[VX], forward[VZ]));
+  }
+
+  return sol::nil;
+}
+/* luadoc (func)
+*
+* Give an item to a player or NPC on the client.
+*
+* @name     giveItem
+* @side     client
+* @category Inventory
+* @param    (int) player_id  Target player id.
+* @param    (string) instance       Item instance name.
+* @param    (int) amount            Amount to give.
+* @return   (boolean)               True on success.
+*
+*/
+bool Function_GiveItem(std::uint64_t id, const std::string& instance, std::int32_t amount) {
+  if (amount <= 0) {
+    return false;
+  }
+
+  if (auto* npc = GetNpcById(id)) {
+    if (auto* parser = zCParser::GetParser()) {
+      zSTRING instance_name(instance.c_str());
+      const int instance_id = parser->GetIndex(instance_name);
+      if (instance_id >= 0) {
+        npc->CreateItems(instance_id, amount);
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+/* luadoc (func)
+*
+* Equip an item for a player or NPC on the client.
+*
+* @name     equipItem
+* @side     client
+* @category Inventory
+* @param    (int) player_id  Target player id.
+* @param    (string) instance       Item instance name.
+* @param    (int) slot_id           Optional slot id, ignored on client.
+* @return   (boolean)               True on success.
+*
+*/
+bool Function_EquipItem(std::uint64_t id, const std::string& instance, sol::optional<int> slot_id) {
+  (void)slot_id;
+
+  if (auto* npc = GetNpcById(id)) {
+    if (auto* parser = zCParser::GetParser()) {
+      zSTRING instance_name(instance.c_str());
+      const int instance_id = parser->GetIndex(instance_name);
+      if (instance_id >= 0) {
+        npc->CreateItems(instance_id, 1);
+        if (auto* item = npc->inventory2.IsIn(instance_id, 1)) {
+          npc->EquipItem(item);
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+/* luadoc (func)
+*
+* Unequip an item from a player or NPC on the client.
+*
+* @name     unequipItem
+* @side     client
+* @category Inventory
+* @param    (int) player_id  Target player id.
+* @param    (string) instance       Item instance name.
+* @return   (boolean)               True on success.
+*
+*/
+bool Function_UnequipItem(std::uint64_t id, const std::string& instance) {
+  if (auto* npc = GetNpcById(id)) {
+    if (auto* parser = zCParser::GetParser()) {
+      zSTRING instance_name(instance.c_str());
+      const int instance_id = parser->GetIndex(instance_name);
+      if (instance_id >= 0) {
+        if (auto* item = npc->inventory2.IsIn(instance_id, 1)) {
+          npc->UnequipItem(item);
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+/* luadoc (func)
+*
+* Change the current game world.
+*
+* @name     changeWorld
+* @side     client
+* @category World
+* @param    (string) world             World filename.
+* @param    (string|nil) start_point   Optional start point name.
+*
+*/
+bool Function_ChangeWorld(const std::string& world, sol::optional<std::string> start_point) {
+  zSTRING z_world(world.c_str());
+  zSTRING z_start_point = start_point ? zSTRING(start_point->c_str()) : zSTRING("");
+    Patch::ChangeLevelEnabled(true);
+    ogame->ChangeLevel(z_world, z_start_point);
+    Patch::ChangeLevelEnabled(false);
+	return 0;
+}
+
+/* luadoc (func)
+*
+* Get the current game world filename.
+*
+* @name     getWorld
+* @side     client
+* @category World
+* @return   (string)           World filename.
+*
+*/
+sol::object Function_GetWorld(sol::this_state ts) {
+  sol::state_view lua(ts);
+  return sol::make_object(lua, std::string(ogame->GetGameWorld()->GetWorldFilename().ToChar()));
+}
+
+/* luadoc (func)
+*
+* Create a client-side NPC entry and return an internal npc id (<0).
+*
+* @name     createNpc
+* @side     client
+* @category NPC
+* @param    (string) name  Name for the created NPC.
+* @return   (int)            Internal npc id (negative) or 0 on failure.
+*
+*/
+int Function_CreateNpc(const std::string& name) {
     if (!HasFactoryAndParser()) {
       SPDLOG_WARN("createNpc: missing game engine components");
       return 0;
@@ -547,9 +1257,20 @@ void BindNpc(sol::state& lua) {
     const int npc_id = g_next_npc_id--;
     g_client_npcs.emplace(npc_id, ClientNpc{npc, name});
     return npc_id;
-  });
+  }
 
-  lua.set_function("destroyNpc", [](int npc_id) {
+/* luadoc (func)
+*
+* Destroy a client-side NPC previously created with `createNpc`.
+*
+* @name     destroyNpc
+* @side     client
+* @category NPC
+* @param    (int) npc_id  Internal npc id returned by `createNpc`.
+* @return   (boolean)       True on success.
+*
+*/
+bool Function_DestroyNpc(int npc_id) {
     auto it = g_client_npcs.find(npc_id);
     if (it == g_client_npcs.end()) {
       return false;
@@ -567,9 +1288,21 @@ void BindNpc(sol::state& lua) {
 
     g_client_npcs.erase(it);
     return true;
-  });
+  }
 
-  lua.set_function("spawnNpc", [](int npc_id, sol::optional<std::string> instance_name) {
+/* luadoc (func)
+*
+* Spawn a previously created NPC into the world using an optional instance.
+*
+* @name     spawnNpc
+* @side     client
+* @category NPC
+* @param    (int) npc_id             Internal npc id.
+* @param    (string|nil) instance_name Optional instance name (e.g., "PC_HERO").
+* @return   (boolean)                   True if spawn attached to world.
+*
+*/
+bool Function_SpawnNpc(int npc_id, sol::optional<std::string> instance_name) {
     auto it = g_client_npcs.find(npc_id);
     if (it == g_client_npcs.end()) {
       return false;
@@ -613,9 +1346,20 @@ void BindNpc(sol::state& lua) {
     entry.spawned = attached;
 
     return attached;
-  });
+  }
 
-  lua.set_function("unspawnNpc", [](int npc_id) {
+/* luadoc (func)
+*
+* Unspawn (remove) a client NPC from the world without destroying it.
+*
+* @name     unspawnNpc
+* @side     client
+* @category NPC
+* @param    (int) npc_id  Internal npc id.
+* @return   (boolean)       True on success.
+*
+*/
+bool Function_UnspawnNpc(int npc_id) {
     auto it = g_client_npcs.find(npc_id);
     if (it == g_client_npcs.end()) {
       return false;
@@ -634,12 +1378,37 @@ void BindNpc(sol::state& lua) {
     it->second.spawned = false;
 
     return true;
-  });
-}
+  }
 
 void BindDiscord(sol::state& lua) {
+/* luadoc (class)
+*
+* This class exposes static methods for updating the user's Discord activity from the game client.
+*
+* @name     Discord
+* @side     client
+* @category Discord
+*
+*/
   auto discord = lua.create_table("Discord");
-  
+
+/* luadoc (method)
+*
+* Updates the Discord Rich Presence activity. 
+* 
+* All parameters are optional and should be passed via a table. Missing fields default to empty values.
+*
+* @name     SetActivity
+* @static
+* @param    (table) params Activity configuration table.
+* @param    (string) params.state Text shown as the activity state.
+* @param    (string) params.details Text shown as activity details.
+* @param    (string) params.largeImageKey Key of the large image asset.
+* @param    (string) params.largeImageText Tooltip text for the large image.
+* @param    (string) params.smallImageKey Key of the small image asset.
+* @param    (string) params.smallImageText Tooltip text for the small image.
+*
+*/
   discord.set_function("SetActivity", [](const sol::table& params) {
     auto state = GetOptionalString(params, "state", "State").value_or("");
     auto details = GetOptionalString(params, "details", "Details").value_or("");
@@ -692,7 +1461,6 @@ void BindDraw(sol::state& lua) {
   draw_type["color"] = sol::property(&LuaDraw::getColor);
   draw_type["alpha"] = sol::property(&LuaDraw::getAlpha, &LuaDraw::setAlpha);
   draw_type["visible"] = sol::property(&LuaDraw::getVisible, &LuaDraw::setVisible);
-
 }
 
 void BindTexture(sol::state& lua) {
@@ -763,46 +1531,147 @@ void BindSound(sol::state& lua) {
   sound_type["balance"] = sol::property(&LuaSound::getBalance, &LuaSound::setBalance);
 }
 
-void BindTime(sol::state& lua) {
-  lua.set_function("setTime", [](int hour, int minute) {
-    if (!ogame || !ogame->GetWorldTimer()) {
-      return;
-    }
 
-    ogame->GetWorldTimer()->SetTime(hour, minute);
-  });
+/* luadoc (func)
+*
+* Set the in-game world time (hour, minute).
+*
+* @name     setTime
+* @side     client
+* @category Time
+* @param    (int) hour    Hour component.
+* @param    (int) minute  Minute component.
+*
+*/
+void Function_SetTime(int hour, int minute) {
+  if (!ogame || !ogame->GetWorldTimer()) {
+    return;
+  }
 
-  lua.set_function("getTime", []() {
-    int hour = 0;
-    int minute = 0;
+  ogame->GetWorldTimer()->SetTime(hour, minute);
+}
 
-    if (ogame && ogame->GetWorldTimer()) {
-      ogame->GetWorldTimer()->GetTime(hour, minute);
-    }
+/* luadoc (func)
+*
+* Get the in-game world time.
+*
+* @name     getTime
+* @side     client
+* @category Time
+* @return   ({hour, minute})  Table containing hour and minute.
+*
+*/
+sol::object Function_GetTime(sol::this_state ts) {
+  sol::state_view lua(ts);
 
-    return std::make_tuple(hour, minute);
-  });
+  int hour = 0;
+  int minute = 0;
 
-  lua.set_function("setDayLength", [](float day_length_seconds) {
-    //
-  });
+  if (ogame && ogame->GetWorldTimer()) {
+    ogame->GetWorldTimer()->GetTime(hour, minute);
+  }
 
-  lua.set_function("getDayLength", []() {
-    //
-  });
+  sol::table tbl = lua.create_table();
+  tbl["hour"]   = hour;
+  tbl["minute"] = minute;
+  return sol::make_object(lua, tbl);
+}
+
+/* luadoc (func)
+*
+* Set the duration of an in-game day in seconds.
+*
+* @name     setDayLength
+* @side     client
+* @category Time
+* @param    (float) day_length_seconds  Length of day in seconds.
+*
+*/
+void Function_SetDayLength(float day_length_seconds) {
+  //
+}
+
+/* luadoc (func)
+*
+* Get the configured in-game day length in seconds.
+*
+* @name     getDayLength
+* @side     client
+* @category Time
+* @return   (float)  Day length in seconds.
+*
+*/
+sol::object Function_GetDayLength() {
+  return sol::nil;
 }
 
 void BindGothicSpecific(sol::state& lua) {
   SPDLOG_TRACE("Initializing Gothic 2 Addon 2.6 specific bindings...");
 
-  BindPlayers(lua);
-  BindNpc(lua);
+  lua["setPlayerInstance"] = Function_SetPlayerInstance;
+  lua["getPlayerInstance"] = Function_GetPlayerInstance;
+  lua["setPlayerName"] = Function_SetPlayerName;
+  lua["getPlayerName"] = Function_GetPlayerName;
+  lua["setPlayerColor"] = Function_SetPlayerColor;
+  lua["getPlayerColor"] = Function_GetPlayerColor;
+  lua["setPlayerHealth"] = Function_SetPlayerHealth;
+  lua["getPlayerHealth"] = Function_GetPlayerHealth;
+  lua["setPlayerMaxHealth"] = Function_SetPlayerMaxHealth;
+  lua["getPlayerMaxHealth"] = Function_GetPlayerMaxHealth;
+  lua["setPlayerMana"] = Function_SetPlayerMana;
+  lua["getPlayerMana"] = Function_GetPlayerMana;
+  lua["setPlayerMaxMana"] = Function_SetPlayerMaxMana;
+  lua["getPlayerMaxMana"] = Function_GetPlayerMaxMana;
+  lua["setPlayerStrength"] = Function_SetPlayerStrength;
+  lua["getPlayerStrength"] = Function_GetPlayerStrength;
+  lua["setPlayerDexterity"] = Function_SetPlayerDexterity;
+  lua["getPlayerDexterity"] = Function_GetPlayerDexterity;
+  lua["setPlayerSkillWeapon"] = Function_SetPlayerSkillWeapon;
+  lua["getPlayerSkillWeapon"] = Function_GetPlayerSkillWeapon;
+  lua["setPlayerTalent"] = Function_SetPlayerTalent;
+  lua["getPlayerTalent"] = Function_GetPlayerTalent;
+  lua["setPlayerLevel"] = Function_SetPlayerLevel;
+  lua["getPlayerLevel"] = Function_GetPlayerLevel;
+  lua["setLearnPoints"] = Function_SetLearnPoints;
+  lua["getLearnPoints"] = Function_GetLearnPoints;
+  lua["setExp"] = Function_SetExp;
+  lua["getExp"] = Function_GetExp;
+  lua["setPlayerFatness"] = Function_SetNextLevelExp;
+  lua["getNextLevelExp"] = Function_GetNextLevelExp;
+  lua["setPlayerVisual"] = Function_SetPlayerVisual;
+  lua["getPlayerVisual"] = Function_SetPlayerVisual;
+  lua["setPlayerScale"] = Function_SetPlayerScale;
+  lua["getPlayerScale"] = Function_GetPlayerScale;
+  lua["applyPlayerOverlay"] = Function_ApplyPlayerOverlay;
+  lua["getPlayerOverlays"] = Function_GetPlayerOverlays;
+  lua["removePlayerOverlay"] = Function_RemovePlayerOverlay;
+  lua["setPlayerPosition"] = Function_SetPlayerPosition;
+  lua["getPlayerPosition"] = Function_GetPlayerPosition;
+  lua["setPlayerAngle"] = Function_SetPlayerAngle;
+  lua["getPlayerAngle"] = Function_GetPlayerAngle;
+
+  lua["giveItem"] = Function_GiveItem;
+  lua["equipItem"] = Function_EquipItem;
+  lua["unequipItem"] = Function_UnequipItem;
+  
+  lua["changeWorld"] = Function_ChangeWorld;
+  lua["getWorld"] = Function_GetWorld;
+
+  lua["createNpc"] = Function_CreateNpc;
+  lua["destroyNpc"] = Function_DestroyNpc;
+  lua["spawnNpc"] = Function_SpawnNpc;
+  lua["unspawnNpc"] = Function_UnspawnNpc;
+
   BindInputConstants(lua);
   BindDiscord(lua);
   BindDraw(lua);
   BindTexture(lua);
   BindSound(lua);
-  BindTime(lua);
+
+  lua["setTime"] = Function_SetTime;
+  lua["getTime"] = Function_GetTime;
+  lua["setDayLength"] = Function_SetDayLength;
+  lua["getDayLength"] = Function_GetDayLength;
 }
 
 void CleanupGothicViews() {

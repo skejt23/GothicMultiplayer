@@ -36,6 +36,26 @@ constexpr float kMinBalance = -1.0f;
 constexpr float kMaxBalance = 1.0f;
 }  // namespace
 
+/* luadoc (class)
+*
+* Sound playback helper.
+*
+* Provides basic control over a sound resource loaded from a file, including
+* playback, looping, volume, stereo balance and querying playback state.
+*
+* @name     Sound
+* @side     client
+* @category Sound
+*
+*/
+/* luadoc (constructor)
+*
+* Creates a new Sound from a file.
+*
+* @param    (string) file Sound file path.
+*
+*/
+
 LuaSound::LuaSound(const std::string& filename) : file_(filename), volume_(1.0f), looping_(false), balance_(0.0f), handle_(-1), sound_fx_(nullptr) {
   ReloadSound();
 }
@@ -97,6 +117,13 @@ void LuaSound::StopIfNeeded() {
   handle_ = -1;
 }
 
+/* luadoc (method)
+*
+* Starts sound playback.
+*
+* @name     play
+*
+*/
 void LuaSound::play() {
   if (!sound_fx_) {
     ReloadSound();
@@ -121,13 +148,70 @@ void LuaSound::play() {
   SPDLOG_INFO("PlaySound returned handle: {}", handle_);
 }
 
+/* luadoc (method)
+*
+* Stops sound playback.
+*
+* @name     stop
+*
+*/
 void LuaSound::stop() {
   StopIfNeeded();
 }
 
+/* luadoc (method)
+*
+* Returns whether the sound is currently playing.
+*
+* @name     isPlaying
+* @return   (bool) True if the sound is playing.
+*
+*/
 bool LuaSound::isPlaying() const {
   return handle_ >= 0 && zsound && zsound->IsSoundActive(handle_) != 0;
 }
+
+/* luadoc (property)
+*
+* Gets or sets the sound file path.
+*
+* @name     file
+* @return   (string) Sound file path.
+*
+*/
+/* luadoc (property)
+*
+* Returns the current playback time.
+*
+* @name     playingTime
+* @readonly
+* @return   (number) Playback time.
+*
+*/
+/* luadoc (property)
+*
+* Gets or sets the playback volume.
+*
+* @name     volume
+* @return   (number) Volume level.
+*
+*/
+/* luadoc (property)
+*
+* Gets or sets whether the sound should loop.
+*
+* @name     looping
+* @return   (bool) True if looping is enabled.
+*
+*/
+/* luadoc (property)
+*
+* Gets or sets the stereo balance (pan).
+*
+* @name     balance
+* @return   (number) Stereo balance value.
+*
+*/
 
 std::string LuaSound::getFile() const {
   return file_;

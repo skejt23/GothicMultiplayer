@@ -31,10 +31,6 @@ addEventHandler('onPlayerCommand', function(id, command, params)
     LOG_INFO("Command from {}: /{} {}", id, command, params)
 end)
 
-addEventHandler('onPlayerWhisper', function(fromId, toId, text)
-    LOG_INFO("{} whispers to {}: {}", fromId, toId, text)
-end)
-
 addEventHandler('onPlayerKill', function(killerId, victimId)
     LOG_INFO("Player {} killed {}", killerId, victimId)
 end)

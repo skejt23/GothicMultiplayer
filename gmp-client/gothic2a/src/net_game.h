@@ -60,10 +60,7 @@ public:
   void SendTakeItem(short Instance);
   void SendCastSpell(oCNpc* Target, short SpellId);
   void SendMessage(const char* msg);
-  void SendWhisper(const char* player_name, const char* msg);
-  void SendCommand(const char* msg);
   void UpdatePlayerStats(short anim);
-  void SendHPDiff(size_t who, short diff);
   void SyncGameTime();
   void Disconnect();
   void RestoreHealth();
@@ -81,7 +78,6 @@ public:
   std::vector<Gothic2APlayer*> players;
   int HeroLastHp;
   zSTRING map;
-  bool IsAdminOrModerator{false};
   bool IsInGame{false};
   short mp_restore{0};
   int DropItemsAllowed{0};
@@ -110,18 +106,29 @@ public:
   void OnPlayerLeft(std::uint64_t player_id, const std::string& player_name) override;
   void OnPlayerStateUpdate(std::uint64_t player_id, const PlayerState& state) override;
   void OnPlayerPositionUpdate(std::uint64_t player_id, float x, float y, float z) override;
+  void OnPlayerNameUpdate(std::uint64_t player_id, const std::string& name) override;
+  void OnPlayerInstanceUpdate(std::uint64_t player_id, const std::string& instance) override;
+  void OnPlayerColorUpdate(std::uint64_t player_id, std::uint8_t r, std::uint8_t g, std::uint8_t b) override;
+  void OnPlayerSkillWeaponUpdate(std::uint64_t player_id, std::int32_t skill_id, std::int32_t percentage) override;
+  void OnPlayerTalentUpdate(std::uint64_t player_id, std::int32_t talent_id, std::int32_t talent_value) override;
+  void OnPlayerVisualUpdate(std::uint64_t player_id, const std::string& body_model, std::int16_t body_texture, const std::string& head_model,
+                            std::int16_t head_texture) override;
+  void OnPlayerFatnessUpdate(std::uint64_t player_id, float fatness) override;
+  void OnPlayerScaleUpdate(std::uint64_t player_id, const glm::vec3& scale) override;
+  void OnPlayerOverlayUpdate(std::uint64_t player_id, const std::string& overlay, bool apply) override;
+  void OnPlayerAttributeUpdate(std::uint64_t player_id, PlayerAttributeId attribute_id, std::int32_t value) override;
+  void OnPlayerWorldUpdate(std::uint64_t player_id, const std::string& world_name, const std::string& start_point) override;
   void OnPlayerDied(std::uint64_t player_id) override;
   void OnPlayerRespawned(std::uint64_t player_id) override;
   void OnItemDropped(std::uint64_t player_id, std::uint16_t item_instance, std::uint16_t amount) override;
   void OnItemTaken(std::uint64_t player_id, std::uint16_t item_instance) override;
+  void OnItemGiven(std::uint64_t player_id, const std::string& item_instance, std::int32_t amount) override;
+  void OnItemEquipped(std::uint64_t player_id, const std::string& item_instance, std::int16_t slot_id) override;
+  void OnItemUnequipped(std::uint64_t player_id, const std::string& item_instance) override;
   void OnSpellCast(std::uint64_t caster_id, std::uint16_t spell_id) override;
   void OnSpellCastOnTarget(std::uint64_t caster_id, std::uint64_t target_id, std::uint16_t spell_id) override;
   void OnPlayerMessage(std::optional<std::uint64_t> sender_id, std::uint8_t r, std::uint8_t g, std::uint8_t b,
                        const std::string& message) override;
-  void OnWhisperReceived(std::uint64_t sender_id, const std::string& sender_name, const std::string& message) override;
-  void OnRconResponse(const std::string& response, bool is_admin) override;
-  void OnDiscordActivityUpdate(const std::string& state, const std::string& details, const std::string& large_image_key,
-                               const std::string& large_image_text, const std::string& small_image_key, const std::string& small_image_text) override;
 
 private:
   NetGame();

@@ -55,13 +55,22 @@ enum PacketID {
   PT_INITIAL_INFO,
   PT_JOIN_GAME,
   PT_PLAYER_SPAWN,
+  PT_PLAYER_NAME_UPDATE,
+  PT_PLAYER_INSTANCE_UPDATE,
+  PT_PLAYER_COLOR_UPDATE,
+  PT_PLAYER_VISUAL_UPDATE,
+  PT_PLAYER_FATNESS_UPDATE,
+  PT_PLAYER_SCALE_UPDATE,
+  PT_PLAYER_OVERLAY_UPDATE,
+  PT_PLAYER_SKILL_WEAPON_UPDATE,
+  PT_PLAYER_TALENT_UPDATE,
+  PT_PLAYER_ATTRIBUTE_UPDATE,
+  PT_PLAYER_ATTRIBUTE_SNAPSHOT,
+  PT_PLAYER_WORLD_UPDATE,
   PT_ACTUAL_STATISTICS,  // <- chyba tutaj będe musiał dodac optymalizacje gdyż nie potrzeba nam wszystkich informacji o
                          // graczu który jest od nas dalej niż 5000.0f
   PT_EXISTING_PLAYERS,         // Packet contains information about all other players. Send to the new joining player.
-  PT_HP_DIFF,
   PT_MAP_ONLY,
-  PT_COMMAND,  // administrowanie
-  PT_WHISPER,
   PT_EXTENDED_4_SCRIPTS,  // jak juz kiedys wdrozymy skrypty
   PT_SRVMSG,
   PT_LEFT_GAME,
@@ -70,10 +79,12 @@ enum PacketID {
   PT_RESPAWN,
   PT_DROPITEM,
   PT_TAKEITEM,
+  PT_GIVEITEM,
+  PT_EQUIPITEM,
+  PT_UNEQUIPITEM,
   PT_CASTSPELL,
   PT_CASTSPELLONTARGET,
   PT_VOICE,
-  PT_DISCORD_ACTIVITY,
 };
 
 inline const char* PacketIDToString(PacketID id) {
@@ -116,18 +127,36 @@ inline const char* PacketIDToString(PacketID id) {
       return "PT_JOIN_GAME";
     case PT_PLAYER_SPAWN:
       return "PT_PLAYER_SPAWN";
+    case PT_PLAYER_NAME_UPDATE:
+      return "PT_PLAYER_NAME_UPDATE";
+    case PT_PLAYER_INSTANCE_UPDATE:
+      return "PT_PLAYER_INSTANCE_UPDATE";
+    case PT_PLAYER_COLOR_UPDATE:
+      return "PT_PLAYER_COLOR_UPDATE";
+    case PT_PLAYER_VISUAL_UPDATE:
+      return "PT_PLAYER_VISUAL_UPDATE";
+    case PT_PLAYER_FATNESS_UPDATE:
+      return "PT_PLAYER_FATNESS_UPDATE";
+    case PT_PLAYER_SCALE_UPDATE:
+      return "PT_PLAYER_SCALE_UPDATE";
+    case PT_PLAYER_OVERLAY_UPDATE:
+      return "PT_PLAYER_OVERLAY_UPDATE";
+    case PT_PLAYER_SKILL_WEAPON_UPDATE:
+      return "PT_PLAYER_SKILL_WEAPON_UPDATE";
+    case PT_PLAYER_TALENT_UPDATE:
+      return "PT_PLAYER_TALENT_UPDATE";
+    case PT_PLAYER_ATTRIBUTE_UPDATE:
+      return "PT_PLAYER_ATTRIBUTE_UPDATE";
+    case PT_PLAYER_ATTRIBUTE_SNAPSHOT:
+      return "PT_PLAYER_ATTRIBUTE_SNAPSHOT";
+    case PT_PLAYER_WORLD_UPDATE:
+      return "PT_PLAYER_WORLD_UPDATE";
     case PT_ACTUAL_STATISTICS:
       return "PT_ACTUAL_STATISTICS";
     case PT_EXISTING_PLAYERS:
       return "PT_EXISTING_PLAYERS";
-    case PT_HP_DIFF:
-      return "PT_HP_DIFF";
     case PT_MAP_ONLY:
       return "PT_MAP_ONLY";
-    case PT_COMMAND:
-      return "PT_COMMAND";
-    case PT_WHISPER:
-      return "PT_WHISPER";
     case PT_EXTENDED_4_SCRIPTS:
       return "PT_EXTENDED_4_SCRIPTS";
     case PT_SRVMSG:
@@ -144,14 +173,18 @@ inline const char* PacketIDToString(PacketID id) {
       return "PT_DROPITEM";
     case PT_TAKEITEM:
       return "PT_TAKEITEM";
+    case PT_GIVEITEM:
+      return "PT_GIVEITEM";
+    case PT_EQUIPITEM:
+      return "PT_EQUIPITEM";
+    case PT_UNEQUIPITEM:
+      return "PT_UNEQUIPITEM";
     case PT_CASTSPELL:
       return "PT_CASTSPELL";
     case PT_CASTSPELLONTARGET:
       return "PT_CASTSPELLONTARGET";
     case PT_VOICE:
       return "PT_VOICE";
-    case PT_DISCORD_ACTIVITY:
-      return "PT_DISCORD_ACTIVITY";
   }
   return "UNKNOWN";
 }

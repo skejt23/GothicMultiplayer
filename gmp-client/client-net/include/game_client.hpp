@@ -65,18 +65,15 @@ public:
 
   // To be called after connecting to the server and receiving the initial info packet,
   // downloading all the required files, and loading the world.
-  void JoinGame(const std::string& player_name, const std::string& character_name, int head_model, int skin_texture, int face_texture,
-                int walk_style);
+  void JoinGame(const std::string& player_name, const std::string& character_name, 
+                const std::string& body_model, int body_texture, const std::string& head_model, int head_texture, int walk_style);
 
   // Send methods
   void SendChatMessage(const std::string& msg);
-  void SendWhisper(std::uint64_t recipient_id, const std::string& msg);
-  void SendCommand(const std::string& msg);
-  void SendCastSpell(std::uint64_t target_id, std::uint16_t spell_id);
+  void SendCastSpell(std::uint32_t target_id, std::uint16_t spell_id);
   void SendDropItem(std::uint16_t instance, std::uint16_t amount);
   void SendTakeItem(std::uint16_t instance);
   void UpdatePlayerStats(const PlayerState& state);
-  void SendHPDiff(std::uint64_t player_id, std::int16_t diff);
   void SyncGameTime();
 
   // Network handling - MUST be called from main thread
@@ -124,15 +121,27 @@ private:
   void OnCastSpellOnTarget(Packet packet);
   void OnDropItem(Packet packet);
   void OnTakeItem(Packet packet);
-  void OnWhisper(Packet packet);
+  void OnGiveItem(Packet packet);
+  void OnEquipItem(Packet packet);
+  void OnUnequipItem(Packet packet);
   void OnMessage(Packet packet);
-  void OnRcon(Packet packet);
   void OnExistingPlayers(Packet packet);
   void OnPlayerSpawn(Packet packet);
   void OnJoinGame(Packet packet);
+  void OnPlayerNameUpdate(Packet packet);
+  void OnPlayerInstanceUpdate(Packet packet);
+  void OnPlayerColorUpdate(Packet packet);
+  void OnPlayerSkillWeaponUpdate(Packet packet);
+  void OnPlayerTalentUpdate(Packet packet);
+  void OnPlayerVisualUpdate(Packet packet);
+  void OnPlayerFatnessUpdate(Packet packet);
+  void OnPlayerScaleUpdate(Packet packet);
+  void OnPlayerOverlayUpdate(Packet packet);
+  void OnPlayerAttributeUpdate(Packet packet);
+  void OnPlayerAttributeSnapshot(Packet packet);
+  void OnPlayerWorldUpdate(Packet packet);
   void OnGameInfo(Packet packet);
   void OnLeftGame(Packet packet);
-  void OnDiscordActivity(Packet packet);
   void OnDisconnectOrLostConnection(Packet packet);
 
   EventObserver& event_observer_;

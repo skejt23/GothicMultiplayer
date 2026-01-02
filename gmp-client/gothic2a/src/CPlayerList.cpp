@@ -77,39 +77,10 @@ bool CPlayerList::ClosePlayerList() {
 };
 
 void CPlayerList::RunPlayerListItem() {
-  std::string buffer;
   switch (MenuPos) {
     case 0:
       MenuPos = 1;
       PlayerOptions = false;
-      break;
-    case 1:
-      global_ingame->WhisperingTo = ChosenPlayer.ToChar();
-      CChat::GetInstance()->SetWhisperTo(global_ingame->WhisperingTo);
-      CChat::GetInstance()->PrintMsgType = WHISPER;
-      ClosePlayerList();
-      break;
-    case 2:
-      buffer = "kick " + std::string(ChosenPlayer.ToChar());
-      NetGame::Instance().SendCommand(buffer.c_str());
-      ClosePlayerList();
-      break;
-    case 3:
-      buffer = "ban " + std::string(ChosenPlayer.ToChar());
-      NetGame::Instance().SendCommand(buffer.c_str());
-      ClosePlayerList();
-      break;
-    case 4:
-      buffer = "kill " + std::string(ChosenPlayer.ToChar());
-      NetGame::Instance().SendCommand(buffer.c_str());
-      ClosePlayerList();
-      break;
-    case 5:
-      if (!player->IsDead()) {
-        zVEC3 pos = ChPlayerNpc->trafoObjToWorld.GetTranslation();
-        player->trafoObjToWorld.SetTranslation(zVEC3(pos[VX], pos[VY] + 100, pos[VZ]));
-      }
-      ClosePlayerList();
       break;
   }
 };
@@ -186,19 +157,6 @@ void CPlayerList::UpdatePlayerList() {
       Screen->Print(x + 400, y + 200, Language::Instance()[Language::NOPLAYERS]);
   } else {
     // INPUT
-    if (zinput->KeyToggled(KEY_UP)) {
-      if (MenuPos > 0)
-        MenuPos--;
-    }
-    if (zinput->KeyToggled(KEY_DOWN)) {
-      if (NetGame::Instance().IsAdminOrModerator) {
-        if (MenuPos < 5)
-          MenuPos++;
-      } else {
-        if (MenuPos < 1)
-          MenuPos++;
-      }
-    }
     if (zinput->KeyPressed(KEY_RETURN)) {
       zinput->ClearKeyBuffer();
       RunPlayerListItem();
@@ -210,22 +168,5 @@ void CPlayerList::UpdatePlayerList() {
     FColors1 = (MenuPos == 0) ? Highlighted : Normal;
     Screen->SetFontColor(FColors1);
     Screen->Print(x + 400, y + 200, Language::Instance()[Language::MMENU_BACK]);
-    FColors1 = (MenuPos == 1) ? Highlighted : Normal;
-    Screen->SetFontColor(FColors1);
-    Screen->Print(x + 400, y + 400, Language::Instance()[Language::PLIST_PM]);
-    if (NetGame::Instance().IsAdminOrModerator) {
-      FColors1 = (MenuPos == 2) ? Highlighted : Normal;
-      Screen->SetFontColor(FColors1);
-      Screen->Print(x + 400, y + 800, "Kick");
-      FColors1 = (MenuPos == 3) ? Highlighted : Normal;
-      Screen->SetFontColor(FColors1);
-      Screen->Print(x + 400, y + 1000, "Ban");
-      FColors1 = (MenuPos == 4) ? Highlighted : Normal;
-      Screen->SetFontColor(FColors1);
-      Screen->Print(x + 400, y + 1200, Language::Instance()[Language::KILL_PLAYER]);
-      FColors1 = (MenuPos == 5) ? Highlighted : Normal;
-      Screen->SetFontColor(FColors1);
-      Screen->Print(x + 400, y + 1400, Language::Instance()[Language::GOTO_PLAYER]);
-    }
   }
 };
