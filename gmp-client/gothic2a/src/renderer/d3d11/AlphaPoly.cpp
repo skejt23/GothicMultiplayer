@@ -58,33 +58,34 @@ QueuedAlphaPoly* AlphaPolyQueue::Allocate() {
 }
 
 void AlphaPolyQueue::Submit(QueuedAlphaPoly* poly) {
-  if (!poly) {
+  if (!poly || poly->vert_count < 3) {
     return;
   }
 
-  // Calculate average Z for sorting
-  float z_sum = 0.0f;
-  for (int i = 0; i < poly->vert_count; ++i) {
-    z_sum += poly->verts[i].z;
-  }
-  poly->z_value = z_sum / static_cast<float>(poly->vert_count);
-  if (!std::isfinite(poly->z_value)) {
-    poly->z_value = 0.0f;
+  // IMPORTANT:
+  // The engine (and our renderer front-end) already computes poly->z_value as an
+  // average camera-space Z (distance). We must bucket/sort in that space.
+  //
+  // Using the pre-transformed RHW depth (poly->verts[i].z in [0,1]) together with
+  // far-clip bucket sizing causes almost all polys to land in the nearest bucket,
+  // making effects (lens flares/decals) render after water.
+  const float z_value = poly->z_value;
+  if (!std::isfinite(z_value) || z_value == 0.0f) {
+    return;
   }
 
-  // Add to bucket list with sorted insertion (back-to-front within bucket).
-  // Larger z_value means farther away in the RHW/clip-space we use for alpha polys.
-  const int bucket_idx = ComputeBucket(poly->z_value);
+  const int bucket_idx = ComputeBucket(z_value);
   QueuedAlphaPoly*& head = buckets_[bucket_idx];
 
-  if (head == nullptr || head->z_value <= poly->z_value) {
+  // Larger Z = farther from camera. For painter's algorithm, render farther first.
+  if (head == nullptr || head->z_value <= z_value) {
     poly->next = head;
     head = poly;
     return;
   }
 
   QueuedAlphaPoly* entry = head;
-  while (entry->next != nullptr && entry->next->z_value > poly->z_value) {
+  while (entry->next != nullptr && entry->next->z_value > z_value) {
     entry = entry->next;
   }
   poly->next = entry->next;
@@ -92,20 +93,19 @@ void AlphaPolyQueue::Submit(QueuedAlphaPoly* poly) {
 }
 
 void AlphaPolyQueue::SetFarClipZ(float far_clip_z) {
-  bucket_size_ = far_clip_z / static_cast<float>(kAlphaSortBuckets);
+  if (far_clip_z < 500.0f) {
+    far_clip_z = 500.0f;
+  }
+  bucket_size_ = static_cast<float>(kAlphaSortBuckets) / far_clip_z;
 }
 
 int AlphaPolyQueue::ComputeBucket(float z_value) const {
-  if (bucket_size_ <= 0.0f) {
-    return 0;
-  }
-
-  const int bucket = static_cast<int>(z_value / bucket_size_);
+  int bucket = static_cast<int>(bucket_size_ * z_value);
   if (bucket < 0) {
-    return 0;
+    bucket = 0;
   }
   if (bucket >= kAlphaSortBuckets) {
-    return kAlphaSortBuckets - 1;
+    bucket = kAlphaSortBuckets - 1;
   }
   return bucket;
 }

@@ -39,12 +39,10 @@ SOFTWARE.
 #include <filesystem>
 #include <glm/glm.hpp>
 #include <list>
+#include <optional>
 #include <sstream>
 #include <string>
-#include <optional>
 #include <vector>
-
-#include "sol/sol.hpp"
 
 #include "CChat.h"
 #include "CIngame.h"
@@ -61,6 +59,7 @@ SOFTWARE.
 #include "scripting/gothic_events.h"
 #include "scripting/process_input.h"
 #include "shared/event.h"
+#include "sol/sol.hpp"
 
 const char* LANG_DIR = ".\\Multiplayer\\Localization\\";
 
@@ -77,6 +76,17 @@ NetGame::NetGame() : task_scheduler(nullptr), game_client(nullptr), resource_run
   resource_runtime->SetResetCallback([]() { gmp::gothic::ResetGothicEvents(); });
   gmp::gothic::BindGothicEvents(resource_runtime->GetLuaState());
   gmp::gothic::BindGothicSpecific(resource_runtime->GetLuaState());
+}
+
+void NetGame::Shutdown() {
+  EventManager::Instance().Reset();
+  if (game_client) {
+    game_client->Disconnect();
+  }
+  for (auto* p : players) {
+    delete p;
+  }
+  players.clear();
 }
 
 void __stdcall NetGame::ProcessTaskScheduler() {
@@ -154,7 +164,6 @@ void NetGame::JoinGame() {
     // this->players.push_back(LocalPlayer);
     // this->HeroLastHp = player->attribute[NPC_ATR_HITPOINTS];
 
-    
     EventManager::Instance().TriggerEvent(gmp::gothic::kEventOnInitName, 0);
   }
 }
@@ -359,8 +368,7 @@ void NetGame::OnResourcesReady() {
   SPDLOG_INFO("Loading {} resource payload(s) into runtime", payloads.size());
   std::string error_message;
   if (game_client->player_manager().HasLocalPlayer()) {
-    resource_runtime->GetLuaState()["heroId"] =
-        static_cast<int>(game_client->player_manager().GetLocalPlayer().id());
+    resource_runtime->GetLuaState()["heroId"] = static_cast<int>(game_client->player_manager().GetLocalPlayer().id());
   } else {
     resource_runtime->GetLuaState()["heroId"] = sol::lua_nil;
   }
@@ -412,8 +420,7 @@ void NetGame::OnLocalPlayerSpawned(gmp::client::Player& player) {
   SPDLOG_INFO("Local player spawned at position ({}, {}, {})", player.position().x, player.position().y, player.position().z);
   local_player->SetPosition(pos);
   players.insert(players.begin(), local_player);
-  EventManager::Instance().TriggerEvent(gmp::gothic::kEventOnPlayerCreateName,
-                                        gmp::gothic::PlayerLifecycleEvent{player.id()});
+  EventManager::Instance().TriggerEvent(gmp::gothic::kEventOnPlayerCreateName, gmp::gothic::PlayerLifecycleEvent{player.id()});
 
 #ifndef NDEBUG
   // Spawn Quarhodron NPC near the player
@@ -465,8 +472,7 @@ void NetGame::OnPlayerLeft(std::uint64_t player_id, const std::string& player_na
       CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(255, 0, 0, 255), "%s%s", this->players[i]->GetName(),
                                          Language::Instance()[Language::SOMEONEDISCONNECT_FROM_SERVER].ToChar());
       this->players[i]->LeaveGame();
-      EventManager::Instance().TriggerEvent(gmp::gothic::kEventOnPlayerDestroyName,
-                                            gmp::gothic::PlayerLifecycleEvent{player_id});
+      EventManager::Instance().TriggerEvent(gmp::gothic::kEventOnPlayerDestroyName, gmp::gothic::PlayerLifecycleEvent{player_id});
       delete this->players[i];
       this->players.erase(this->players.begin() + i);
       break;
@@ -875,8 +881,7 @@ void NetGame::OnSpellCastOnTarget(std::uint64_t caster_id, std::uint64_t target_
   }
 }
 
-void NetGame::OnPlayerMessage(std::optional<std::uint64_t> sender_id, std::uint8_t r, std::uint8_t g, std::uint8_t b,
-                              const std::string& message) {
+void NetGame::OnPlayerMessage(std::optional<std::uint64_t> sender_id, std::uint8_t r, std::uint8_t g, std::uint8_t b, const std::string& message) {
   zCOLOR color(r, g, b, 255);
 
   if (sender_id) {
@@ -889,8 +894,7 @@ void NetGame::OnPlayerMessage(std::optional<std::uint64_t> sender_id, std::uint8
     CChat::GetInstance()->WriteMessage(NORMAL, false, color, "%s", message.c_str());
   }
 
-  EventManager::Instance().TriggerEvent(gmp::gothic::kEventOnPlayerMessageName,
-                                        gmp::gothic::OnPlayerMessageEvent{sender_id, r, g, b, message});
+  EventManager::Instance().TriggerEvent(gmp::gothic::kEventOnPlayerMessageName, gmp::gothic::OnPlayerMessageEvent{sender_id, r, g, b, message});
 }
 
 void NetGame::OnWhisperReceived(std::uint64_t sender_id, const std::string& sender_name, const std::string& message) {

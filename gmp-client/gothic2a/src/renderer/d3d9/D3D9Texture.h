@@ -28,6 +28,7 @@ SOFTWARE.
 #include <bitset>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "../common.h"
 #include "ZenGin/zGothicAPI.h"
@@ -123,4 +124,10 @@ private:
   std::bitset<kMaxTrackedMips> locked_mip_mask_{};
   std::array<D3D9LockedRect, kMaxTrackedMips> locked_rects_{};
   std::array<int, kMaxTrackedMips> exposed_pitches_{};
+
+  // For DXT textures we stage writes into a contiguous buffer, then upload into
+  // the D3D9 surface on Unlock to honor the real LockRect().Pitch for compressed
+  // formats (which can include driver-specific alignment/padding).
+  std::bitset<kMaxTrackedMips> dxt_staging_mask_{};
+  std::array<std::vector<std::byte>, kMaxTrackedMips> dxt_staging_buffers_{};
 };

@@ -304,10 +304,10 @@ bool D3D9RendererImpl::Init(void* hwnd, int width, int height, bool fullscreen) 
     device->SetSamplerState(stage, D3DSAMP_MINFILTER, D3DTEXF_ANISOTROPIC);
     device->SetSamplerState(stage, D3DSAMP_MAXANISOTROPY, max_anisotropy);
     device->SetSamplerState(stage, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR);
-    // Slight negative LOD bias makes distant textures sharper by selecting
-    // higher-resolution mip levels. -0.5 is a conservative value that improves
-    // clarity without excessive texture shimmer/aliasing.
-    device->SetSamplerState(stage, D3DSAMP_MIPMAPLODBIAS, std::bit_cast<DWORD>(-0.5f));
+    // Match D3D7/typical D3D9 defaults: don't force a global LOD bias.
+    // A negative bias can select different mip levels than Gothic expects and can
+    // surface corrupted/uninitialized mips in edge cases.
+    device->SetSamplerState(stage, D3DSAMP_MIPMAPLODBIAS, std::bit_cast<DWORD>(0.0f));
 
     device->SetTextureStageState(stage, D3DTSS_COLORARG1, D3DTA_TEXTURE);
     device->SetTextureStageState(stage, D3DTSS_COLORARG2, D3DTA_CURRENT);
@@ -444,7 +444,7 @@ bool D3D9RendererImpl::Reset(int width, int height) {
     device->SetSamplerState(stage, D3DSAMP_MINFILTER, D3DTEXF_ANISOTROPIC);
     device->SetSamplerState(stage, D3DSAMP_MAXANISOTROPY, max_anisotropy);
     device->SetSamplerState(stage, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR);
-    device->SetSamplerState(stage, D3DSAMP_MIPMAPLODBIAS, std::bit_cast<DWORD>(-0.5f));
+    device->SetSamplerState(stage, D3DSAMP_MIPMAPLODBIAS, std::bit_cast<DWORD>(0.0f));
 
     device->SetTextureStageState(stage, D3DTSS_COLORARG1, D3DTA_TEXTURE);
     device->SetTextureStageState(stage, D3DTSS_COLORARG2, D3DTA_CURRENT);
@@ -503,19 +503,14 @@ void D3D9RendererImpl::Cleanup() {
     d3d->Release();
     d3d = nullptr;
   }
+  frame_in_progress_ = false;
 }
 
 void D3D9RendererImpl::BeginFrame() {
-  if (device && in_scene) {
-    D3DVIEWPORT9 vp;
-    vp.X = 0;
-    vp.Y = 0;
-    vp.Width = present_params.BackBufferWidth;
-    vp.Height = present_params.BackBufferHeight;
-    vp.MinZ = 0.0f;
-    vp.MaxZ = 1.0f;
-    device->SetViewport(&vp);
+  if (frame_in_progress_) {
+    return;
   }
+  frame_in_progress_ = true;
 
   // Reset batch stats for new frame
   batch_stats_.Reset();
@@ -563,6 +558,7 @@ void D3D9RendererImpl::EndFrame() {
 }
 
 void D3D9RendererImpl::Vid_Blit() {
+  frame_in_progress_ = false;
   if (device) {
     // Flush any pending geometry before presenting
     FlushBatch();
@@ -601,6 +597,12 @@ void D3D9RendererImpl::Clear(unsigned long color) {
   }
 }
 
+void D3D9RendererImpl::ClearZ() {
+  if (device) {
+    device->Clear(0, nullptr, D3DCLEAR_ZBUFFER, 0, 1.0f, 0);
+  }
+}
+
 void D3D9RendererImpl::DrawTriangles(const Vertex3D* vertices, int count) {
   if (device && count > 0) {
     // DrawTriangles uses pre-lit vertex colors (lightDyn), so disable hardware lighting
@@ -612,9 +614,32 @@ void D3D9RendererImpl::DrawTriangles(const Vertex3D* vertices, int count) {
 
 void D3D9RendererImpl::DrawTrianglesRHW(const VertexRHW* vertices, int count) {
   if (device && count > 0) {
-    device->SetRenderState(D3DRS_LIGHTING, FALSE);
+    D3DVIEWPORT9 saved_vp;
+    if (FAILED(device->GetViewport(&saved_vp))) {
+      saved_vp.X = 0;
+      saved_vp.Y = 0;
+      saved_vp.Width = present_params.BackBufferWidth;
+      saved_vp.Height = present_params.BackBufferHeight;
+      saved_vp.MinZ = 0.0f;
+      saved_vp.MaxZ = 1.0f;
+    }
+
+    // Force fullscreen viewport for RHW rendering to avoid clipping
+    D3DVIEWPORT9 fs_vp;
+    fs_vp.X = 0;
+    fs_vp.Y = 0;
+    fs_vp.Width = present_params.BackBufferWidth;
+    fs_vp.Height = present_params.BackBufferHeight;
+    fs_vp.MinZ = 0.0f;
+    fs_vp.MaxZ = 1.0f;
+    device->SetViewport(&fs_vp);
+
+    SetRenderStateCached(D3DRS_LIGHTING, FALSE);
     device->SetFVF(kFvfVertexRhw);
     device->DrawPrimitiveUP(D3DPT_TRIANGLELIST, count / 3, vertices, sizeof(VertexRHW));
+
+    // Restore original viewport
+    device->SetViewport(&saved_vp);
   }
 }
 
@@ -733,8 +758,28 @@ void D3D9RendererImpl::FlushBatch() {
   batch_ring_ib_.Unlock();
 
   // Set up render state
-  device->SetRenderState(D3DRS_LIGHTING, FALSE);
-  device->SetRenderState(D3DRS_CLIPPING, FALSE);
+  SetRenderStateCached(D3DRS_LIGHTING, FALSE);
+  SetRenderStateCached(D3DRS_CLIPPING, FALSE);
+
+  D3DVIEWPORT9 saved_vp;
+  if (FAILED(device->GetViewport(&saved_vp))) {
+    saved_vp.X = 0;
+    saved_vp.Y = 0;
+    saved_vp.Width = present_params.BackBufferWidth;
+    saved_vp.Height = present_params.BackBufferHeight;
+    saved_vp.MinZ = 0.0f;
+    saved_vp.MaxZ = 1.0f;
+  }
+
+  D3DVIEWPORT9 fs_vp;
+  fs_vp.X = 0;
+  fs_vp.Y = 0;
+  fs_vp.Width = present_params.BackBufferWidth;
+  fs_vp.Height = present_params.BackBufferHeight;
+  fs_vp.MinZ = 0.0f;
+  fs_vp.MaxZ = 1.0f;
+  device->SetViewport(&fs_vp);
+
   device->SetFVF(kFvfVertexRhw);
   device->SetStreamSource(0, batch_ring_vb_.GetBuffer(), static_cast<UINT>(vb_offset), sizeof(VertexRHW));
   device->SetIndices(batch_ring_ib_.GetBuffer());
@@ -748,6 +793,9 @@ void D3D9RendererImpl::FlushBatch() {
                                static_cast<UINT>(ib_start_index),                // StartIndex
                                num_triangles                                     // PrimitiveCount
   );
+
+  // Restore viewport
+  device->SetViewport(&saved_vp);
 
   // Clear stream source to avoid issues with other draw calls
   device->SetStreamSource(0, nullptr, 0, 0);
@@ -852,6 +900,12 @@ void D3D9RendererImpl::SetViewport(int x, int y, int width, int height) {
   if (width <= 0 || height <= 0)
     return;
 
+  // Restore Projection if returning to full screen
+  if (width >= present_params.BackBufferWidth && has_saved_projection_) {
+    device->SetTransform(D3DTS_PROJECTION, &saved_projection_);
+    has_saved_projection_ = false;
+  }
+
   D3DVIEWPORT9 vp;
   vp.X = x;
   vp.Y = y;
@@ -860,6 +914,10 @@ void D3D9RendererImpl::SetViewport(int x, int y, int width, int height) {
   vp.MinZ = 0.0f;
   vp.MaxZ = 1.0f;
   device->SetViewport(&vp);
+
+  // Fix for Inventory Item Visibility:
+  // Z-buffer clearing attempts have consistently failed (Clear API and manual quad).
+  // The fix is handled in DrawVertexBuffer by disabling Z-test.
 }
 
 void D3D9RendererImpl::SetTransform(int state, const float* matrix) {
@@ -1071,6 +1129,51 @@ bool D3D9RendererImpl::DrawVertexBuffer(void* vertex_buffer, unsigned long fvf, 
   IDirect3DVertexBuffer9* vb = static_cast<IDirect3DVertexBuffer9*>(vertex_buffer);
   device->SetStreamSource(0, vb, 0, stride);
   device->SetFVF(fvf);
+
+  // =============================================================================
+  // D3D9 INVENTORY RENDERING WORKAROUND
+  // =============================================================================
+  // Gothic renders inventory items into small viewports (one per slot) without
+  // clearing the Z-buffer. In D3D7 this worked implicitly, but D3D9's stricter
+  // state management causes issues:
+  //
+  // 1. Z-BUFFER ISSUE: Items get rejected against stale world Z-values.
+  //    FIX: Clear Z-buffer per viewport region.
+  //
+  // 2. Z-FIGHTING: Multi-surface items (potion glass + liquid) z-fight.
+  //    FIX: Enable Z-test/write for proper depth sorting.
+  //
+  // Detection: viewport width < back buffer width = inventory slot rendering.
+  //
+  // TODO: The env map metallic reflection issue is handled by a separate hook
+  // in D3D9Patches.cpp (oCItem::Render bypass). Root cause of why D3D9 can't
+  // properly render Gothic's env map setup for glass/metal materials in
+  // inventory context is not fully understood. See D3D9Patches.cpp for details.
+  // =============================================================================
+  D3DVIEWPORT9 current_vp;
+  bool is_inventory_render = false;
+  if (SUCCEEDED(device->GetViewport(&current_vp))) {
+    if (current_vp.Width < present_params.BackBufferWidth) {
+      is_inventory_render = true;
+
+      // Clear Z-buffer for this viewport region to remove stale world depth values
+      D3DRECT clear_rect;
+      clear_rect.x1 = current_vp.X;
+      clear_rect.y1 = current_vp.Y;
+      clear_rect.x2 = current_vp.X + current_vp.Width;
+      clear_rect.y2 = current_vp.Y + current_vp.Height;
+      device->Clear(1, &clear_rect, D3DCLEAR_ZBUFFER, 0, 1.0f, 0);
+
+      // Enable Z-test and Z-write for proper multi-surface rendering
+      SetRenderStateCached(D3DRS_ZENABLE, TRUE);
+      SetRenderStateCached(D3DRS_ZWRITEENABLE, TRUE);
+
+      // Force unlit rendering with texture-only color
+      SetRenderStateCached(D3DRS_LIGHTING, FALSE);
+      SetTextureStageStateCached(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
+      SetTextureStageStateCached(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+    }
+  }
 
   const bool has_indices = (indices != nullptr) && (index_count > 0);
   const std::uint32_t prim_count = ComputePrimitiveCount(primitive_type, vertex_count, has_indices ? index_count : vertex_count);

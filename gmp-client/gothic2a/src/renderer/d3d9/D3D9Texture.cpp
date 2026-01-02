@@ -31,6 +31,7 @@ SOFTWARE.
 #include <cstring>
 #include <ranges>
 #include <span>
+#include <vector>
 
 #include "D3D9Renderer.h"
 
@@ -48,6 +49,39 @@ constexpr bool IsDxtFormat(zTRnd_TextureFormat format) {
 
 // Minimum dimension for DXT block compression.
 constexpr int kDxtBlockSize = 4;
+
+constexpr int DxtBlockBytes(zTRnd_TextureFormat format) {
+  switch (format) {
+    case zRND_TEX_FORMAT_DXT1:
+    case zRND_TEX_FORMAT_DXT2:
+      return 8;
+    case zRND_TEX_FORMAT_DXT3:
+    case zRND_TEX_FORMAT_DXT4:
+    case zRND_TEX_FORMAT_DXT5:
+      return 16;
+    default:
+      return 0;
+  }
+}
+
+struct DxtLayout {
+  int row_bytes = 0;
+  int block_rows = 0;
+  int total_bytes = 0;
+};
+
+[[nodiscard]] DxtLayout ComputeDxtLayout(int width, int height, zTRnd_TextureFormat format) {
+  const int block_bytes = DxtBlockBytes(format);
+  if (block_bytes == 0) {
+    return {};
+  }
+
+  const int blocks_w = std::max(1, (width + 3) / 4);
+  const int blocks_h = std::max(1, (height + 3) / 4);
+  const int row_bytes = blocks_w * block_bytes;
+  const int total_bytes = row_bytes * blocks_h;
+  return {.row_bytes = row_bytes, .block_rows = blocks_h, .total_bytes = total_bytes};
+}
 
 }  // namespace
 
@@ -125,6 +159,7 @@ auto zCTex_D3D9::Lock(int /*mode*/) -> int {
   }
   is_locked_ = true;
   locked_mip_mask_.reset();
+  dxt_staging_mask_.reset();
   std::ranges::fill(locked_rects_, D3D9LockedRect{});
   std::ranges::fill(exposed_pitches_, 0);
   return 1;
@@ -166,15 +201,8 @@ auto zCTex_D3D9::GetTextureBuffer(int mipMapNr, void*& buffer, int& pitchXBytes)
     return 0;
   }
 
-  // For DXT1/DXT3, width and height must be at least 4 pixels.
-  if (tex_info_.texFormat == zRND_TEX_FORMAT_DXT1 || tex_info_.texFormat == zRND_TEX_FORMAT_DXT3) {
-    const int mip_width = tex_info_.sizeX >> mipMapNr;
-    const int mip_height = tex_info_.sizeY >> mipMapNr;
-    if (mip_width < kDxtBlockSize || mip_height < kDxtBlockSize) {
-      SPDLOG_WARN("GetTextureBuffer [{}]: DXT mipmap {} has dimensions {}x{} (< 4x4)", DebugName(), mipMapNr, mip_width, mip_height);
-      return 0;
-    }
-  }
+  // For DXT formats, the smallest mip levels can be < 4x4.
+  // D3D9 still stores those as a single 4x4 block. Don't reject them here.
 
   if (mipMapNr < 0 || mipMapNr >= kMaxTrackedMips) {
     SPDLOG_ERROR("GetTextureBuffer [{}]: mip {} outside tracked range", DebugName(), mipMapNr);
@@ -241,6 +269,29 @@ auto zCTex_D3D9::GetTextureBuffer(int mipMapNr, void*& buffer, int& pitchXBytes)
     }
   }
 
+  if (IsDxtFormat(tex_info_.texFormat)) {
+    const int mip_width = std::max(1, tex_info_.sizeX >> mipMapNr);
+    const int mip_height = std::max(1, tex_info_.sizeY >> mipMapNr);
+    const DxtLayout layout = ComputeDxtLayout(mip_width, mip_height, tex_info_.texFormat);
+    if (layout.total_bytes <= 0) {
+      SPDLOG_ERROR("GetTextureBuffer [{}]: Unsupported DXT format {}", DebugName(), static_cast<int>(tex_info_.texFormat));
+      return 0;
+    }
+
+    auto& staging = dxt_staging_buffers_[mipMapNr];
+    staging.resize(static_cast<size_t>(layout.total_bytes));
+
+    buffer = staging.data();
+    pitchXBytes = ComputeExposedPitch(mipMapNr, /*actualPitch*/ 0);
+    exposed_pitches_[mipMapNr] = pitchXBytes;
+
+    locked_rects_[mipMapNr].pBits = buffer;
+    locked_rects_[mipMapNr].Pitch = pitchXBytes;
+    locked_mip_mask_.set(mipMapNr);
+    dxt_staging_mask_.set(mipMapNr);
+    return 1;
+  }
+
   // Lock the texture.
   D3D9LockedRect locked_rect{};
   if (!LockTexture_D3D9(texture_, mipMapNr, &locked_rect)) {
@@ -254,19 +305,7 @@ auto zCTex_D3D9::GetTextureBuffer(int mipMapNr, void*& buffer, int& pitchXBytes)
   // Return the actual D3D9 surface pointer.
   buffer = locked_rect.pBits;
 
-  // For DXT formats, return FAKE pitch that Gothic expects.
-  // Handle DXT1 and DXT3, everything else (including DXT5) uses actual pitch.
-  switch (tex_info_.texFormat) {
-    case zRND_TEX_FORMAT_DXT1:
-      pitchXBytes = tex_info_.sizeX >> (mipMapNr + 1);
-      break;
-    case zRND_TEX_FORMAT_DXT3:
-      pitchXBytes = tex_info_.sizeX >> mipMapNr;
-      break;
-    default:
-      pitchXBytes = locked_rect.Pitch;
-      break;
-  }
+  pitchXBytes = locked_rect.Pitch;
 
   exposed_pitches_[mipMapNr] = pitchXBytes;
   return 1;
@@ -306,9 +345,17 @@ auto zCTex_D3D9::CopyTextureDataTo(int mipMapNr, void* destBuffer, int destPitch
     case zRND_TEX_FORMAT_DXT1:
     case zRND_TEX_FORMAT_DXT3:
     case zRND_TEX_FORMAT_DXT5: {
-      // For DXT, copy entire linear buffer (height is in blocks).
-      const int block_height = (mip_height + 3) / 4;
-      std::memcpy(dest, src, block_height * locked_rect.Pitch);
+      // For DXT, copy without including any driver padding at end of rows.
+      const DxtLayout layout = ComputeDxtLayout(mip_width, mip_height, tex_info_.texFormat);
+      if (layout.total_bytes <= 0) {
+        UnlockTexture_D3D9(texture_, mipMapNr);
+        return 0;
+      }
+      // Treat destination as linear for compressed formats.
+      for (int r = 0; r < layout.block_rows; ++r) {
+        std::memcpy(dest + (static_cast<size_t>(r) * static_cast<size_t>(layout.row_bytes)),
+                    src + (static_cast<size_t>(r) * static_cast<size_t>(locked_rect.Pitch)), static_cast<size_t>(layout.row_bytes));
+      }
       break;
     }
     case zRND_TEX_FORMAT_PAL_8: {
@@ -403,6 +450,7 @@ auto zCTex_D3D9::ComputeExposedPitch(int mip_level, int actual_pitch) const -> i
 void zCTex_D3D9::UnlockAllMipLevels() {
   if (texture_ == nullptr) {
     locked_mip_mask_.reset();
+    dxt_staging_mask_.reset();
     std::ranges::fill(locked_rects_, D3D9LockedRect{});
     std::ranges::fill(exposed_pitches_, 0);
     return;
@@ -410,7 +458,28 @@ void zCTex_D3D9::UnlockAllMipLevels() {
 
   for (int mip = 0; mip < kMaxTrackedMips; ++mip) {
     if (locked_mip_mask_.test(mip)) {
-      UnlockTexture_D3D9(texture_, mip);
+      if (dxt_staging_mask_.test(mip)) {
+        const int mip_width = std::max(1, tex_info_.sizeX >> mip);
+        const int mip_height = std::max(1, tex_info_.sizeY >> mip);
+        const DxtLayout layout = ComputeDxtLayout(mip_width, mip_height, tex_info_.texFormat);
+        if (layout.total_bytes > 0) {
+          D3D9LockedRect locked_rect{};
+          if (LockTexture_D3D9(texture_, mip, &locked_rect)) {
+            const auto* src = dxt_staging_buffers_[mip].data();
+            auto* dst = static_cast<std::byte*>(locked_rect.pBits);
+            for (int r = 0; r < layout.block_rows; ++r) {
+              std::memcpy(dst + (static_cast<size_t>(r) * static_cast<size_t>(locked_rect.Pitch)),
+                          src + (static_cast<size_t>(r) * static_cast<size_t>(layout.row_bytes)), static_cast<size_t>(layout.row_bytes));
+            }
+            UnlockTexture_D3D9(texture_, mip);
+          } else {
+            SPDLOG_ERROR("UnlockAllMipLevels [{}]: Failed to lock DXT mip {} for upload", DebugName(), mip);
+          }
+        }
+        dxt_staging_mask_.reset(mip);
+      } else {
+        UnlockTexture_D3D9(texture_, mip);
+      }
       locked_mip_mask_.reset(mip);
       locked_rects_[mip] = {};
       exposed_pitches_[mip] = 0;

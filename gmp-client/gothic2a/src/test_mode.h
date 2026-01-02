@@ -24,19 +24,31 @@ SOFTWARE.
 
 #pragma once
 
-class ExternalConsoleWindow {
-public:
-  static void Init();
-  static void Shutdown();
+class GMPCore;
 
-  ~ExternalConsoleWindow();
+/**
+ * @brief Handles the specialized "Test Mode" initialization logic.
+ *
+ * This class encapsulates the logic for bypassing the main menu and
+ * jumping directly into a specific level with a specific spawn point,
+ * primarily for development and debugging purposes.
+ */
+class TestMode {
+public:
+  /**
+   * @brief Construct a new Test Mode object
+   *
+   * @param core Reference to the GMPCore instance.
+   */
+  explicit TestMode(GMPCore& core);
+
+  ~TestMode() = default;
+
+  /**
+   * @brief Initialize test mode: load level, setup player, etc.
+   */
+  void Initialize();
 
 private:
-  ExternalConsoleWindow();
-
-  ExternalConsoleWindow(const ExternalConsoleWindow&) = delete;
-  ExternalConsoleWindow& operator=(const ExternalConsoleWindow&) = delete;
-
-  void RedirectStdStreamsToConsole();
-  bool EnsureConsoleAvailable();
+  GMPCore& core_;
 };

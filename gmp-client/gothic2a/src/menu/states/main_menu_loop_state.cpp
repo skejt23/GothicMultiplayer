@@ -24,16 +24,21 @@ SOFTWARE.
 
 #include "main_menu_loop_state.hpp"
 
+#include <SDL3/SDL.h>
 #include <spdlog/spdlog.h>
+#include <windows.h>
 
 #include <string>
 
+#include "HooksManager.h"
 #include "config.h"
+#include "external_console_window.hpp"
 #include "keyboard.h"
 #include "language.h"
 #include "menu/states/online_options_state.hpp"
 #include "menu/states/options_menu_state.hpp"
 #include "menu/states/server_list_state.hpp"
+#include "net_game.h"
 #include "version.h"
 
 // External declarations from main_menu.cpp (global namespace)
@@ -135,7 +140,11 @@ void MainMenuLoopState::RenderVersionInfo() {
   }
 
   // Version in bottom right
-  context_.screen->Print(8192 - context_.screen->FontSize(GetVersionString()), 8192 - context_.screen->FontY(), GetVersionString());
+  zSTRING version_text = GetVersionString();
+#ifndef NDEBUG
+  version_text += " (Debug)";
+#endif
+  context_.screen->Print(8192 - context_.screen->FontSize(version_text), 8192 - context_.screen->FontY(), version_text);
 
   // Shortcut in bottom left
   context_.screen->Print(100, 8192 - context_.screen->FontY(), "F5 - Fast join localhost server");
@@ -194,7 +203,18 @@ void MainMenuLoopState::ExecuteMenuItem(MenuItem item) {
     case LEAVE_GAME:
       SPDLOG_INFO("Selected: Leave Game");
       if (context_.game) {
-        gameMan->Done();
+        if (HooksManager* hm = HooksManager::GetInstance()) {
+          hm->RemoveHook(HT_RENDER, (DWORD)NetGame::ProcessTaskScheduler);
+        }
+
+        NetGame::Instance().Disconnect();
+        NetGame::Instance().Shutdown();
+        ExternalConsoleWindow::Shutdown();
+        SDL_Quit();
+        spdlog::shutdown();
+
+        // This avoids running GMP.dll's CRT onexit table (MT) which is fragile in an injected DLL.
+        ExitProcess(0);
       }
       break;
   }

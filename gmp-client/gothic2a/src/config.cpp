@@ -133,7 +133,6 @@ void Config::LoadConfigFromFile() {
   }
 
   window_always_on_top_ = toml.GetValue<bool>("window_always_on_top", window_always_on_top_);
-
   // Load renderer type (default: D3D9)
   if (auto renderer_str = toml.GetValue<std::string>("renderer_type"); renderer_str) {
     if (*renderer_str == "D3D7") {
@@ -143,6 +142,24 @@ void Config::LoadConfigFromFile() {
     } else if (*renderer_str == "D3D11") {
       renderer_type_ = RendererType::D3D11;
     }
+  }
+
+  // Load test mode configuration (from [test_mode] section)
+  // Using nested key access: GetValue<T>("table", defaultValue, "key")
+  test_mode_config_.enabled = toml.GetValue<bool>("test_mode", false, "enabled");
+  test_mode_config_.level = toml.GetValue<std::string>("test_mode", std::string{}, "level");
+  test_mode_config_.spawn_x = static_cast<float>(toml.GetValue<double>("test_mode", 0.0, "spawn_x"));
+  test_mode_config_.spawn_y = static_cast<float>(toml.GetValue<double>("test_mode", 0.0, "spawn_y"));
+  test_mode_config_.spawn_z = static_cast<float>(toml.GetValue<double>("test_mode", 0.0, "spawn_z"));
+
+  if (test_mode_config_.enabled) {
+    SPDLOG_INFO("Test mode enabled: level='{}', spawn=({}, {}, {})", test_mode_config_.level, test_mode_config_.spawn_x, test_mode_config_.spawn_y,
+                test_mode_config_.spawn_z);
+  }
+
+  // MCP pipe enable flag
+  if (auto mcp_opt = toml.GetValue<bool>("mcp_pipe_enabled"); mcp_opt) {
+    mcp_pipe_enabled_ = *mcp_opt;
   }
 
   // If nickname is empty, the user didn't set up the config yet.
@@ -162,6 +179,8 @@ void Config::DefaultSettings() {
   window_position_.reset();
   console_position_.reset();
   renderer_type_ = RendererType::D3D9;
+  test_mode_config_ = TestModeConfig{};  // Reset test mode to defaults
+  mcp_pipe_enabled_ = false;
   is_default_ = true;
 };
 
@@ -196,6 +215,7 @@ void Config::SaveConfigToFile() {
   }
 
   toml["window_always_on_top"] = toml::value(window_always_on_top_);
+  toml["mcp_pipe_enabled"] = toml::value(mcp_pipe_enabled_);
 
   // Save renderer type as string
   std::string renderer_str;
@@ -211,6 +231,15 @@ void Config::SaveConfigToFile() {
       break;
   }
   toml["renderer_type"] = toml::value(renderer_str);
+
+  // Save test mode configuration
+  std::unordered_map<std::string, toml::value> test_mode_map;
+  test_mode_map["enabled"] = toml::value(test_mode_config_.enabled);
+  test_mode_map["level"] = toml::value(test_mode_config_.level);
+  test_mode_map["spawn_x"] = toml::value(static_cast<double>(test_mode_config_.spawn_x));
+  test_mode_map["spawn_y"] = toml::value(static_cast<double>(test_mode_config_.spawn_y));
+  test_mode_map["spawn_z"] = toml::value(static_cast<double>(test_mode_config_.spawn_z));
+  toml["test_mode"] = test_mode_map;
 
   toml.Serialize(config_file_path_.string());
   is_default_ = Nickname.IsEmpty();

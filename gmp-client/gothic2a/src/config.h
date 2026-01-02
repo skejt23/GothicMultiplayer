@@ -28,6 +28,7 @@ SOFTWARE.
 #include <cstdint>
 #include <filesystem>
 #include <optional>
+#include <string>
 
 #include "ZenGin/zGothicAPI.h"
 
@@ -45,6 +46,18 @@ public:
   };
 
   using ConsolePosition = WindowPosition;
+
+  /**
+   * @brief Test mode configuration for debugging/development.
+   * When enabled, skips the main menu and spawns directly into the specified level.
+   */
+  struct TestModeConfig {
+    bool enabled = false;
+    std::string level;  // ZEN file path, e.g. "NEWWORLD\\NEWWORLD.ZEN"
+    float spawn_x = 0.0f;
+    float spawn_y = 0.0f;
+    float spawn_z = 0.0f;
+  };
 
   bool IsDefault() const;
 
@@ -79,6 +92,30 @@ public:
     return renderer_type_;
   }
 
+  /**
+   * @brief Get the test mode configuration.
+   * @return Reference to the test mode configuration.
+   */
+  const TestModeConfig& GetTestModeConfig() const {
+    return test_mode_config_;
+  }
+
+  /**
+   * @brief Check if test mode is enabled.
+   * @return true if test mode should be used.
+   */
+  bool IsTestModeEnabled() const {
+    return test_mode_config_.enabled;
+  }
+
+  /**
+   * @brief Check if MCP Named Pipe server should be started.
+   * Defaults to false (disabled).
+   */
+  bool IsMCPPipeEnabled() const {
+    return mcp_pipe_enabled_;
+  }
+
   static Config& Instance() {
     static Config instance;
     return instance;
@@ -93,4 +130,7 @@ private:
   std::optional<ConsolePosition> console_position_;
   bool window_always_on_top_ = false;
   RendererType renderer_type_ = RendererType::D3D9;  // D3D9 renderer by default
+  TestModeConfig test_mode_config_;
+  // Whether to enable the MCP Named Pipe server (disabled by default)
+  bool mcp_pipe_enabled_ = false;
 };

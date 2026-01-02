@@ -1,0 +1,12 @@
+{
+    "mcpServers": {
+        "gothic": {
+            "command": "python",
+            "args": [
+                "gothic_mcp_server.py"
+            ],
+            "cwd": "gmp-mcp",
+            "description": "Gothic game control via Named Pipes"
+        }
+    }
+}

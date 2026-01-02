@@ -73,9 +73,16 @@ void ExitToMainmenu() {
   MainMenu->Open();
 }
 void ExitGameFromMainMenu() {
+  if (HooksManager* hm = HooksManager::GetInstance()) {
+    hm->RemoveHook(HT_RENDER, (DWORD)InterfaceLoop);
+    hm->RemoveHook(HT_RENDER, (DWORD)CIngame::Loop);
+    hm->RemoveHook(HT_RENDER, (DWORD)NetGame::ProcessTaskScheduler);
+  }
+
   NetGame::Instance().Disconnect();
-  gameMan->Done();
+  ExitProcess(0);
 }
+
 void CreateOptionsMenu() {
   if (MainMenu->IsOpened())
     MainMenu->Close();

@@ -37,27 +37,6 @@ namespace {
 static std::unique_ptr<ExternalConsoleWindow> g_instance;
 static std::once_flag g_once;
 static HWND hwnd = nullptr;
-// Flag to prevent atexit callback from running after DLL cleanup.
-// Set to false during DLL_PROCESS_DETACH to skip config saving.
-static std::atomic<bool> g_atexit_enabled{true};
-
-void SaveConsoleConfigOnExit() {
-  // Skip if DLL cleanup has already started (e.g., during DLL_PROCESS_DETACH).
-  // At that point, Config and other static objects may already be invalid.
-  if (!g_atexit_enabled.load(std::memory_order_acquire)) {
-    return;
-  }
-  
-  try {
-    RECT rc{};
-    if (::GetWindowRect(hwnd, &rc)) {
-      Config::Instance().SetConsolePosition({rc.left, rc.top});
-      Config::Instance().SaveConfigToFile();
-    }
-
-  } catch (const std::exception &ex) {
-  }
-}
 
 }  // namespace
 
@@ -65,8 +44,8 @@ void ExternalConsoleWindow::Init() {
   std::call_once(g_once, [] { g_instance = std::unique_ptr<ExternalConsoleWindow>(new ExternalConsoleWindow()); });
 }
 
-void ExternalConsoleWindow::DisableAtExitCallback() {
-  g_atexit_enabled.store(false, std::memory_order_release);
+void ExternalConsoleWindow::Shutdown() {
+  g_instance.reset();
 }
 
 ExternalConsoleWindow::ExternalConsoleWindow() {
@@ -76,14 +55,24 @@ ExternalConsoleWindow::ExternalConsoleWindow() {
     if (auto &opt_pos = Config::Instance().GetConsolePosition(); opt_pos) {
       ::SetWindowPos(hwnd, nullptr, opt_pos->x, opt_pos->y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
     }
-
-    std::atexit(SaveConsoleConfigOnExit);
   }
 }
 
 ExternalConsoleWindow::~ExternalConsoleWindow() {
+  // Save console position before cleanup
+  try {
+    RECT rc{};
+    if (hwnd && ::GetWindowRect(hwnd, &rc)) {
+      Config::Instance().SetConsolePosition({rc.left, rc.top});
+      Config::Instance().SaveConfigToFile();
+    }
+  } catch (...) {
+    // Ignore errors during shutdown
+  }
+
   if (hwnd != nullptr) {
     ::FreeConsole();
+    hwnd = nullptr;
   }
 }
 

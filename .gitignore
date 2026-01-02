@@ -35,3 +35,4 @@ build
 
 *.log
 vs*
+__pycache__

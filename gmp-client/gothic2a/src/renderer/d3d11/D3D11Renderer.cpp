@@ -281,11 +281,21 @@ private:
 // On destruction: Restores state for subsequent opaque geometry rendering.
 class ScopedAlphaRenderPass {
 public:
-  explicit ScopedAlphaRenderPass(zCRnd_D3D_DX11* renderer) : renderer_(renderer) {
+  explicit ScopedAlphaRenderPass(zCRnd_D3D_DX11* renderer)
+      : renderer_(renderer),
+        saved_zwrite_(renderer ? renderer->GetZBufferWriteEnabled() : 1),
+        saved_zcmp_(renderer ? renderer->GetZBufferCompare() : zRND_ZBUFFER_CMP_LESS_EQUAL) {
     // No setup needed - individual DrawQueuedAlphaPoly calls configure per-poly state
   }
 
   ~ScopedAlphaRenderPass() {
+    // Alpha sort object Draw() code can freely change depth state. That state must not
+    // leak out of the alpha pass because later immediate effects (lens flares/decals)
+    // snapshot the current Z compare into their alpha poly state.
+    if (renderer_) {
+      renderer_->SetZBufferWriteEnabled(saved_zwrite_);
+      renderer_->SetZBufferCompare(saved_zcmp_);
+    }
     renderer_->RestoreOpaqueRenderState();
   }
 
@@ -295,6 +305,8 @@ public:
 
 private:
   zCRnd_D3D_DX11* renderer_;
+  int saved_zwrite_;
+  zTRnd_ZBufferCmp saved_zcmp_;
 };
 
 }  // namespace
@@ -322,11 +334,15 @@ zCRnd_D3D_DX11::zCRnd_D3D_DX11() {
 }
 
 zCRnd_D3D_DX11::~zCRnd_D3D_DX11() {
-  SPDLOG_TRACE("zCRnd_D3D_DX11::~zCRnd_D3D_DX11()");
+  SPDLOG_INFO("zCRnd_D3D_DX11::~zCRnd_D3D_DX11()");
+  if (impl_) {
+    impl_->Cleanup();
+    impl_.reset();
+  }
 }
 
 void zCRnd_D3D_DX11::BeginFrame() {
-  SPDLOG_TRACE("BeginFrame");
+  FlushBatch();
 
   alpha_sort_bucket_.fill(nullptr);
 
@@ -391,7 +407,7 @@ void zCRnd_D3D_DX11::BeginFrame() {
 }
 
 void zCRnd_D3D_DX11::EndFrame() {
-  SPDLOG_TRACE("EndFrame");
+  FlushBatch();
 
   // Call backend EndFrame to draw test triangle on top of everything
   if (impl_) {
@@ -468,7 +484,7 @@ void zCRnd_D3D_DX11::FlushPolys() {
         v.y = vertTrans->vertScrY;
         v.rhw = vertTrans->vertCamSpaceZInv;
         // Use RHW-based depth with stable BeginFrame constants.
-        // Always clamp to [0,1]: D3D11 clips vertices outside this range anyway.
+        // ALWAYS clamp to [0,1]: Issue 13 fix - out-of-range depth causes D3D11 clip rejection.
         v.z = std::clamp(rhw_z_proj_offset_ + rhw_z_proj_scale_ * v.rhw, 0.0f, 1.0f);
         v.u = feat->texu;
         v.v = feat->texv;
@@ -527,6 +543,8 @@ bool zCRnd_D3D_DX11::ActivateMaterial(zCMaterial* material) {
   if (material == active_material_ && tex == active_texture_[0]) {
     return true;
   }
+
+  FlushBatch();
 
   active_material_ = material;
   zTRnd_AlphaBlendFunc alpha_func = material->rndAlphaBlendFunc;
@@ -700,16 +718,20 @@ void zCRnd_D3D_DX11::BuildAlphaPolyVertices(gmp::renderer::d3d11::QueuedAlphaPol
     v.rhw = rhw;
 
     // Use RHW-based depth with stable BeginFrame constants.
-    // The constants are computed once per frame from z_min/max_from_engine_ and are
-    // never updated from SetTransform(PROJECTION), ensuring stable depth values.
-    // Always clamp to [0,1]: D3D11 clips vertices outside this range anyway, and
-    // clamping handles any near/far mismatch gracefully for ALL geometry types.
+    // ALWAYS clamp to [0,1]: Issue 13 fix - out-of-range depth causes D3D11 clip rejection
+    // resulting in sky dome horizontal seam artifacts.
     v.z = std::clamp(rhw_z_proj_offset_ + rhw_z_proj_scale_ * rhw, 0.0f, 1.0f);
 
-    // Untextured ADD blend geometry (sky/atmosphere effects) should render at far plane
-    // to ensure it appears behind all scene geometry.
-    const bool is_sky_effect = (!has_texture && ap->blend_func == gmp::renderer::d3d11::AlphaBlendFunc::kAdd);
-    if (is_sky_effect) {
+    // Untextured ADD geometry handling:
+    // - Screen blend overlays (sun glow) use extremely high RHW (~10000) for near-plane rendering
+    //   These should keep their natural near-plane depth to render on top of the scene.
+    // - Sky dome mesh uses normal camera-space RHW values and should render at far-plane
+    //   to appear behind all scene geometry and avoid visible dome edges.
+    // Threshold: RHW > 100 indicates a near-plane overlay (normal scene RHW is << 1 for distant objects)
+    const bool is_untextured_add = (!has_texture && ap->blend_func == gmp::renderer::d3d11::AlphaBlendFunc::kAdd);
+    const bool is_near_plane_overlay = (rhw > 100.0f);  // Screen blend uses rhw ~= 10000
+    if (is_untextured_add && !is_near_plane_overlay) {
+      // Sky dome or similar background geometry - force to far plane
       v.z = 0.9999f;
     }
 
@@ -751,6 +773,43 @@ void zCRnd_D3D_DX11::QueueAlphaPoly(zCPolygon* poly, zCMaterial* mat) {
   // Submit to depth bucket list for proper sorted rendering
   alpha_poly_queue_.Submit(ap);
   ++num_alpha_polys_;
+}
+
+void zCRnd_D3D_DX11::FlushBatch() {
+  if (batch_verts_.empty() || batch_indices_.empty())
+    return;
+
+  if (impl_) {
+    impl_->DrawBatchRHW(batch_verts_.data(), static_cast<int>(batch_verts_.size()), batch_indices_.data(), static_cast<int>(batch_indices_.size()),
+                        static_cast<int>(z_buffer_cmp_));
+  }
+
+  batch_verts_.clear();
+  batch_indices_.clear();
+}
+
+void zCRnd_D3D_DX11::AddToBatch(const std::vector<VertexRHW>& verts) {
+  if (verts.size() < 3)
+    return;
+
+  // Check limits (16-bit indices)
+  // Max vertices 65536.
+  if (batch_verts_.size() + verts.size() > 60000) {
+    FlushBatch();
+  }
+
+  uint16_t base_idx = static_cast<uint16_t>(batch_verts_.size());
+  int tri_count = static_cast<int>(verts.size()) - 2;
+
+  // Append vertices
+  batch_verts_.insert(batch_verts_.end(), verts.begin(), verts.end());
+
+  // Append indices (Fan -> List)
+  for (int i = 0; i < tri_count; ++i) {
+    batch_indices_.push_back(base_idx + 0);
+    batch_indices_.push_back(base_idx + static_cast<uint16_t>(i + 1));
+    batch_indices_.push_back(base_idx + static_cast<uint16_t>(i + 2));
+  }
 }
 
 // DrawPolyVertexLit - Renders a polygon using vertex colors for lighting.
@@ -808,7 +867,7 @@ void zCRnd_D3D_DX11::DrawPolyVertexLit(zCPolygon* poly) {
         .x = vertTrans->vertScrX,
         .y = vertTrans->vertScrY,
         // Use RHW-based depth with stable BeginFrame constants.
-        // Always clamp to [0,1]: D3D11 clips vertices outside this range anyway.
+        // ALWAYS clamp to [0,1]: Issue 13 fix - out-of-range depth causes D3D11 clip rejection.
         .z = std::clamp(rhw_z_proj_offset_ + rhw_z_proj_scale_ * vertTrans->vertCamSpaceZInv, 0.0f, 1.0f),
         .rhw = vertTrans->vertCamSpaceZInv,
         .color = color,
@@ -825,9 +884,7 @@ void zCRnd_D3D_DX11::DrawPolyVertexLit(zCPolygon* poly) {
   ResetMultiTexturing();
 
   if (impl_ && !verts.empty()) {
-    // Pass z_buffer_cmp_ directly - map Gothic enum values to our z_func:
-    // Gothic: zRND_ZBUFFER_CMP_ALWAYS=0, zRND_ZBUFFER_CMP_NEVER=1, zRND_ZBUFFER_CMP_LESS=2, zRND_ZBUFFER_CMP_LESS_EQUAL=3
-    impl_->DrawTriangleFan(verts.data(), static_cast<int>(verts.size()), static_cast<int>(z_buffer_cmp_));
+    AddToBatch(verts);
   }
 }
 
@@ -917,6 +974,7 @@ void zCRnd_D3D_DX11::DrawLightmapList(zCPolygon** polyList, int numPolys) {
 }
 
 void zCRnd_D3D_DX11::DrawLine(float x1, float y1, float x2, float y2, zCOLOR color) {
+  FlushBatch();
   EnsureSceneBegun();
   if (impl_) {
     impl_->DrawLine(x1, y1, x2, y2, color.dword);
@@ -957,6 +1015,8 @@ void zCRnd_D3D_DX11::SetPixel(float x, float y, zCOLOR color) {
 //
 void zCRnd_D3D_DX11::DrawPolySimple(zCTexture* texture, zTRndSimpleVertex* vertices, int num_vertices) {
   using enum zTRnd_AlphaBlendFunc;
+
+  FlushBatch();
 
   if (!vertices || num_vertices < 3 || !impl_ || GetSurfaceLost()) {
     SPDLOG_INFO("DrawPolySimple: early exit - vertices={} num_vertices={} impl_={} surface_lost={}", static_cast<void*>(vertices), num_vertices,
@@ -1393,12 +1453,11 @@ void zCRnd_D3D_DX11::AddAlphaPoly(const zCPolygon* poly) {
 
 // FlushAlphaPolys - Renders and clears the immediate alpha poly queue.
 void zCRnd_D3D_DX11::FlushAlphaPolys() {
-  using namespace gmp::renderer::d3d11;
   SetTextureStageState(0, zRND_TSS_COLOROP, zRND_TOP_MODULATE);
   ApplyRenderState(ToUL(LegacyRenderState::kClipping), kFalse32);
   ApplyRenderState(ToUL(LegacyRenderState::kCullMode), ToUL(LegacyCullMode::kNone));
 
-  immediate_alpha_poly_queue_.RenderInOrder([this](const QueuedAlphaPoly& ap) { DrawQueuedAlphaPoly(&ap); });
+  immediate_alpha_poly_queue_.RenderInOrder([this](const gmp::renderer::d3d11::QueuedAlphaPoly& ap) { DrawQueuedAlphaPoly(&ap); });
 
   immediate_alpha_poly_queue_.Reset();
 }
@@ -1544,22 +1603,9 @@ void zCRnd_D3D_DX11::Vid_Clear(zCOLOR& color, int flags) {
   unsigned long d3dColor = (color.alpha << 24) | (color.r << 16) | (color.g << 8) | color.b;
   SPDLOG_TRACE("Vid_Clear called with flags={}, color=R:{} G:{} B:{} A:{} -> 0x{:08X}", flags, color.r, color.g, color.b, color.alpha, d3dColor);
   if (impl_) {
-    unsigned long clearFlags = 0;
-    switch (flags) {
-      case zRND_CLEAR_FRAMEBUFFER:
-        clearFlags = 0x00000001;  // D3DCLEAR_TARGET
-        break;
-      case zRND_CLEAR_ZBUFFER:
-        clearFlags = 0x00000002;  // D3DCLEAR_ZBUFFER
-        break;
-      default:                    // zRND_CLEAR_ALL or any other value
-        clearFlags = 0x00000003;  // D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER
-        break;
-    }
-
-    // For now, always clear both to match current backend behavior
-    // TODO: Update backend Clear to accept flags parameter
-    impl_->Clear(d3dColor);
+    const bool clear_color = (flags != zRND_CLEAR_ZBUFFER);
+    const bool clear_depth = (flags != zRND_CLEAR_FRAMEBUFFER);
+    impl_->Clear(d3dColor, clear_color, clear_depth);
   }
 }
 
@@ -1645,11 +1691,6 @@ int zCRnd_D3D_DX11::Vid_SetMode(int modeNr, HWND__** hwnd) {
     SetTexture(i, nullptr);
   }
 
-  // Destroy ALL vertex buffers before device Reset.
-  // D3DPOOL_DEFAULT resources must be released before Reset().
-  // They will be recreated when Gothic needs them again.
-  zCVertexBuffer_D3D11::DestroyAllBuffers();
-
   // Clear any queued alpha polygons before device reset - they reference stale state
   alpha_poly_queue_.Reset();
   immediate_alpha_poly_queue_.Reset();
@@ -1677,9 +1718,16 @@ int zCRnd_D3D_DX11::Vid_SetMode(int modeNr, HWND__** hwnd) {
   }
 
   // On first call, device doesn't exist yet - use Init().
-  // On subsequent calls (resolution change), re-init for now (no reset path yet).
+  // On subsequent calls (resolution change), use Resize() to preserve textures.
   bool fullscreen = (screen_mode_ == zRND_SCRMODE_FULLSCREEN);
-  bool success = impl_->Init(hWindow, vid_xdim, vid_ydim, fullscreen);
+  bool success = false;
+  if (!impl_->GetDevice()) {
+    // First initialization - create the device
+    success = impl_->Init(hWindow, vid_xdim, vid_ydim, fullscreen);
+  } else {
+    // Resolution change - use Resize() to preserve textures (like D3D9's Reset)
+    success = impl_->Resize(vid_xdim, vid_ydim);
+  }
 
   if (success) {
     surface_lost_ = 0;  // Allow rendering again
@@ -1792,7 +1840,12 @@ int zCRnd_D3D_DX11::SetTransform(zTRnd_TrafoType type, const zMAT4& matrix) {
 int zCRnd_D3D_DX11::SetViewport(int x, int y, int w, int h) {
   if (!impl_)
     return 0;
-  // Gothic passes pixel coordinates directly - no conversion needed
+  // Flush any pending batched geometry before changing the viewport.
+  // Gothic inventory rendering sets a small viewport for each item slot,
+  // renders the item, then restores the full viewport. If we don't flush,
+  // geometry batched under the old viewport will be drawn with the new one.
+  FlushBatch();
+
   impl_->SetViewport(x, y, w, h);
   return 1;
 }
@@ -1946,6 +1999,7 @@ int zCRnd_D3D_DX11::SetMaterial(const zCRenderer::zTMaterial& mat) {
 }
 
 int zCRnd_D3D_DX11::SetTexture(unsigned long stage, zCTexture* texture) {
+  FlushBatch();
   if (!impl_ || GetSurfaceLost())
     return 0;
 
@@ -1969,6 +2023,7 @@ int zCRnd_D3D_DX11::SetTexture(unsigned long stage, zCTexture* texture) {
 
   ID3D11ShaderResourceView* srv = nullptr;
   bool hasAlpha = false;
+  DXGI_FORMAT dxgiFormat = DXGI_FORMAT_UNKNOWN;
 
   if (resolved_texture) {
     zCTex_D3D11* tex11 = dynamic_cast<zCTex_D3D11*>(resolved_texture);
@@ -1981,6 +2036,7 @@ int zCRnd_D3D_DX11::SetTexture(unsigned long stage, zCTexture* texture) {
 
       srv = tex11->GetSRV();
       hasAlpha = tex11->HasAlpha();
+      dxgiFormat = tex11->GetDXGIFormat();
       if (!srv) {
         zSTRING name = tex11->GetObjectName();
         SPDLOG_WARN("SetTexture: Texture '{}' at stage {} has no D3D11 SRV", name.ToChar(), stage);
@@ -1990,7 +2046,7 @@ int zCRnd_D3D_DX11::SetTexture(unsigned long stage, zCTexture* texture) {
     }
   }
 
-  impl_->SetTexture(static_cast<int>(stage), srv);
+  impl_->SetTexture(static_cast<int>(stage), srv, dxgiFormat);
 
   // Handle Alpha Testing for Stage 0 (Primary Texture)
   // Match D3D9's SetTexture behavior exactly:
@@ -2227,6 +2283,7 @@ int zCRnd_D3D_DX11::SetTextureStageState(unsigned long stage, zTRnd_TextureStage
 // SetAlphaBlendFuncImmed - Configures alpha blending state for rendering.
 // Called from DrawPolySimple, alpha poly Draw, etc.
 int zCRnd_D3D_DX11::SetAlphaBlendFuncImmed(zTRnd_AlphaBlendFunc func) {
+  FlushBatch();
   const bool enable_alpha_test = (func == zRND_ALPHA_FUNC_TEST || func == zRND_ALPHA_FUNC_BLEND_TEST);
   const bool disable_blending = (func == zRND_ALPHA_FUNC_NONE);
 
@@ -2283,6 +2340,7 @@ int zCRnd_D3D_DX11::SetAlphaBlendFuncImmed(zTRnd_AlphaBlendFunc func) {
     impl_->SetAlphaTest(false, 0.0f);
     const bool z_write = disable_blending && active_status_.zwrite;
     impl_->SetDepthTest(true, z_write, CompareFunc::kLessEqual);
+    SetZBufferCompare(active_status_.zfunc);
   }
 
   // Keep legacy cache in sync for code that still reads it.
@@ -2296,6 +2354,7 @@ int zCRnd_D3D_DX11::SetAlphaBlendFuncImmed(zTRnd_AlphaBlendFunc func) {
 }
 
 int zCRnd_D3D_DX11::SetRenderState(zTRnd_RenderStateType state, unsigned long value) {
+  FlushBatch();
   switch (state) {
     case zRND_RENDERSTATE_CLIPPING:
       // D3D11 always clips - this is a no-op but we keep the cache in sync.
@@ -2337,6 +2396,27 @@ bool zCRnd_D3D_DX11::ApplyRenderState(unsigned long state, unsigned long value) 
   }
 
   render_state_cache_[state] = value;
+
+  // Keep renderer-side cached state in sync when legacy render states are
+  // applied directly (i.e., without going through SetZBufferCompare).
+  if (state == ToUL(LegacyRenderState::kZFunc)) {
+    switch (value) {
+      case ToUL(LegacyCompareFunc::kNever):
+        z_buffer_cmp_ = zRND_ZBUFFER_CMP_NEVER;
+        break;
+      case ToUL(LegacyCompareFunc::kLess):
+        z_buffer_cmp_ = zRND_ZBUFFER_CMP_LESS;
+        break;
+      case ToUL(LegacyCompareFunc::kAlways):
+        z_buffer_cmp_ = zRND_ZBUFFER_CMP_ALWAYS;
+        break;
+      case ToUL(LegacyCompareFunc::kLessEqual):
+      default:
+        z_buffer_cmp_ = zRND_ZBUFFER_CMP_LESS_EQUAL;
+        break;
+    }
+    active_status_.zfunc = z_buffer_cmp_;
+  }
 
   if (impl_) {
     // For a small, high-traffic subset of D3D9-style states, translate here into
@@ -2534,18 +2614,17 @@ void zCRnd_D3D_DX11::AddAlphaSortObject(zCRndAlphaSortObject* obj) {
 
   // Map Z-value to bucket index using bucketSize (calculated in BeginFrame)
   int bucket = static_cast<int>(std::floor(bucket_size_ * zvalue));
-  if (bucket >= kMaxBuckets)
+  if (bucket >= kMaxBuckets) {
     bucket = kMaxBuckets - 1;
-  if (bucket < 0)
+  }
+  if (bucket < 0) {
     bucket = 0;
-
-  SPDLOG_TRACE("AddAlphaSortObject: z={:.2f} bucketSize={:.4f} bucket={} type={}", zvalue, bucket_size_, bucket, (void*)obj);
+  }
 
   // If bucket is empty, just insert
   if (alpha_sort_bucket_[bucket] == nullptr) {
     obj->nextSortObject = nullptr;  // Direct member access
     alpha_sort_bucket_[bucket] = obj;
-    SPDLOG_TRACE("  -> Inserted as first entry in empty bucket {}", bucket);
     return;
   }
 
@@ -2556,7 +2635,6 @@ void zCRnd_D3D_DX11::AddAlphaSortObject(zCRndAlphaSortObject* obj) {
   if (alpha_sort_bucket_[bucket]->zvalue <= zvalue) {
     obj->nextSortObject = alpha_sort_bucket_[bucket];  // Direct member access
     alpha_sort_bucket_[bucket] = obj;
-    SPDLOG_TRACE("  -> Inserted at head of bucket {} (farther than {:.2f})", bucket, alpha_sort_bucket_[bucket]->nextSortObject->zvalue);
     return;
   }
 
@@ -2580,8 +2658,6 @@ void zCRnd_D3D_DX11::AddAlphaSortObject(zCRndAlphaSortObject* obj) {
   // Insert between entry and nextEntry
   entry->nextSortObject = obj;      // Direct member access
   obj->nextSortObject = nextEntry;  // Direct member access
-  SPDLOG_TRACE("  -> Inserted in bucket {} after {} traversals (between {:.2f} and {:.2f})", bucket, traverseCount, entry->zvalue,
-               nextEntry ? nextEntry->zvalue : -1.0f);
 }
 
 // ApplyAlphaBlendState - Configures texture stage and blend state for alpha rendering.
@@ -2863,7 +2939,6 @@ void zCRnd_D3D_DX11::RenderAlphaSortList() {
 
       auto* alpha_object = alpha_sort_bucket_[bucket_idx];
       alpha_sort_bucket_[bucket_idx] = alpha_object->nextSortObject;
-
       alpha_object->Draw(draw_index);
       ++draw_index;
       last_was_alpha_sort_object = true;

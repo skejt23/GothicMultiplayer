@@ -27,7 +27,10 @@ SOFTWARE.
 #include <spdlog/spdlog.h>
 
 #include "CIngame.h"
+#include "config.h"
 #include "main_menu.h"
+#include "mcp/mcp_pipe_handler.h"
+#include "test_mode.h"
 
 // For now, maintain compatibility with existing global_ingame pattern
 extern CIngame* global_ingame;
@@ -40,20 +43,35 @@ GMPCore::~GMPCore() {
 }
 
 void GMPCore::Initialize() {
-  if (this->initialized_) {
+  if (initialized_) {
     SPDLOG_WARN("GMPCore::Initialize called multiple times");
     return;
   }
 
+  if (Config::Instance().IsMCPPipeEnabled()) {
+    SPDLOG_INFO("MCP Pipe enabled in config - starting server");
+    gmp::mcp::MCPPipeHandler::Instance().Start();
+  }
+
+  // Check for test mode BEFORE creating the main menu
+  if (Config::Instance().IsTestModeEnabled()) {
+    SPDLOG_INFO("Test mode enabled - skipping main menu entirely");
+    testMode_ = std::make_unique<TestMode>(*this);
+    testMode_->Initialize();
+    initialized_ = true;
+    return;
+  }
+
+  // Normal mode: create the main menu
   // Note: CMainMenu is still a TSingleton, we just reference it here
   // Future: migrate to owned unique_ptr when singleton pattern is removed
-  this->mainMenu_.reset(CMainMenu::GetInstance());
+  mainMenu_.reset(CMainMenu::GetInstance());
 
-  this->initialized_ = true;
+  initialized_ = true;
 }
 
 void GMPCore::Shutdown() {
-  if (!this->initialized_) {
+  if (!initialized_) {
     return;
   }
 
@@ -61,15 +79,21 @@ void GMPCore::Shutdown() {
 
   // Release references (don't delete - CMainMenu is still singleton-managed)
   // Future: properly destroy when we own these
-  this->ingame_.release();
-  this->mainMenu_.release();
+  testMode_.reset();
+  ingame_.release();
+  mainMenu_.release();
 
   // Clear any pending deferred actions
-  while (!this->deferredActions_.empty()) {
-    this->deferredActions_.pop();
+  while (!deferredActions_.empty()) {
+    deferredActions_.pop();
   }
 
-  this->initialized_ = false;
+  // Stop MCP Pipe Server
+  if (Config::Instance().IsMCPPipeEnabled()) {
+    gmp::mcp::MCPPipeHandler::Instance().Stop();
+  }
+
+  initialized_ = false;
   SPDLOG_INFO("GMPCore shutdown complete");
 }
 
@@ -77,34 +101,39 @@ void GMPCore::OnFrameStart() {
   // Execute all deferred actions at the start of the frame.
   // This runs on the main thread, BEFORE Gothic's rendering.
   // Safe for operations like ChangeLevel that invalidate world state.
-  while (!this->deferredActions_.empty()) {
-    auto action = std::move(this->deferredActions_.front());
-    this->deferredActions_.pop();
+  while (!deferredActions_.empty()) {
+    auto action = std::move(deferredActions_.front());
+    deferredActions_.pop();
     action();
+  }
+
+  // Process MCP commands and state updates
+  if (Config::Instance().IsMCPPipeEnabled()) {
+    gmp::mcp::MCPPipeHandler::Instance().ProcessPendingMessages();
   }
 }
 
 void GMPCore::DeferToNextFrame(std::function<void()> action) {
-  this->deferredActions_.push(std::move(action));
+  deferredActions_.push(std::move(action));
   SPDLOG_DEBUG("GMPCore: Queued deferred action for next frame");
 }
 
 CIngame* GMPCore::CreateIngame() {
-  if (this->ingame_) {
+  if (ingame_) {
     SPDLOG_WARN("GMPCore::CreateIngame called but ingame already exists");
-    return this->ingame_.get();
+    return ingame_.get();
   }
 
   SPDLOG_INFO("GMPCore: Creating ingame handler");
-  this->ingame_ = std::make_unique<CIngame>();
-  return this->ingame_.get();
+  ingame_ = std::make_unique<CIngame>();
+  return ingame_.get();
 }
 
 void GMPCore::DestroyIngame() {
-  if (!this->ingame_) {
+  if (!ingame_) {
     return;
   }
 
   SPDLOG_INFO("GMPCore: Destroying ingame handler");
-  this->ingame_.reset();
+  ingame_.reset();
 }

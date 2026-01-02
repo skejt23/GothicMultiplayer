@@ -56,6 +56,7 @@ void ObjectDestructorPatched(bool arg);
 void FixSetTime();
 void DisableCheat();
 void DisableInjection();
+void DisableNativeExceptionHandler();
 HWND GetHWND();
 void SetLookingOnNpcCamera(bool arg);
 }  // namespace Patch

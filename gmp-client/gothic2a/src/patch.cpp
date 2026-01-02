@@ -260,3 +260,38 @@ void Patch::SetLookingOnNpcCamera(bool arg) {
     WriteMemory(0x69D701, buffer, 2);
   }
 };
+
+// Disables Gothic's native zCExceptionHandler completely.
+// The native handler is extremely basic and unhelpful.
+//
+// How zCExceptionHandler works:
+// - sysHandleExceptions() at 0x00502AA0 returns a bool controlling the entire system
+// - All exception handler code checks this: SetIsActive, WalkReleaseCallbacks, ExceptionLoop
+// - By making it always return FALSE, the entire native exception system is disabled
+//
+// This is equivalent to running Gothic with -ZNOEXHND command line parameter.
+void Patch::DisableNativeExceptionHandler() {
+  // 1) Gatekeeper: sysHandleExceptions() -> always FALSE.
+  // Patched: xor eax, eax; ret
+  constexpr DWORD kSysHandleExceptionsAddress = 0x00502AA0;
+  BYTE sysHandleBuffer[] = {0x31, 0xC0, 0xC3};
+  WriteMemory(kSysHandleExceptionsAddress, sysHandleBuffer, sizeof(sysHandleBuffer));
+
+  // 2) Prevent installing the crash handler filter even if Gothic calls it anyway.
+  // zCExceptionHandler::SetIsActive(int) at 0x004C8860
+  // Patched: ret 4
+  constexpr DWORD kSetIsActiveAddress = 0x004C8860;
+  BYTE setIsActiveBuffer[] = {0xC2, 0x04, 0x00};
+  WriteMemory(kSetIsActiveAddress, setIsActiveBuffer, sizeof(setIsActiveBuffer));
+
+  // Keep the flag coherent (some code reads it / prints it).
+  constexpr DWORD kIsActiveAddress = 0x008D1628;
+  DWORD zero = 0;
+  WriteMemory(kIsActiveAddress, reinterpret_cast<PBYTE>(&zero), sizeof(zero));
+
+  // 3) Hard-disable WalkReleaseCallbacks().
+  // Patched: ret
+  constexpr DWORD kWalkReleaseCallbacksAddress = 0x004C9120;
+  BYTE walkReleaseBuffer[] = {0xC3};
+  WriteMemory(kWalkReleaseCallbacksAddress, walkReleaseBuffer, sizeof(walkReleaseBuffer));
+}

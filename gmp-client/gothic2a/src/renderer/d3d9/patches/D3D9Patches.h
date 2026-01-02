@@ -24,19 +24,10 @@ SOFTWARE.
 
 #pragma once
 
-class ExternalConsoleWindow {
-public:
-  static void Init();
-  static void Shutdown();
+namespace gmp::renderer::d3d9 {
 
-  ~ExternalConsoleWindow();
+// Initialize D3D9-specific engine patches and hooks.
+// Call this once during renderer initialization.
+void InitializeD3D9Patches();
 
-private:
-  ExternalConsoleWindow();
-
-  ExternalConsoleWindow(const ExternalConsoleWindow&) = delete;
-  ExternalConsoleWindow& operator=(const ExternalConsoleWindow&) = delete;
-
-  void RedirectStdStreamsToConsole();
-  bool EnsureConsoleAvailable();
-};
+}  // namespace gmp::renderer::d3d9

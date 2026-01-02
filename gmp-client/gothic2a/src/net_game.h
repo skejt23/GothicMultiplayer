@@ -71,6 +71,8 @@ public:
   // Task scheduler hook - called from render hook
   static void __stdcall ProcessTaskScheduler();
 
+  void Shutdown();
+
   static NetGame& Instance() {
     static NetGame instance;
     return instance;

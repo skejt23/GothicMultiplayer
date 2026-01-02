@@ -107,6 +107,11 @@ public:
     return srv_.Get();
   }
 
+  // Get the DXGI format of this texture (cached, avoids COM GetDesc call).
+  [[nodiscard]] DXGI_FORMAT GetDXGIFormat() const {
+    return dxgiFormat_;
+  }
+
   // Heuristic used by the D3D11 renderer front-end to pick between TEST and BLEND_TEST
   // for world geometry. Returns true if this texture is likely to contain non-binary alpha.
   [[nodiscard]] bool HasSmoothAlpha() const;

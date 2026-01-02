@@ -119,6 +119,9 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
   DisableThreadLibraryCalls(hinstDLL);
   if (fdwReason == DLL_PROCESS_ATTACH) {
     try {
+      // Disable Gothic's built-in exception/crash handler as early as possible.
+      Patch::DisableNativeExceptionHandler();
+
       ExternalConsoleWindow::Init();
       spdlog::default_logger()->sinks().push_back(std::make_shared<spdlog::sinks::basic_file_sink_mt>("GMP_Log.txt", true));
       spdlog::flush_on(spdlog::level::info);
@@ -155,20 +158,6 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
       SPDLOG_ERROR("GMP.dll initialization failed with unknown exception");
       return FALSE;
     }
-  } else if (fdwReason == DLL_PROCESS_DETACH) {
-    ExternalConsoleWindow::DisableAtExitCallback();
-    if (HooksManager* hm = HooksManager::GetInstance()) {
-      hm->ClearAllHooks();
-    }
-    MemoryPatch::CleanupAllHooks();
-    CMainMenu::DeleteInstance();
-    Language::Instance().Clear();
-    LanguageManager::Instance().Clear();
-
-    // Shutdown spdlog before returning to prevent issues during CRT static destruction.
-    // This must be the last thing we do before returning because after this point
-    // we can't use any logging.
-    spdlog::shutdown();
   }
   return TRUE;
 }

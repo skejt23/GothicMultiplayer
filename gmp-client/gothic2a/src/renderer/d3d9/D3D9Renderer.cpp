@@ -109,7 +109,12 @@ unsigned long MapTextureOp(unsigned long op) {
 
 // Maps Gothic texture argument enum to D3D9 texture argument.
 unsigned long MapTextureArg(unsigned long arg) {
-  return (arg < kTextureArgMap.size()) ? kTextureArgMap[arg] : D3DTA_DIFFUSE;
+  // D3D texture arguments can include modifier bits (e.g. D3DTA_COMPLEMENT,
+  // D3DTA_ALPHAREPLICATE) OR-ed into the base argument.
+  const unsigned long flags = arg & ~D3DTA_SELECTMASK;
+  const unsigned long base = arg & D3DTA_SELECTMASK;
+  const unsigned long mapped_base = (base < kTextureArgMap.size()) ? kTextureArgMap[base] : D3DTA_DIFFUSE;
+  return mapped_base | flags;
 }
 
 // Maps Gothic texture transform flags to D3D9 flags.
@@ -169,8 +174,8 @@ constexpr unsigned long kCacheInvalidSentinel = std::numeric_limits<unsigned lon
 // - SLOPESCALEDEPTHBIAS: scales with polygon slope (needs to be larger for angled surfaces)
 // These values are tuned to match D3D7's behavior where zbias worked at all distances.
 // TODO: Replace these heuristic scales with a projection-aware computation.
-constexpr float kDepthBiasScale = -0.000005f;        // Constant depth offset (negative = closer to camera)
-constexpr float kSlopeScaledBiasScale = -1.0f;       // Slope-dependent offset (negative = closer to camera)
+constexpr float kDepthBiasScale = -0.000005f;   // Constant depth offset (negative = closer to camera)
+constexpr float kSlopeScaledBiasScale = -1.0f;  // Slope-dependent offset (negative = closer to camera)
 
 // Linear attenuation coefficient for point lights.
 // Controls how quickly light intensity falls off with distance.
@@ -1362,8 +1367,8 @@ void zCRnd_D3D_DX9::Vid_Clear(zCOLOR& color, int flags) {
         clearFlags = 0x00000001;  // D3DCLEAR_TARGET
         break;
       case zRND_CLEAR_ZBUFFER:
-        clearFlags = 0x00000002;  // D3DCLEAR_ZBUFFER
-        break;
+        impl_->ClearZ();
+        return;
       default:                    // zRND_CLEAR_ALL or any other value
         clearFlags = 0x00000003;  // D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER
         break;

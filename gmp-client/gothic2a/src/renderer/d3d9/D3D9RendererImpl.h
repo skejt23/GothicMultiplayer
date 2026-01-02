@@ -251,13 +251,14 @@ struct D3D9RendererImpl {
 
   // Scene state
   bool in_scene = false;
+  bool frame_in_progress_ = false;
 
   // Hardware capabilities
   RendererCapabilities capabilities_;
 
   // --- Lifecycle ---
   bool Init(void* hwnd, int width, int height, bool fullscreen);  // Create device with specified mode
-  bool Reset(int width, int height);  // Reset device for resolution change (preserves D3DPOOL_MANAGED resources)
+  bool Reset(int width, int height);                              // Reset device for resolution change (preserves D3DPOOL_MANAGED resources)
   void Cleanup();
 
   // --- Frame Management ---
@@ -266,6 +267,11 @@ struct D3D9RendererImpl {
   void Vid_Blit();
   void Present();
   void Clear(unsigned long color);
+  void ClearZ();
+
+  // Projection Squashing for Inventory
+  D3DMATRIX saved_projection_{};
+  bool has_saved_projection_ = false;
 
   // --- Drawing Primitives ---
   void DrawTriangles(const Vertex3D* vertices, int count);

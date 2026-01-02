@@ -26,6 +26,10 @@ SOFTWARE.
 
 #include <d3dcommon.h>
 #include <d3dcompiler.h>
+#ifndef NDEBUG
+#include <d3d11sdklayers.h>
+#include <dxgidebug.h>
+#endif
 #include <spdlog/spdlog.h>
 #include <wrl/client.h>
 
@@ -35,6 +39,7 @@ SOFTWARE.
 #include <cstring>
 
 #include "D3D11MapTracker.h"
+#include "D3D11VertexBuffer.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -45,6 +50,53 @@ using Microsoft::WRL::ComPtr;
 namespace gmp::renderer::d3d11 {
 
 namespace {
+
+#ifndef NDEBUG
+void ReportLiveD3D11AndDxgiObjects(ID3D11Device* device) {
+  if (!device) {
+    return;
+  }
+
+  // D3D11 live objects (requires the debug layer / SDK layers to be present).
+  {
+    ComPtr<ID3D11Debug> d3d11_debug;
+    if (SUCCEEDED(device->QueryInterface(IID_PPV_ARGS(&d3d11_debug))) && d3d11_debug) {
+      if (auto* logger = spdlog::default_logger_raw()) {
+        logger->info("D3D11: Reporting live device objects...");
+      }
+      d3d11_debug->ReportLiveDeviceObjects(D3D11_RLDO_SUMMARY | D3D11_RLDO_DETAIL);
+    }
+  }
+
+  // DXGI live objects (available when Graphics Tools / dxgidebug.dll is present).
+  {
+    // Avoid linking against dxguid.lib just for DXGI_DEBUG_ALL.
+    static const GUID kDXGIDebugAll = {0xe48ae283, 0xda80, 0x490b, {0x87, 0xe6, 0x43, 0xe9, 0xa9, 0xcf, 0xda, 0x08}};
+
+    HMODULE dxgi_debug_dll = LoadLibraryA("dxgidebug.dll");
+    if (!dxgi_debug_dll) {
+      return;
+    }
+
+    using DXGIGetDebugInterface1Fn = HRESULT(WINAPI*)(UINT Flags, REFIID riid, void** ppDebug);
+    auto* dxgi_get_debug_interface1 = reinterpret_cast<DXGIGetDebugInterface1Fn>(GetProcAddress(dxgi_debug_dll, "DXGIGetDebugInterface1"));
+    if (!dxgi_get_debug_interface1) {
+      FreeLibrary(dxgi_debug_dll);
+      return;
+    }
+
+    ComPtr<IDXGIDebug1> dxgi_debug;
+    if (SUCCEEDED(dxgi_get_debug_interface1(0, IID_PPV_ARGS(&dxgi_debug))) && dxgi_debug) {
+      if (auto* logger = spdlog::default_logger_raw()) {
+        logger->info("DXGI: Reporting live objects...");
+      }
+      dxgi_debug->ReportLiveObjects(kDXGIDebugAll, DXGI_DEBUG_RLO_ALL);
+    }
+
+    FreeLibrary(dxgi_debug_dll);
+  }
+}
+#endif
 
 void SetDebugObjectName(ID3D11DeviceChild* obj, const char* name) {
   if (!obj || !name) {
@@ -1000,9 +1052,15 @@ VS_OUTPUT main(VS_INPUT input) {
   //
   // To match D3D9, reconstruct clip-space w from rhw and scale the clip-space
   // position so that after division we still land on the same NDC.
+  //
+  // HALF-PIXEL OFFSET (D3D9->D3D11 migration):
+  // D3D9 pre-transformed vertices (XYZRHW) target pixel corners, while D3D11
+  // expects pixel centers. Subtracting 0.5 from input coordinates aligns the
+  // sampling to match D3D9 behavior, making fonts/UI crisp instead of blurry.
+  const float2 pos = input.PosRhw.xy - 0.5;
   const float2 ndc = float2(
-    (input.PosRhw.x * InvScreenSize.x) * 2.0 - 1.0,
-    1.0 - (input.PosRhw.y * InvScreenSize.y) * 2.0);
+    (pos.x * InvScreenSize.x) * 2.0 - 1.0,
+    1.0 - (pos.y * InvScreenSize.y) * 2.0);
 
   const float rhw = input.PosRhw.w;
   const float w = (abs(rhw) > 1e-8) ? (1.0 / rhw) : 1.0;
@@ -1846,10 +1904,28 @@ static void SafeRelease(T*& ptr) {
   }
 }
 
+// Helper to update a DYNAMIC constant buffer using Map/DISCARD
+template <typename T>
+static void UpdateDynamicCB(ID3D11DeviceContext* ctx, ID3D11Buffer* cb, const T& data) {
+  D3D11_MAPPED_SUBRESOURCE mapped;
+  if (SUCCEEDED(ctx->Map(cb, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) {
+    memcpy(mapped.pData, &data, sizeof(T));
+    ctx->Unmap(cb, 0);
+  }
+}
+
 // --- D3D11RendererImpl Implementation ---
 
 bool D3D11RendererImpl::Init(void* hwnd_ptr, int width, int height, bool is_fullscreen) {
   SPDLOG_INFO("Initializing D3D11RendererImpl {}x{} fullscreen={}", width, height, is_fullscreen);
+
+  // Clean up any existing resources before re-initializing.
+  // This is critical when changing resolution - all cached state objects
+  // (samplers, blend states, etc.) are tied to the old device and must be released.
+  if (device) {
+    SPDLOG_INFO("Re-initializing D3D11 renderer - cleaning up old resources");
+    Cleanup();
+  }
 
   hwnd = static_cast<HWND>(hwnd_ptr);
   screen_width = width;
@@ -1918,11 +1994,7 @@ bool D3D11RendererImpl::Init(void* hwnd_ptr, int width, int height, bool is_full
   // Update screen constant buffer
   screen_data.screen_size = DirectX::XMFLOAT2(static_cast<float>(width), static_cast<float>(height));
   screen_data.inv_screen_size = DirectX::XMFLOAT2(1.0f / width, 1.0f / height);
-  D3D11_MAPPED_SUBRESOURCE mapped;
-  if (SUCCEEDED(TrackedMap(context, static_cast<ID3D11Resource*>(cb_screen), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped, "Init:cb_screen"))) {
-    memcpy(mapped.pData, &screen_data, sizeof(screen_data));
-    TrackedUnmap(context, static_cast<ID3D11Resource*>(cb_screen), 0, "Init:cb_screen");
-  }
+  UpdateDynamicCB(context, cb_screen, screen_data);
   BindVSConstantBuffer(3, cb_screen);
 
   SPDLOG_INFO("D3D11RendererImpl initialized successfully");
@@ -2416,6 +2488,9 @@ bool D3D11RendererImpl::CreateShaders() {
 }
 
 bool D3D11RendererImpl::CreateConstantBuffers() {
+  // Use DYNAMIC + WRITE_DISCARD for frequently-updated constant buffers.
+  // This allows the driver to give us fresh memory each update, avoiding GPU stalls
+  // when the GPU is still reading the previous frame's data.
   D3D11_BUFFER_DESC cbd = {};
   cbd.Usage = D3D11_USAGE_DYNAMIC;
   cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
@@ -2448,11 +2523,7 @@ bool D3D11RendererImpl::CreateConstantBuffers() {
   material_data.alpha_test_enabled = 0.0f;
   material_data._pad[0] = 0.0f;
 
-  D3D11_MAPPED_SUBRESOURCE mapped_mat;
-  if (SUCCEEDED(TrackedMap(context, static_cast<ID3D11Resource*>(cb_material), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_mat, "Init:cb_material"))) {
-    memcpy(mapped_mat.pData, &material_data, sizeof(MaterialCB));
-    TrackedUnmap(context, static_cast<ID3D11Resource*>(cb_material), 0, "Init:cb_material");
-  }
+  UpdateDynamicCB(context, cb_material, material_data);
   last_material_data_ = material_data;
   has_last_material_data_ = true;
   material_dirty = false;
@@ -2478,11 +2549,7 @@ bool D3D11RendererImpl::CreateConstantBuffers() {
   fog_data._pad[1] = 0.0f;
   fog_data._pad[2] = 0.0f;
 
-  D3D11_MAPPED_SUBRESOURCE mapped_fog;
-  if (SUCCEEDED(TrackedMap(context, static_cast<ID3D11Resource*>(cb_fog), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_fog, "Init:cb_fog"))) {
-    memcpy(mapped_fog.pData, &fog_data, sizeof(FogCB));
-    TrackedUnmap(context, static_cast<ID3D11Resource*>(cb_fog), 0, "Init:cb_fog");
-  }
+  UpdateDynamicCB(context, cb_fog, fog_data);
   last_fog_data_ = fog_data;
   has_last_fog_data_ = true;
   fog_dirty = false;
@@ -2534,12 +2601,7 @@ bool D3D11RendererImpl::CreateConstantBuffers() {
     tex_transform_matrix_raw_[i] = DirectX::XMMatrixIdentity();
     tex_transform_matrix_[i] = DirectX::XMMatrixIdentity();
   }
-  D3D11_MAPPED_SUBRESOURCE mapped_init;
-  if (SUCCEEDED(
-          TrackedMap(context, static_cast<ID3D11Resource*>(cb_alpha_test), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_init, "Init:cb_alpha_test"))) {
-    memcpy(mapped_init.pData, &alpha_test_data, sizeof(AlphaTestCB));
-    TrackedUnmap(context, static_cast<ID3D11Resource*>(cb_alpha_test), 0, "Init:cb_alpha_test");
-  }
+  UpdateDynamicCB(context, cb_alpha_test, alpha_test_data);
   last_alpha_test_data_ = alpha_test_data;
   has_last_alpha_test_data_ = true;
   // Bind it to PS slot 4 so it's always available
@@ -2558,11 +2620,7 @@ bool D3D11RendererImpl::CreateConstantBuffers() {
   memset(&light_data, 0, sizeof(LightCB));
   light_data.ambient = {0.2f, 0.2f, 0.2f, 1.0f};  // Default ambient
   light_data.num_active_lights = 0;
-  D3D11_MAPPED_SUBRESOURCE mapped_light;
-  if (SUCCEEDED(TrackedMap(context, static_cast<ID3D11Resource*>(cb_light), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_light, "Init:cb_light"))) {
-    memcpy(mapped_light.pData, &light_data, sizeof(LightCB));
-    TrackedUnmap(context, static_cast<ID3D11Resource*>(cb_light), 0, "Init:cb_light");
-  }
+  UpdateDynamicCB(context, cb_light, light_data);
   // Bind it to VS slot 5 and PS slot 5
   BindVSConstantBuffer(5, cb_light);
   BindPSConstantBuffer(5, cb_light);
@@ -2581,11 +2639,7 @@ bool D3D11RendererImpl::CreateConstantBuffers() {
   gamma_data.contrast_scale = 1.0f;
   gamma_data.gamma_exp = 1.0f;
   gamma_data.gamma_enabled = 0.0f;  // Fast path: skip shader math when neutral.
-  D3D11_MAPPED_SUBRESOURCE mapped_gamma;
-  if (SUCCEEDED(TrackedMap(context, static_cast<ID3D11Resource*>(cb_gamma), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_gamma, "Init:cb_gamma"))) {
-    memcpy(mapped_gamma.pData, &gamma_data, sizeof(GammaCB));
-    TrackedUnmap(context, static_cast<ID3D11Resource*>(cb_gamma), 0, "Init:cb_gamma");
-  }
+  UpdateDynamicCB(context, cb_gamma, gamma_data);
   BindPSConstantBuffer(6, cb_gamma);
 
   SPDLOG_DEBUG("Constant buffers created");
@@ -2626,11 +2680,7 @@ void D3D11RendererImpl::SetGammaCorrection(float gamma, float contrast, float br
       (std::abs(gamma - kNeutral) < kEpsilon) && (std::abs(contrast - kNeutral) < kEpsilon) && (std::abs(brightness - kNeutral) < kEpsilon);
   gamma_data.gamma_enabled = is_neutral ? 0.0f : 1.0f;
 
-  D3D11_MAPPED_SUBRESOURCE mapped;
-  if (SUCCEEDED(TrackedMap(context, static_cast<ID3D11Resource*>(cb_gamma), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped, "SetGammaCorrection:cb_gamma"))) {
-    memcpy(mapped.pData, &gamma_data, sizeof(GammaCB));
-    TrackedUnmap(context, static_cast<ID3D11Resource*>(cb_gamma), 0, "SetGammaCorrection:cb_gamma");
-  }
+  UpdateDynamicCB(context, cb_gamma, gamma_data);
 
   // Ensure the buffer is bound (some paths rebind CBs explicitly).
   BindPSConstantBuffer(6, cb_gamma);
@@ -2902,6 +2952,11 @@ bool D3D11RendererImpl::CreateStateObjects() {
       SPDLOG_ERROR("Failed to create white fallback SRV");
       return false;
     }
+
+#ifndef NDEBUG
+    SetDebugObjectName(white_texture, "tex:fallback_white");
+    SetDebugObjectName(white_srv, "srv:fallback_white");
+#endif
   }
 
   // Create default black texture (1x1) for additive blend with no texture
@@ -2931,6 +2986,11 @@ bool D3D11RendererImpl::CreateStateObjects() {
       SPDLOG_ERROR("Failed to create black fallback SRV");
       return false;
     }
+
+#ifndef NDEBUG
+    SetDebugObjectName(black_texture, "tex:fallback_black");
+    SetDebugObjectName(black_srv, "srv:fallback_black");
+#endif
   }
 
   SPDLOG_DEBUG("State objects created");
@@ -3033,11 +3093,7 @@ bool D3D11RendererImpl::Resize(int width, int height) {
   // Update screen constant buffer
   screen_data.screen_size = DirectX::XMFLOAT2(static_cast<float>(width), static_cast<float>(height));
   screen_data.inv_screen_size = DirectX::XMFLOAT2(1.0f / width, 1.0f / height);
-  D3D11_MAPPED_SUBRESOURCE mapped;
-  if (SUCCEEDED(TrackedMap(context, static_cast<ID3D11Resource*>(cb_screen), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped, "Resize:cb_screen"))) {
-    memcpy(mapped.pData, &screen_data, sizeof(screen_data));
-    TrackedUnmap(context, static_cast<ID3D11Resource*>(cb_screen), 0, "Resize:cb_screen");
-  }
+  UpdateDynamicCB(context, cb_screen, screen_data);
 
   // Rebind render targets
   context->OMSetRenderTargets(1, &rtv, dsv);
@@ -3047,10 +3103,17 @@ bool D3D11RendererImpl::Resize(int width, int height) {
 }
 
 void D3D11RendererImpl::Cleanup() {
-  SPDLOG_INFO("Cleaning up D3D11RendererImpl");
+  if (auto* logger = spdlog::default_logger_raw()) {
+    logger->info("Cleaning up D3D11RendererImpl");
+  }
+
+  // Ensure any engine-owned vertex buffers release their D3D11 buffers before we tear down the device.
+  // This reduces debug-layer live-object warnings during shutdown.
+  zCVertexBuffer_D3D11::DestroyAllBuffers();
 
   if (context) {
     context->ClearState();
+    context->Flush();
   }
 
   // Release triple-buffered frame resources
@@ -3165,6 +3228,13 @@ void D3D11RendererImpl::Cleanup() {
   SafeRelease(swap_chain);
   SafeRelease(user_annotation);
   SafeRelease(context);
+
+#ifndef NDEBUG
+  // Dumping live objects here helps correlate "live object" exit warnings with actual leaks.
+  // This is best-effort and will no-op when debug interfaces are unavailable.
+  ReportLiveD3D11AndDxgiObjects(device);
+#endif
+
   SafeRelease(device);
 
   g_D3D11Device = nullptr;
@@ -3172,6 +3242,19 @@ void D3D11RendererImpl::Cleanup() {
 }
 
 void D3D11RendererImpl::BeginFrame() {
+  if (frame_begun_) {
+    return;
+  }
+  frame_begun_ = true;
+
+  // Log stats from previous frame every ~60 frames (~1 second at 60fps)
+  if (++stats_log_frame_counter_ >= 60) {
+    stats_log_frame_counter_ = 0;
+    SPDLOG_INFO("[D3D11 Stats] draws={} alphaTestCB={} transformCB={} ibMaps={} texBinds={}", frame_stats_.draw_calls,
+                frame_stats_.alpha_test_cb_updates, frame_stats_.transform_cb_updates, frame_stats_.ib_maps, frame_stats_.texture_binds);
+  }
+  frame_stats_ = {};  // Reset for this frame
+
   // Rotate to the next frame's buffers (waits for GPU if needed)
   RotateFrameResources();
 
@@ -3191,23 +3274,30 @@ void D3D11RendererImpl::Present() {
   auto& fr = frame_resources_[current_frame_index_];
   context->End(fr.fence);
   fr.fence_pending = true;
+
+  // Reset frame_begun_ so next frame's BeginFrame() will run
+  frame_begun_ = false;
 }
 
 void D3D11RendererImpl::Clear(unsigned long color) {
+  Clear(color, true, true);
+}
+
+void D3D11RendererImpl::Clear(unsigned long color, bool clear_color, bool clear_depth) {
   if (context == nullptr) {
     return;
   }
 
-  float clear_color[4];
-  clear_color[0] = ((color >> 16) & 0xFF) / 255.0f;  // R
-  clear_color[1] = ((color >> 8) & 0xFF) / 255.0f;   // G
-  clear_color[2] = (color & 0xFF) / 255.0f;          // B
-  clear_color[3] = ((color >> 24) & 0xFF) / 255.0f;  // A
+  float clear_rgba[4];
+  clear_rgba[0] = ((color >> 16) & 0xFF) / 255.0f;  // R
+  clear_rgba[1] = ((color >> 8) & 0xFF) / 255.0f;   // G
+  clear_rgba[2] = (color & 0xFF) / 255.0f;          // B
+  clear_rgba[3] = ((color >> 24) & 0xFF) / 255.0f;  // A
 
-  if (rtv != nullptr) {
-    context->ClearRenderTargetView(rtv, clear_color);
+  if (clear_color && rtv != nullptr) {
+    context->ClearRenderTargetView(rtv, clear_rgba);
   }
-  if (dsv != nullptr) {
+  if (clear_depth && dsv != nullptr) {
     context->ClearDepthStencilView(dsv, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
   }
 }
@@ -3397,16 +3487,18 @@ void D3D11RendererImpl::BindPSConstantBuffer(UINT slot, ID3D11Buffer* buffer) {
   context->PSSetConstantBuffers(slot, 1, &buffer);
 }
 
-void D3D11RendererImpl::SetTexture(int stage, ID3D11ShaderResourceView* srv) {
+void D3D11RendererImpl::SetTexture(int stage, ID3D11ShaderResourceView* srv, DXGI_FORMAT format) {
   // Use white fallback texture when no texture is provided
   // This prevents stale textures (like font atlas) from being sampled
   ID3D11ShaderResourceView* actual_srv = srv ? srv : white_srv;
 
   if (bound_srvs[stage] != actual_srv) {
     bound_srvs[stage] = actual_srv;
+    ++frame_stats_.texture_binds;
 
-    DXGI_FORMAT fmt = DXGI_FORMAT_UNKNOWN;
-    if (actual_srv) {
+    // Use the provided format if available, otherwise query it (fallback for legacy callers).
+    DXGI_FORMAT fmt = format;
+    if (fmt == DXGI_FORMAT_UNKNOWN && actual_srv && actual_srv != white_srv && actual_srv != black_srv) {
       D3D11_SHADER_RESOURCE_VIEW_DESC desc = {};
       actual_srv->GetDesc(&desc);
       fmt = desc.Format;
@@ -3438,7 +3530,7 @@ void D3D11RendererImpl::ApplyOpaqueState() {
   SetBlendState(bs_opaque);
   SetDepthStencilState(dss_default);
   SetRasterizerState(rs_default);
-  SetSamplerState(0, ss_linear_wrap);
+  ApplyPrebuiltSamplerState(0);
 }
 
 void D3D11RendererImpl::ApplyAlphaBlendState() {
@@ -4086,14 +4178,18 @@ void D3D11RendererImpl::FlushBatch() {
   // Set render state for 2D/UI rendering.
   // Blend state is already set by SetBlendDesc() from the front-end.
   // We only need to configure depth/rasterizer for UI rendering.
+  // RHW vertices use ScreenSize in shader, so we need fullscreen viewport.
+  // Save and restore the current viewport so 3D rendering isn't affected.
+  int saved_vp_x = current_viewport_x, saved_vp_y = current_viewport_y;
+  int saved_vp_w = current_viewport_w, saved_vp_h = current_viewport_h;
+  SetViewport(0, 0, screen_width, screen_height);
   SetDepthStencilState(dss_no_depth, 0);
   SetRasterizerState(rs_no_cull);
-  SetViewport(0, 0, screen_width, screen_height);
 
   // Set up pipeline
   SetInputLayout(layout_rhw);
   SetShaders(vs_rhw, ps_rhw);
-  SetSamplerState(0, ss_linear_wrap);
+  ApplyPrebuiltSamplerState(0);
   BindVSConstantBuffer(3, cb_screen);
 
   UINT stride = sizeof(VertexRHW);
@@ -4103,8 +4199,28 @@ void D3D11RendererImpl::FlushBatch() {
   SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
   // Draw
+#ifndef NDEBUG
+  {
+    const std::string srv0_name = GetDebugObjectName(bound_srvs[0]);
+    const std::string srv1_name = GetDebugObjectName(bound_srvs[1]);
+    const int s0_white = (bound_srvs[0] == white_srv) ? 1 : 0;
+    const int s0_black = (bound_srvs[0] == black_srv) ? 1 : 0;
+    const int s1_white = (bound_srvs[1] == white_srv) ? 1 : 0;
+    const int s1_black = (bound_srvs[1] == black_srv) ? 1 : 0;
+    char rdoc_label_big[512];
+    std::snprintf(rdoc_label_big, sizeof(rdoc_label_big),
+                  "DrawIndexed(UIBatch) idx=%zu s0=%p white0=%d black0=%d name0='%s' s1=%p white1=%d black1=%d name1='%s'", batch_.index_count,
+                  static_cast<const void*>(bound_srvs[0]), s0_white, s0_black, srv0_name.c_str(), static_cast<const void*>(bound_srvs[1]), s1_white,
+                  s1_black, srv1_name.c_str());
+    ScopedGpuEvent rdoc_event(user_annotation, rdoc_label_big);
+    context->DrawIndexed(static_cast<UINT>(batch_.index_count), static_cast<UINT>(ib_start_offset), 0);
+  }
+#else
   context->DrawIndexed(static_cast<UINT>(batch_.index_count), static_cast<UINT>(ib_start_offset), 0);
+#endif
 
+  // Restore the viewport for subsequent 3D rendering (e.g., inventory items)
+  SetViewport(saved_vp_x, saved_vp_y, saved_vp_w, saved_vp_h);
   batch_.Reset();
 }
 
@@ -4136,13 +4252,17 @@ void D3D11RendererImpl::DrawTrianglesRHW(const VertexRHW* vertices, int count) {
   // Set render state for 2D/UI rendering.
   // Blend state is already set by SetBlendDesc() from the front-end.
   // We only need to configure depth/rasterizer for UI rendering.
+  // RHW vertices use ScreenSize in shader, so we need fullscreen viewport.
+  // Save and restore the current viewport so 3D rendering isn't affected.
+  int saved_vp_x = current_viewport_x, saved_vp_y = current_viewport_y;
+  int saved_vp_w = current_viewport_w, saved_vp_h = current_viewport_h;
+  SetViewport(0, 0, screen_width, screen_height);
   SetDepthStencilState(dss_no_depth, 0);
   SetRasterizerState(rs_no_cull);
-  SetViewport(0, 0, screen_width, screen_height);
 
   SetInputLayout(layout_rhw);
   SetShaders(vs_rhw, ps_rhw);
-  SetSamplerState(0, ss_linear_wrap);
+  ApplyPrebuiltSamplerState(0);
   BindVSConstantBuffer(3, cb_screen);
 
   UINT stride = sizeof(VertexRHW);
@@ -4150,6 +4270,9 @@ void D3D11RendererImpl::DrawTrianglesRHW(const VertexRHW* vertices, int count) {
   BindVertexBuffer(0, fr.dynamic_vb, stride, vb_offset);
   SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   context->Draw(count, 0);
+
+  // Restore the viewport for subsequent 3D rendering
+  SetViewport(saved_vp_x, saved_vp_y, saved_vp_w, saved_vp_h);
 }
 
 void D3D11RendererImpl::DrawTriangleFan(const VertexRHW* vertices, int count, int z_func) {
@@ -4225,6 +4348,10 @@ void D3D11RendererImpl::DrawTriangleFan(const VertexRHW* vertices, int count, in
   }
 
   SetRasterizerState(rs_no_cull);
+  // RHW vertices use ScreenSize in shader, so we need fullscreen viewport.
+  // Save and restore the current viewport so 3D rendering isn't affected.
+  int saved_vp_x = current_viewport_x, saved_vp_y = current_viewport_y;
+  int saved_vp_w = current_viewport_w, saved_vp_h = current_viewport_h;
   SetViewport(0, 0, screen_width, screen_height);
 
   SetInputLayout(layout_rhw);
@@ -4257,7 +4384,7 @@ void D3D11RendererImpl::DrawTriangleFan(const VertexRHW* vertices, int count, in
   } else {
     SetShaders(vs_rhw, ps_vertex_color);
   }
-  SetSamplerState(0, ss_linear_wrap);
+  ApplyPrebuiltSamplerState(0);
   BindVSConstantBuffer(3, cb_screen);
 
   UINT stride = sizeof(VertexRHW);
@@ -4265,7 +4392,143 @@ void D3D11RendererImpl::DrawTriangleFan(const VertexRHW* vertices, int count, in
   BindVertexBuffer(0, fr.dynamic_vb, stride, vb_offset);
   BindIndexBuffer(fr.dynamic_ib, DXGI_FORMAT_R16_UINT, 0);
   SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+#ifndef NDEBUG
+  {
+    const std::string srv0_name = GetDebugObjectName(bound_srvs[0]);
+    const std::string srv1_name = GetDebugObjectName(bound_srvs[1]);
+    const int s0_white = (bound_srvs[0] == white_srv) ? 1 : 0;
+    const int s0_black = (bound_srvs[0] == black_srv) ? 1 : 0;
+    const int s1_white = (bound_srvs[1] == white_srv) ? 1 : 0;
+    const int s1_black = (bound_srvs[1] == black_srv) ? 1 : 0;
+    char rdoc_label_big[512];
+    std::snprintf(rdoc_label_big, sizeof(rdoc_label_big),
+                  "DrawIndexed(AlphaFan) idx=%d zf=%d s0=%p white0=%d black0=%d name0='%s' s1=%p white1=%d black1=%d name1='%s'", index_count, z_func,
+                  static_cast<const void*>(bound_srvs[0]), s0_white, s0_black, srv0_name.c_str(), static_cast<const void*>(bound_srvs[1]), s1_white,
+                  s1_black, srv1_name.c_str());
+    ScopedGpuEvent rdoc_event(user_annotation, rdoc_label_big);
+    context->DrawIndexed(index_count, static_cast<UINT>(ib_start_offset), 0);
+  }
+#else
   context->DrawIndexed(index_count, static_cast<UINT>(ib_start_offset), 0);
+#endif
+  // Restore the viewport for subsequent 3D rendering
+  SetViewport(saved_vp_x, saved_vp_y, saved_vp_w, saved_vp_h);
+}
+
+void D3D11RendererImpl::DrawBatchRHW(const VertexRHW* vertices, int vertex_count, const uint16_t* indices, int index_count, int z_func) {
+  if (vertex_count <= 0 || index_count <= 0)
+    return;
+
+  auto& fr = frame_resources_[current_frame_index_];
+
+  size_t vb_bytes = vertex_count * sizeof(VertexRHW);
+  size_t ib_bytes = index_count * sizeof(uint16_t);
+
+  // Determine map type: DISCARD on first use of frame, NO_OVERWRITE after
+  D3D11_MAP vb_map_type = (fr.vb_offset == 0) ? D3D11_MAP_WRITE_DISCARD : D3D11_MAP_WRITE_NO_OVERWRITE;
+  D3D11_MAP ib_map_type = (fr.ib_offset == 0) ? D3D11_MAP_WRITE_DISCARD : D3D11_MAP_WRITE_NO_OVERWRITE;
+
+  if (fr.vb_offset + vb_bytes > dynamic_vb_capacity || fr.ib_offset + index_count > dynamic_ib_capacity) {
+    SPDLOG_ERROR("DrawBatchRHW buffer overflow");
+    return;
+  }
+
+  // Upload vertices
+  size_t vb_start_offset = fr.vb_offset;
+  D3D11_MAPPED_SUBRESOURCE mapped;
+  if (SUCCEEDED(TrackedMap(context, static_cast<ID3D11Resource*>(fr.dynamic_vb), 0, vb_map_type, 0, &mapped, "DrawBatchRHW:dynamic_vb"))) {
+    memcpy(static_cast<uint8_t*>(mapped.pData) + vb_start_offset, vertices, vb_bytes);
+    TrackedUnmap(context, static_cast<ID3D11Resource*>(fr.dynamic_vb), 0, "DrawBatchRHW:dynamic_vb");
+    fr.vb_offset += vb_bytes;
+  }
+
+  // Upload indices
+  size_t ib_start_offset = fr.ib_offset;
+  if (SUCCEEDED(TrackedMap(context, static_cast<ID3D11Resource*>(fr.dynamic_ib), 0, ib_map_type, 0, &mapped, "DrawBatchRHW:dynamic_ib"))) {
+    memcpy(static_cast<uint8_t*>(mapped.pData) + ib_start_offset * sizeof(uint16_t), indices, ib_bytes);
+    TrackedUnmap(context, static_cast<ID3D11Resource*>(fr.dynamic_ib), 0, "DrawBatchRHW:dynamic_ib");
+    fr.ib_offset += index_count;
+  }
+
+  // Update cached offsets
+  dynamic_vb_offset = fr.vb_offset;
+  dynamic_ib_offset = fr.ib_offset;
+
+  // Select depth stencil state based on z_func
+  switch (z_func) {
+    case 0:  // ALWAYS
+    case 1:  // NEVER
+      SetDepthStencilState(dss_no_depth, 0);
+      break;
+    case 2:  // LESS
+      SetDepthStencilState(dss_alpha_less, 0);
+      break;
+    case 3:  // LESS_EQUAL
+    default:
+      SetDepthStencilState(dss_alpha, 0);
+      break;
+  }
+
+  SetRasterizerState(rs_no_cull);
+  // RHW vertices use ScreenSize in shader, so we need fullscreen viewport.
+  // Save and restore the current viewport so 3D rendering isn't affected.
+  int saved_vp_x = current_viewport_x, saved_vp_y = current_viewport_y;
+  int saved_vp_w = current_viewport_w, saved_vp_h = current_viewport_h;
+  SetViewport(0, 0, screen_width, screen_height);
+
+  SetInputLayout(layout_rhw);
+  if (bound_srvs[0] != nullptr) {
+    alpha_test_data.alpha_test_enabled = material_data.alpha_test_enabled;
+    alpha_test_data.alpha_ref = ComputeEffectiveAlphaRef(material_data.alpha_ref);
+    alpha_test_data.alpha_blend_func = IsAdditiveBlendForAlphaPoly() ? 1.0f : 0.0f;
+    alpha_test_data.uv_source0 = PackUvSourceAndTexGen(stage_uv_source_[0], stage_texgen_mode_[0]);
+    alpha_test_data.uv_source1 = PackUvSourceAndTexGen(stage_uv_source_[1], stage_texgen_mode_[1]);
+    alpha_test_data.color_op0 = CombineOpToFloat(stage_color_op_[0]);
+    alpha_test_data.color_op1 = CombineOpToFloat(stage_color_op_[1]);
+    const CombineOp alpha_op = stage_alpha_op_[0];
+    if (alpha_op == CombineOp::kSelectArg1) {
+      alpha_test_data.alpha_op = 1.0f;
+    } else if (alpha_op == CombineOp::kSelectArg2) {
+      alpha_test_data.alpha_op = 2.0f;
+    } else {
+      alpha_test_data.alpha_op = 0.0f;
+    }
+    UpdateAlphaTestCB();
+    BindPSConstantBuffer(4, cb_alpha_test);
+
+    SetShaders(vs_rhw, ps_rhw_alpha);
+  } else {
+    SetShaders(vs_rhw, ps_vertex_color);
+  }
+  ApplyPrebuiltSamplerState(0);
+  BindVSConstantBuffer(3, cb_screen);
+
+  UINT stride = sizeof(VertexRHW);
+  UINT vb_offset = static_cast<UINT>(vb_start_offset);
+  BindVertexBuffer(0, fr.dynamic_vb, stride, vb_offset);
+  BindIndexBuffer(fr.dynamic_ib, DXGI_FORMAT_R16_UINT, 0);
+  SetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+#ifndef NDEBUG
+  {
+    const std::string srv0_name = GetDebugObjectName(bound_srvs[0]);
+    const std::string srv1_name = GetDebugObjectName(bound_srvs[1]);
+    const int s0_white = (bound_srvs[0] == white_srv) ? 1 : 0;
+    const int s0_black = (bound_srvs[0] == black_srv) ? 1 : 0;
+    const int s1_white = (bound_srvs[1] == white_srv) ? 1 : 0;
+    const int s1_black = (bound_srvs[1] == black_srv) ? 1 : 0;
+    char rdoc_label_big[512];
+    std::snprintf(rdoc_label_big, sizeof(rdoc_label_big),
+                  "DrawIndexed(AlphaBatchRHW) idx=%d zf=%d s0=%p white0=%d black0=%d name0='%s' s1=%p white1=%d black1=%d name1='%s'", index_count,
+                  z_func, static_cast<const void*>(bound_srvs[0]), s0_white, s0_black, srv0_name.c_str(), static_cast<const void*>(bound_srvs[1]),
+                  s1_white, s1_black, srv1_name.c_str());
+    ScopedGpuEvent rdoc_event(user_annotation, rdoc_label_big);
+    context->DrawIndexed(index_count, static_cast<UINT>(ib_start_offset), 0);
+  }
+#else
+  context->DrawIndexed(index_count, static_cast<UINT>(ib_start_offset), 0);
+#endif
+  // Restore the viewport for subsequent 3D rendering
+  SetViewport(saved_vp_x, saved_vp_y, saved_vp_w, saved_vp_h);
 }
 
 void D3D11RendererImpl::DrawTriangles(const Vertex3D* vertices, int count) {
@@ -4529,7 +4792,7 @@ bool D3D11RendererImpl::DrawVertexBuffer(ID3D11Buffer* vertex_buffer, UINT strid
       SetBlendState(bs_alpha_blend);
       SetDepthStencilState(dss_no_depth, 0);
       SetRasterizerState(rs_no_cull);
-      SetSamplerState(0, ss_linear_wrap);
+      ApplyPrebuiltSamplerState(0);  // Respect current filter mode
       break;
   }
 
@@ -4556,13 +4819,18 @@ bool D3D11RendererImpl::DrawVertexBuffer(ID3D11Buffer* vertex_buffer, UINT strid
   const int s1_white = (bound_srvs[1] == white_srv) ? 1 : 0;
 
   char rdoc_label_big[1024];
+  // Include viewport and projection diagonal for debugging viewport-related issues
+  DirectX::XMFLOAT4X4 proj_float;
+  DirectX::XMStoreFloat4x4(&proj_float, transform_data.projection);
   std::snprintf(rdoc_label_big, sizeof(rdoc_label_big),
                 "DrawVB vtype=%d stride=%u PS=%s has_lm=%d a=%d uv0=%d gen0=%d uv1=%d gen1=%d "
-                "s0=%p white0=%d name0='%s' s1=%p white1=%d name1='%s'",
+                "s0=%p white0=%d name0='%s' s1=%p white1=%d name1='%s' "
+                "VP=(%d,%d,%dx%d) PROJ=(%.2f,%.2f,%.2f)",
                 vertex_type, stride, ps_name_short, has_lightmap_ ? 1 : 0, alpha_blend_func, static_cast<int>(stage_uv_source_[0]),
                 static_cast<int>(stage_texgen_mode_[0]), static_cast<int>(stage_uv_source_[1]), static_cast<int>(stage_texgen_mode_[1]),
                 static_cast<const void*>(bound_srvs[0]), s0_white, srv0_name.c_str(), static_cast<const void*>(bound_srvs[1]), s1_white,
-                srv1_name.c_str());
+                srv1_name.c_str(), current_viewport_x, current_viewport_y, current_viewport_w, current_viewport_h, proj_float._11, proj_float._22,
+                proj_float._33);
   ScopedGpuEvent rdoc_event(user_annotation, rdoc_label_big);
 #endif
 
@@ -4625,8 +4893,14 @@ bool D3D11RendererImpl::DrawVertexBuffer(ID3D11Buffer* vertex_buffer, UINT strid
 
   // Texture transform flags + matrices (used by water/env-map and UV scrolling).
   // Non-zero flag means transform is enabled.
-  alpha_test_data.tex_transform_enabled0 = stage_tex_transform_enabled_[0] ? 1.0f : 0.0f;
-  alpha_test_data.tex_transform_enabled1 = stage_tex_transform_enabled_[1] ? 1.0f : 0.0f;
+  // OPTIMIZATION: Only copy matrices when transforms are actually enabled.
+  // When disabled, use identity matrix so memcmp succeeds more often.
+  const bool tex0_enabled = stage_tex_transform_enabled_[0];
+  const bool tex1_enabled = stage_tex_transform_enabled_[1];
+  alpha_test_data.tex_transform_enabled0 = tex0_enabled ? 1.0f : 0.0f;
+  alpha_test_data.tex_transform_enabled1 = tex1_enabled ? 1.0f : 0.0f;
+
+  static const DirectX::XMMATRIX kIdentity = DirectX::XMMatrixIdentity();
   const auto SelectTexTransform = [&](int stage) -> DirectX::XMMATRIX {
     // Use raw engine-provided matrix for texgen modes, transposed matrix otherwise.
     if (stage_texgen_mode_[stage] != TexGenMode::kNone) {
@@ -4634,8 +4908,8 @@ bool D3D11RendererImpl::DrawVertexBuffer(ID3D11Buffer* vertex_buffer, UINT strid
     }
     return tex_transform_matrix_[stage];
   };
-  alpha_test_data.tex_transform0 = SelectTexTransform(0);
-  alpha_test_data.tex_transform1 = SelectTexTransform(1);
+  alpha_test_data.tex_transform0 = tex0_enabled ? SelectTexTransform(0) : kIdentity;
+  alpha_test_data.tex_transform1 = tex1_enabled ? SelectTexTransform(1) : kIdentity;
 
   // Convert Gothic's zRND_TOP_ to shader-friendly values:
   // zRND_TOP_SELECTARG1 = 1 (texture alpha only)
@@ -4693,8 +4967,11 @@ bool D3D11RendererImpl::DrawVertexBuffer(ID3D11Buffer* vertex_buffer, UINT strid
       dynamic_ib_offset = fr.ib_offset;
     }
     BindIndexBuffer(fr.dynamic_ib, DXGI_FORMAT_R16_UINT, 0);
+    ++frame_stats_.draw_calls;
+    ++frame_stats_.ib_maps;
     context->DrawIndexed(index_count, static_cast<UINT>(ib_start_offset), start_vertex);
   } else {
+    ++frame_stats_.draw_calls;
     context->Draw(vertex_count, start_vertex);
   }
 
@@ -4796,7 +5073,7 @@ bool D3D11RendererImpl::DrawAlphaBatch(const VertexRHW* vertices, size_t vertex_
   } else {
     SetShaders(vs_rhw, ps_vertex_color);
   }
-  SetSamplerState(0, ss_linear_wrap);
+  ApplyPrebuiltSamplerState(0);
   BindVSConstantBuffer(3, cb_screen);
 
   UINT stride = sizeof(VertexRHW);
@@ -4806,7 +5083,25 @@ bool D3D11RendererImpl::DrawAlphaBatch(const VertexRHW* vertices, size_t vertex_
 
   if (ib_count > 0) {
     BindIndexBuffer(fr.dynamic_ib, DXGI_FORMAT_R16_UINT, 0);
+#ifndef NDEBUG
+    {
+      const std::string srv0_name = GetDebugObjectName(bound_srvs[0]);
+      const std::string srv1_name = GetDebugObjectName(bound_srvs[1]);
+      const int s0_white = (bound_srvs[0] == white_srv) ? 1 : 0;
+      const int s0_black = (bound_srvs[0] == black_srv) ? 1 : 0;
+      const int s1_white = (bound_srvs[1] == white_srv) ? 1 : 0;
+      const int s1_black = (bound_srvs[1] == black_srv) ? 1 : 0;
+      char rdoc_label_big[512];
+      std::snprintf(rdoc_label_big, sizeof(rdoc_label_big),
+                    "DrawIndexed(AlphaBatch) idx=%zu zf=%d has_tex=%d s0=%p white0=%d black0=%d name0='%s' s1=%p white1=%d black1=%d name1='%s'",
+                    ib_count, z_func, has_texture ? 1 : 0, static_cast<const void*>(bound_srvs[0]), s0_white, s0_black, srv0_name.c_str(),
+                    static_cast<const void*>(bound_srvs[1]), s1_white, s1_black, srv1_name.c_str());
+      ScopedGpuEvent rdoc_event(user_annotation, rdoc_label_big);
+      context->DrawIndexed(static_cast<UINT>(ib_count), static_cast<UINT>(ib_start_offset), 0);
+    }
+#else
     context->DrawIndexed(static_cast<UINT>(ib_count), static_cast<UINT>(ib_start_offset), 0);
+#endif
   } else {
     context->Draw(static_cast<UINT>(vertex_count), 0);
   }
@@ -4885,11 +5180,11 @@ void D3D11RendererImpl::UpdateTransformCB() {
     return;
   }
 
+  ++frame_stats_.transform_cb_updates;
   D3D11_MAPPED_SUBRESOURCE mapped;
-  if (SUCCEEDED(TrackedMap(context, static_cast<ID3D11Resource*>(cb_transform), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped,
-                           "UpdateTransformCB:cb_transform"))) {
-    memcpy(mapped.pData, &transform_data, sizeof(transform_data));
-    TrackedUnmap(context, static_cast<ID3D11Resource*>(cb_transform), 0, "UpdateTransformCB:cb_transform");
+  if (SUCCEEDED(context->Map(cb_transform, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) {
+    memcpy(mapped.pData, &transform_data, sizeof(TransformCB));
+    context->Unmap(cb_transform, 0);
   }
 
   last_transform_data_ = transform_data;
@@ -4916,10 +5211,9 @@ void D3D11RendererImpl::UpdateMaterialCB() {
   }
 
   D3D11_MAPPED_SUBRESOURCE mapped;
-  if (SUCCEEDED(
-          TrackedMap(context, static_cast<ID3D11Resource*>(cb_material), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped, "UpdateMaterialCB:cb_material"))) {
+  if (SUCCEEDED(context->Map(cb_material, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) {
     memcpy(mapped.pData, &sanitized, sizeof(MaterialCB));
-    TrackedUnmap(context, static_cast<ID3D11Resource*>(cb_material), 0, "UpdateMaterialCB:cb_material");
+    context->Unmap(cb_material, 0);
   }
 
   last_material_data_ = sanitized;
@@ -4955,9 +5249,9 @@ void D3D11RendererImpl::UpdateFogCB() {
   }
 
   D3D11_MAPPED_SUBRESOURCE mapped;
-  if (SUCCEEDED(TrackedMap(context, static_cast<ID3D11Resource*>(cb_fog), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped, "UpdateFogCB:cb_fog"))) {
+  if (SUCCEEDED(context->Map(cb_fog, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) {
     memcpy(mapped.pData, &sanitized, sizeof(FogCB));
-    TrackedUnmap(context, static_cast<ID3D11Resource*>(cb_fog), 0, "UpdateFogCB:cb_fog");
+    context->Unmap(cb_fog, 0);
   }
 
   last_fog_data_ = sanitized;
@@ -4973,11 +5267,11 @@ void D3D11RendererImpl::UpdateAlphaTestCB() {
   if (has_last_alpha_test_data_ && memcmp(&alpha_test_data, &last_alpha_test_data_, sizeof(AlphaTestCB)) == 0) {
     return;
   }
+  ++frame_stats_.alpha_test_cb_updates;
   D3D11_MAPPED_SUBRESOURCE mapped;
-  if (SUCCEEDED(TrackedMap(context, static_cast<ID3D11Resource*>(cb_alpha_test), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped,
-                           "UpdateAlphaTestCB:cb_alpha_test"))) {
+  if (SUCCEEDED(context->Map(cb_alpha_test, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) {
     memcpy(mapped.pData, &alpha_test_data, sizeof(AlphaTestCB));
-    TrackedUnmap(context, static_cast<ID3D11Resource*>(cb_alpha_test), 0, "UpdateAlphaTestCB:cb_alpha_test");
+    context->Unmap(cb_alpha_test, 0);
   }
   last_alpha_test_data_ = alpha_test_data;
   has_last_alpha_test_data_ = true;
@@ -5202,11 +5496,7 @@ void D3D11RendererImpl::UpdateLightBuffer() {
     return;
   }
 
-  D3D11_MAPPED_SUBRESOURCE mapped;
-  if (SUCCEEDED(TrackedMap(context, static_cast<ID3D11Resource*>(cb_light), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped, "UpdateLightBuffer:cb_light"))) {
-    memcpy(mapped.pData, &light_data, sizeof(LightCB));
-    TrackedUnmap(context, static_cast<ID3D11Resource*>(cb_light), 0, "UpdateLightBuffer:cb_light");
-  }
+  UpdateDynamicCB(context, cb_light, light_data);
 
   last_light_data_ = light_data;
   has_last_light_data_ = true;

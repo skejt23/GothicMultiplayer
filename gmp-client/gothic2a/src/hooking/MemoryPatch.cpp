@@ -45,7 +45,6 @@ void CleanupAllHooks() {
   if (g_hookInfo.empty()) {
     return;
   }
-  SPDLOG_DEBUG("MemoryPatch::CleanupAllHooks: Cleaning up {} hook(s)", g_hookInfo.size());
   for (auto& [address, info] : g_hookInfo) {
     if (info.detour) {
       info.detour->unHook();

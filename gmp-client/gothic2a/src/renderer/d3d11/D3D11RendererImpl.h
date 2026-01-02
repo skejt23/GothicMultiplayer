@@ -66,39 +66,9 @@ SOFTWARE.
 #include <unordered_map>
 
 #include "NativeRenderState.h"
+#include "D3D11Vertex.h"
 
 namespace gmp::renderer::d3d11 {
-
-// --- Vertex Formats ---
-// These vertex structures match Gothic's internal formats.
-// In D3D11, we use Input Layouts instead of FVF.
-
-// 3D vertex with position, normal, diffuse color, and single UV coordinate.
-// Used for world geometry that needs lighting calculations.
-struct Vertex3D {
-  float x, y, z;        // Position in world/view space
-  float nx, ny, nz;     // Normal for lighting
-  unsigned long color;  // Pre-lit vertex color (ARGB)
-  float u, v;           // Texture coordinates
-};
-
-// Pre-transformed (RHW) vertex with position, color, and single UV.
-// Used for 2D UI elements and post-projection geometry.
-// In D3D11, we transform these in the vertex shader to NDC.
-struct VertexRHW {
-  float x, y, z, rhw;   // Screen-space position (rhw = 1/w)
-  unsigned long color;  // Vertex color (ARGB)
-  float u, v;           // Texture coordinates
-};
-
-// Pre-transformed vertex with two UV sets for multi-texturing.
-// Used for lightmapped surfaces (diffuse + lightmap).
-struct VertexRHW2 {
-  float x, y, z, rhw;   // Screen-space position
-  unsigned long color;  // Vertex color (ARGB)
-  float u1, v1;         // Primary texture coordinates (diffuse)
-  float u2, v2;         // Secondary texture coordinates (lightmap)
-};
 
 // --- Renderer Capabilities ---
 // Hardware capabilities queried from D3D11.
@@ -277,6 +247,10 @@ struct alignas(16) LightCB {
 static constexpr size_t kMaxTextureStages = 8;
 
 struct D3D11RendererImpl {
+  ~D3D11RendererImpl() {
+    Cleanup();
+  }
+
   // --- Core D3D11 Objects ---
   ID3D11Device* device = nullptr;
   ID3D11DeviceContext* context = nullptr;
@@ -387,6 +361,18 @@ struct D3D11RendererImpl {
   int current_frame_index_ = 0;
   size_t dynamic_vb_capacity = 0;
   size_t dynamic_ib_capacity = 0;
+  bool frame_begun_ = false;  // Guards against multiple BeginFrame calls per frame
+
+  // --- Performance Counters (reset each frame) ---
+  struct FrameStats {
+    int draw_calls = 0;
+    int alpha_test_cb_updates = 0;
+    int transform_cb_updates = 0;
+    int ib_maps = 0;
+    int texture_binds = 0;
+  };
+  FrameStats frame_stats_;
+  int stats_log_frame_counter_ = 0;
 
   // Convenience pointers to current frame's resources
   ID3D11Buffer* dynamic_vb = nullptr;
@@ -540,6 +526,7 @@ struct D3D11RendererImpl {
   void EndFrame();
   void Present();
   void Clear(unsigned long color);
+  void Clear(unsigned long color, bool clear_color, bool clear_depth);
 
   // --- Drawing Primitives ---
   void DrawTriangles(const Vertex3D* vertices, int count);
@@ -564,6 +551,7 @@ struct D3D11RendererImpl {
   // z_func: 0=ALWAYS, 1=NEVER, 2=LESS, 3=LESS_EQUAL
   bool DrawAlphaBatch(const VertexRHW* vertices, size_t vertex_count, const uint16_t* indices, size_t index_count, bool has_texture, int z_func);
   void DrawTriangleFan(const VertexRHW* vertices, int count, int z_func);
+  void DrawBatchRHW(const VertexRHW* vertices, int vertex_count, const uint16_t* indices, int index_count, int z_func);
 
   // --- Transforms & Viewport ---
   void SetViewport(int x, int y, int width, int height);
@@ -574,7 +562,7 @@ struct D3D11RendererImpl {
   void UpdateTransformCB();
 
   // --- Texture Management ---
-  void SetTexture(int stage, ID3D11ShaderResourceView* srv);
+  void SetTexture(int stage, ID3D11ShaderResourceView* srv, DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN);
   void SetTextureWrap(int stage, bool enable);
   void SetTextureFilter(int stage, int filter);
   void SetHasLightmap(bool has_lightmap);

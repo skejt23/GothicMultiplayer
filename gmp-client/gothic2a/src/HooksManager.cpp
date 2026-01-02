@@ -26,17 +26,14 @@ SOFTWARE.
 
 #include <spdlog/spdlog.h>
 
-#include <cmath>
-#include <cstdio>
-
-#include "ZenGin/zGothicAPI.h"
 #include "config.h"
 #include "gmp_core.h"
-#include "renderer/d3d9/D3D9Renderer.h"
+#include "mcp/mcp_pipe_handler.h"
+#include "patch.h"
 #include "renderer/d3d11/D3D11Renderer.h"
 #include "renderer/d3d11/patches/D3D11Patches.h"
-
-#include "ZenGin/Gothic_II_Addon/API/zRenderManager.h"
+#include "renderer/d3d9/D3D9Renderer.h"
+#include "renderer/d3d9/patches/D3D9Patches.h"
 
 namespace {
 
@@ -168,8 +165,6 @@ void HooksManager::ClearAllHooks() {
   this->OnAiMovingHooks.clear();
   this->AiMovingCallbacksToDelete.clear();
   LeaveCriticalSection(&this->AiMovingCs);
-
-  SPDLOG_DEBUG("HooksManager: All hooks cleared for shutdown");
 }
 
 void HooksManager::AddHook(HOOK_TYPE type, DWORD callback) {
@@ -352,9 +347,12 @@ void HooksManager::InitAllPatches() {
     SPDLOG_ERROR("Failed to hook zCCamera::SetFOV at 0x{:08X}", kSetFOV2Address);
   }
 
-  // Initialize D3D11-specific patches (shader semantic bridge, etc.)
+  // Initialize renderer-specific patches
   if (UseDx11Renderer()) {
     gmp::renderer::d3d11::InitializeD3D11Patches();
+  }
+  if (UseDx9Renderer()) {
+    gmp::renderer::d3d9::InitializeD3D9Patches();
   }
 
   if (auto original = CreateHook(kRenderHookAddress, (DWORD)&HooksManager::OnRender)) {
@@ -372,11 +370,11 @@ void HooksManager::InitAllPatches() {
 
 void __fastcall HooksManager::OnRender(oCGame* gameInstance) {
   HooksManager* hm = HooksManager::GetInstance();
-  
+
   // Process deferred actions at frame start, BEFORE Gothic rendering.
   // This is the safe point for operations like ChangeLevel that invalidate world state.
   GMPCore::Instance().OnFrameStart();
-  
+
   if (g_renderOriginal) {
     g_renderOriginal(gameInstance);
   }
@@ -426,6 +424,10 @@ void __fastcall HooksManager::OnAiMoving(zCAIPlayer* aiPlayer, void* /*unusedEdx
 }
 
 void __stdcall HooksManager::OnCloseLoadScreen() {
+  if (Config::Instance().IsMCPPipeEnabled()) {
+    gmp::mcp::MCPPipeHandler::Instance().OnLoadingComplete();
+  }
+
   HooksManager* hm = HooksManager::GetInstance();
   EnterCriticalSection(&hm->CloseLoadScreenCs);
   HooksSet::iterator end = hm->OnCloseLoadScreenHooks.end();

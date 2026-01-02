@@ -31,6 +31,7 @@ SOFTWARE.
 #include "AlphaPoly.h"
 #include "D3D11DisplayModes.h"
 #include "D3D11FogManager.h"
+#include "D3D11Vertex.h"
 #include "ZenGin/zGothicAPI.h"
 
 // Forward declarations.
@@ -346,6 +347,10 @@ private:
 
   // Polygon batching.
   std::vector<zCPolygon*> poly_batch_;
+  std::vector<gmp::renderer::d3d11::VertexRHW> batch_verts_;
+  std::vector<uint16_t> batch_indices_;
+  void FlushBatch();
+  void AddToBatch(const std::vector<gmp::renderer::d3d11::VertexRHW>& verts);
 };
 
 // Factory functions for the hook.

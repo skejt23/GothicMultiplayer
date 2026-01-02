@@ -33,6 +33,7 @@ SOFTWARE.
 // Forward declarations
 class CMainMenu;
 class CIngame;
+class TestMode;
 
 namespace Gothic_II_Addon {
 class oCGame;
@@ -126,6 +127,7 @@ public:
 private:
   std::unique_ptr<CMainMenu> mainMenu_;
   std::unique_ptr<CIngame> ingame_;
+  std::unique_ptr<TestMode> testMode_;
 
   std::queue<std::function<void()>> deferredActions_;
 
