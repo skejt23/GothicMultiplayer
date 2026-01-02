@@ -26,10 +26,20 @@ SOFTWARE.
 
 class ExternalConsoleWindow {
 public:
+  /**
+   * @brief Initialize the external console window (call once at startup).
+   */
   static void Init();
-  static void Shutdown();
 
-  ~ExternalConsoleWindow();
+  /**
+   * @brief Save the current console window position to config.
+   *
+   * Call this before exit to remember the console position.
+   * This is safe to call and won't throw exceptions.
+   */
+  static void SavePosition();
+
+  ~ExternalConsoleWindow() = default;
 
 private:
   ExternalConsoleWindow();

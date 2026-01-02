@@ -26,8 +26,6 @@ SOFTWARE.
 
 #include <windows.h>
 
-#include <atomic>
-#include <exception>
 #include <memory>
 #include <mutex>
 
@@ -44,35 +42,24 @@ void ExternalConsoleWindow::Init() {
   std::call_once(g_once, [] { g_instance = std::unique_ptr<ExternalConsoleWindow>(new ExternalConsoleWindow()); });
 }
 
-void ExternalConsoleWindow::Shutdown() {
-  g_instance.reset();
+void ExternalConsoleWindow::SavePosition() {
+  // Save current console window position to config
+  if (hwnd != nullptr) {
+    RECT rc{};
+    if (::GetWindowRect(hwnd, &rc)) {
+      Config::Instance().SetConsolePosition({rc.left, rc.top});
+      Config::Instance().SaveConfigToFile();
+    }
+  }
 }
 
 ExternalConsoleWindow::ExternalConsoleWindow() {
   if (EnsureConsoleAvailable()) {
     RedirectStdStreamsToConsole();
 
-    if (auto &opt_pos = Config::Instance().GetConsolePosition(); opt_pos) {
+    if (auto& opt_pos = Config::Instance().GetConsolePosition(); opt_pos) {
       ::SetWindowPos(hwnd, nullptr, opt_pos->x, opt_pos->y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
     }
-  }
-}
-
-ExternalConsoleWindow::~ExternalConsoleWindow() {
-  // Save console position before cleanup
-  try {
-    RECT rc{};
-    if (hwnd && ::GetWindowRect(hwnd, &rc)) {
-      Config::Instance().SetConsolePosition({rc.left, rc.top});
-      Config::Instance().SaveConfigToFile();
-    }
-  } catch (...) {
-    // Ignore errors during shutdown
-  }
-
-  if (hwnd != nullptr) {
-    ::FreeConsole();
-    hwnd = nullptr;
   }
 }
 
@@ -86,7 +73,7 @@ bool ExternalConsoleWindow::EnsureConsoleAvailable() {
 
 void ExternalConsoleWindow::RedirectStdStreamsToConsole() {
   // Reopen stdout, stderr to console
-  FILE *fp;
+  FILE* fp;
   // stdout
   freopen_s(&fp, "CONOUT$", "w", stdout);
   setvbuf(stdout, nullptr, _IONBF, 0);

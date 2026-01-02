@@ -25,11 +25,14 @@ SOFTWARE.
 #include "gmp_core.h"
 
 #include <spdlog/spdlog.h>
+#include <windows.h>
 
 #include "CIngame.h"
 #include "config.h"
+#include "external_console_window.hpp"
 #include "main_menu.h"
 #include "mcp/mcp_pipe_handler.h"
+#include "net_game.h"
 #include "test_mode.h"
 
 // For now, maintain compatibility with existing global_ingame pattern
@@ -136,4 +139,23 @@ void GMPCore::DestroyIngame() {
 
   SPDLOG_INFO("GMPCore: Destroying ingame handler");
   ingame_.reset();
+}
+
+void GMPCore::ExitGame(int exitCode) {
+  SPDLOG_INFO("GMPCore::ExitGame called with exitCode={}", exitCode);
+
+  // Save console window position before exit
+  ExternalConsoleWindow::SavePosition();
+
+  // Disconnect from server (quick operation, doesn't block)
+  NetGame::Instance().Disconnect();
+
+  if (Config::Instance().IsMCPPipeEnabled()) {
+    gmp::mcp::MCPPipeHandler::Instance().Stop();
+  }
+
+  // Terminate the process immediately.
+  // The current attempts at graceful shutdown sometimes hang or crash,
+  // so for now we just exit immediately. TODO: revisit proper shutdown later.
+  TerminateProcess(GetCurrentProcess(), static_cast<UINT>(exitCode));
 }

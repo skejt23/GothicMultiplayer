@@ -73,6 +73,15 @@ public:
   void Shutdown();
 
   /**
+   * @brief Perform a clean exit of the game process.
+   *
+   * This is the single point for exiting GMP.
+   *
+   * @param exitCode The process exit code (default 0 for success).
+   */
+  static void ExitGame(int exitCode = 0);
+
+  /**
    * @brief Called at the start of each frame, before Gothic rendering.
    *
    * This is the safe point to execute deferred actions like level changes

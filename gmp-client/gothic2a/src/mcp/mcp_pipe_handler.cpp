@@ -62,6 +62,13 @@ bool MCPPipeHandler::Start() {
 
   SPDLOG_INFO("Starting MCP Pipe Handler on {}", kPipeName);
 
+  // Create stop event (manual-reset, initially non-signaled)
+  stop_event_ = CreateEventA(nullptr, TRUE, FALSE, nullptr);
+  if (stop_event_ == NULL) {
+    SPDLOG_ERROR("Failed to create stop event: {}", GetLastError());
+    return false;
+  }
+
   stop_requested_.store(false);
   running_.store(true);
 
@@ -83,16 +90,22 @@ void MCPPipeHandler::Stop() {
 
   stop_requested_.store(true);
 
-  // Close pipe to interrupt any blocking operations
-  if (pipe_handle_ != INVALID_HANDLE_VALUE) {
-    DisconnectNamedPipe(pipe_handle_);
-    CloseHandle(pipe_handle_);
-    pipe_handle_ = INVALID_HANDLE_VALUE;
+  // Signal the stop event to unblock any waiting operations in the server thread
+  if (stop_event_ != NULL) {
+    SetEvent(stop_event_);
   }
 
-  // Wait for server thread
+  // Wait for server thread to exit - it will handle its own cleanup
   if (server_thread_.joinable()) {
+    SPDLOG_DEBUG("Waiting for server thread to exit...");
     server_thread_.join();
+    SPDLOG_DEBUG("Server thread exited");
+  }
+
+  // Cleanup stop event
+  if (stop_event_ != NULL) {
+    CloseHandle(stop_event_);
+    stop_event_ = NULL;
   }
 
   running_.store(false);
@@ -446,29 +459,93 @@ void MCPPipeHandler::ServerThread() {
   SPDLOG_INFO("MCP Pipe server thread started");
 
   while (!stop_requested_.load()) {
-    // Create named pipe
-    pipe_handle_ = CreateNamedPipeA(kPipeName, PIPE_ACCESS_DUPLEX, PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
+    // Create named pipe with overlapped I/O support
+    pipe_handle_ = CreateNamedPipeA(kPipeName,
+                                    PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,  // Enable overlapped I/O
+                                    PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
                                     1,  // Max instances
                                     kBufferSize, kBufferSize, kTimeout, nullptr);
 
     if (pipe_handle_ == INVALID_HANDLE_VALUE) {
       SPDLOG_ERROR("Failed to create named pipe: {}", GetLastError());
-      std::this_thread::sleep_for(std::chrono::seconds(1));
+      // Check stop event with timeout instead of sleep
+      if (WaitForSingleObject(stop_event_, 1000) == WAIT_OBJECT_0) {
+        break;
+      }
       continue;
     }
 
     SPDLOG_DEBUG("Waiting for MCP client connection...");
 
-    // Wait for client connection
-    BOOL connected = ConnectNamedPipe(pipe_handle_, nullptr);
-    if (!connected && GetLastError() != ERROR_PIPE_CONNECTED) {
-      if (stop_requested_.load()) {
-        break;
-      }
-      SPDLOG_WARN("Client connection failed: {}", GetLastError());
+    // Set up overlapped structure for ConnectNamedPipe
+    OVERLAPPED overlapped = {};
+    overlapped.hEvent = CreateEventA(nullptr, TRUE, FALSE, nullptr);
+    if (overlapped.hEvent == NULL) {
+      SPDLOG_ERROR("Failed to create overlapped event: {}", GetLastError());
       CloseHandle(pipe_handle_);
       pipe_handle_ = INVALID_HANDLE_VALUE;
       continue;
+    }
+
+    // Start async connect
+    BOOL connected = ConnectNamedPipe(pipe_handle_, &overlapped);
+    DWORD connect_error = GetLastError();
+
+    if (!connected) {
+      if (connect_error == ERROR_IO_PENDING) {
+        // Connection is pending - wait for either connection or stop event
+        HANDLE wait_handles[2] = {overlapped.hEvent, stop_event_};
+        DWORD wait_result = WaitForMultipleObjects(2, wait_handles, FALSE, INFINITE);
+
+        if (wait_result == WAIT_OBJECT_0) {
+          // Overlapped event signaled - connection completed or failed
+          DWORD bytes_transferred = 0;
+          if (!GetOverlappedResult(pipe_handle_, &overlapped, &bytes_transferred, FALSE)) {
+            DWORD result_error = GetLastError();
+            if (result_error != ERROR_PIPE_CONNECTED) {
+              SPDLOG_WARN("ConnectNamedPipe failed: {}", result_error);
+              CloseHandle(overlapped.hEvent);
+              CloseHandle(pipe_handle_);
+              pipe_handle_ = INVALID_HANDLE_VALUE;
+              continue;
+            }
+          }
+          // Connection successful, fall through to handle client
+        } else if (wait_result == WAIT_OBJECT_0 + 1) {
+          // Stop event signaled - exit the loop
+          SPDLOG_DEBUG("Stop event signaled during connection wait");
+          CancelIoEx(pipe_handle_, &overlapped);
+          CloseHandle(overlapped.hEvent);
+          CloseHandle(pipe_handle_);
+          pipe_handle_ = INVALID_HANDLE_VALUE;
+          break;
+        } else {
+          // Wait failed
+          SPDLOG_ERROR("WaitForMultipleObjects failed: {}", GetLastError());
+          CancelIoEx(pipe_handle_, &overlapped);
+          CloseHandle(overlapped.hEvent);
+          CloseHandle(pipe_handle_);
+          pipe_handle_ = INVALID_HANDLE_VALUE;
+          continue;
+        }
+      } else if (connect_error != ERROR_PIPE_CONNECTED) {
+        // Actual error
+        SPDLOG_WARN("Client connection failed: {}", connect_error);
+        CloseHandle(overlapped.hEvent);
+        CloseHandle(pipe_handle_);
+        pipe_handle_ = INVALID_HANDLE_VALUE;
+        continue;
+      }
+      // ERROR_PIPE_CONNECTED means client connected between CreateNamedPipe and ConnectNamedPipe
+    }
+
+    CloseHandle(overlapped.hEvent);
+
+    // Check if we should stop before handling client
+    if (stop_requested_.load()) {
+      CloseHandle(pipe_handle_);
+      pipe_handle_ = INVALID_HANDLE_VALUE;
+      break;
     }
 
     SPDLOG_INFO("MCP client connected");
