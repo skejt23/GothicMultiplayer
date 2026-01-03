@@ -32,10 +32,12 @@ SOFTWARE.
 
 namespace gmp::gothic {
 
+constexpr int kMaxTrackedCode = MAX_MOUSE_BTNS_AND_CODES;
+
 // Input state arrays
-extern bool s_prevPressed[MAX_KEYS_AND_CODES + 1];
-extern bool s_pressedThisFrame[MAX_KEYS_AND_CODES + 1];
-extern bool s_toggledThisFrame[MAX_KEYS_AND_CODES + 1];
+extern bool s_prevPressed[kMaxTrackedCode + 1];
+extern bool s_pressedThisFrame[kMaxTrackedCode + 1];
+extern bool s_toggledThisFrame[kMaxTrackedCode + 1];
 
 // Process input and trigger key events
 void ProcessInput(zCInput* zinput);
@@ -163,6 +165,9 @@ inline constexpr std::array kGameKeys = {
 
 // Bind all key constants to Lua state
 void BindInputConstants(sol::state& lua);
+
+// Bind Cursor related functions to Lua state
+void BindCursor(sol::state& lua);
 
 }  // namespace gmp::gothic
 

@@ -42,6 +42,7 @@ SOFTWARE.
 #include "lua_draw.h"
 #include "lua_texture.h"
 #include "lua_sound.h"
+#include "lua_cursor.h"
 
 using namespace Gothic_II_Addon;
 
@@ -1663,6 +1664,7 @@ void BindGothicSpecific(sol::state& lua) {
   lua["unspawnNpc"] = Function_UnspawnNpc;
 
   BindInputConstants(lua);
+  BindCursor(lua);
   BindDiscord(lua);
   BindDraw(lua);
   BindTexture(lua);
@@ -1677,6 +1679,7 @@ void BindGothicSpecific(sol::state& lua) {
 void CleanupGothicViews() {
   LuaDraw::CleanupViews();
   LuaTexture::CleanupViews();
+  LuaCursor::CleanupViews();
 }
 
 }  // namespace gmp::gothic

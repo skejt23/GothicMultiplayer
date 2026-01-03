@@ -7,6 +7,8 @@ require('client.events')
 require('client.functions')
 require('client.sound')
 require('client.ui')
+require('client.input')
+require('client.cursor')
 
 LOG_INFO('[Core][Client] Core client-side resources initialized.')
 

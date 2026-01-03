@@ -113,6 +113,67 @@ void RegisterGothicEventProxies() {
 
 /* luadoc (event)
 *
+* Triggered when a mouse button is pressed.
+*
+* @name     onMouseDown
+* @side     client
+* @category Input
+* @param    (int) button The mouse button pressed.
+*
+*/
+  g_gothic_event_proxies[kEventOnMouseDownName] = [](LuaProxyArgs args) {
+    OnMouseButtonEvent event = std::any_cast<OnMouseButtonEvent>(args.event);
+    args.callback(event.button);
+  };
+
+/* luadoc (event)
+*
+* Triggered when a mouse button is released.
+*
+* @name     onMouseUp
+* @side     client
+* @category Input
+* @param    (int) button The mouse button released.
+*
+*/
+  g_gothic_event_proxies[kEventOnMouseUpName] = [](LuaProxyArgs args) {
+    OnMouseButtonEvent event = std::any_cast<OnMouseButtonEvent>(args.event);
+    args.callback(event.button);
+  };
+
+/* luadoc (event)
+*
+* Triggered when the mouse cursor is moved.
+*
+* @name     onMouseMove
+* @side     client
+* @category Input
+* @param    (int) x Cursor X position.
+* @param    (int) y Cursor Y position.
+*
+*/
+  g_gothic_event_proxies[kEventOnMouseMoveName] = [](LuaProxyArgs args) {
+    OnMouseMoveEvent event = std::any_cast<OnMouseMoveEvent>(args.event);
+    args.callback(event.x, event.y);
+  };
+
+/* luadoc (event)
+*
+* Triggered when the mouse wheel is scrolled.
+*
+* @name     onMouseWheel
+* @side     client
+* @category Input
+* @param    (int) z Mouse wheel delta.
+*
+*/
+  g_gothic_event_proxies[kEventOnMouseWheelName] = [](LuaProxyArgs args) {
+    OnMouseWheelEvent event = std::any_cast<OnMouseWheelEvent>(args.event);
+    args.callback(event.z);
+  };
+
+/* luadoc (event)
+*
 * Triggered when a player object is created locally.
 *
 * @name     onPlayerCreate
@@ -169,6 +230,10 @@ void RegisterGothicEventsInManager() {
   EventManager::Instance().RegisterEvent(kEventOnRenderName);
   EventManager::Instance().RegisterEvent(kEventOnKeyDownName);
   EventManager::Instance().RegisterEvent(kEventOnKeyUpName);
+  EventManager::Instance().RegisterEvent(kEventOnMouseDownName);
+  EventManager::Instance().RegisterEvent(kEventOnMouseUpName);
+  EventManager::Instance().RegisterEvent(kEventOnMouseMoveName);
+  EventManager::Instance().RegisterEvent(kEventOnMouseWheelName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerCreateName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerDestroyName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerMessageName);

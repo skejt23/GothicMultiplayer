@@ -303,7 +303,7 @@ TEST_F(RealClientConnectionTest, GameClientDownloadsResourcesAndJoinsServer) {
   EXPECT_GT(observer_.LastResourceCount(), 0u);
   EXPECT_GT(observer_.LastResourceBytes(), 0u);
 
-  client_->JoinGame("RealClientUser", "RealClientUser", 0, 0, 0, 0);
+  client_->JoinGame("RealClientUser", "RealClientUser", "", 0, "", 0, 0);
 
   ASSERT_TRUE(WaitForFutureWithPump(joined_future, *client_, std::chrono::seconds(5), &failure_future))
       << BuildFailureMessage("join acknowledgment", failure_future);
