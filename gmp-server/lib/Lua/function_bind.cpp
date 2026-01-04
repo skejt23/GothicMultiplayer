@@ -1368,6 +1368,53 @@ sol::object Function_GetPlayerWorld(std::uint32_t player_id, sol::this_state ts)
 
 /* luadoc (func)
 *
+* Set a player's virtual world id.
+*
+* @name     setPlayerVirtualWorld
+* @side     server
+* @category Player
+* @param    (int) player_id      Target player id.
+* @param    (int) virtual_world  Virtual world id (0-65535).
+* @return   (boolean)            True on success.
+*
+*/
+bool Function_SetPlayerVirtualWorld(std::uint32_t player_id, int virtual_world) {
+  if (!g_server) {
+    SPDLOG_WARN("Cannot set player virtual world before the server is initialized");
+    return false;
+  }
+
+  return g_server->SetPlayerVirtualWorld(player_id, virtual_world);
+}
+
+/* luadoc (func)
+*
+* Get a player's virtual world id or nil if unavailable.
+*
+* @name     getPlayerVirtualWorld
+* @side     server
+* @category Player
+* @param    (int) player_id  Target player id.
+* @return   (int|nil)        Virtual world id or nil.
+*
+*/
+sol::object Function_GetPlayerVirtualWorld(std::uint32_t player_id, sol::this_state ts) {
+  if (!g_server) {
+    SPDLOG_WARN("Cannot get player virtual world before the server is initialized");
+    return sol::nil;
+  }
+
+  auto player_opt = g_server->GetPlayerManager().GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    return sol::nil;
+  }
+
+  sol::state_view lua(ts);
+  return sol::make_object(lua, player_opt->get().virtual_world);
+}
+
+/* luadoc (func)
+*
 * Give an item to a player or NPC.
 *
 * @name     giveItem
@@ -1664,6 +1711,8 @@ void lua::bindings::BindFunctions(sol::state& lua, TimerManager& timer_manager) 
   lua["getPlayerAngle"] = Function_GetPlayerAngle;
   lua["setPlayerWorld"] = Function_SetPlayerWorld;
   lua["getPlayerWorld"] = Function_GetPlayerWorld;
+  lua["setPlayerVirtualWorld"] = Function_SetPlayerVirtualWorld;
+  lua["getPlayerVirtualWorld"] = Function_GetPlayerVirtualWorld;
 
   lua["giveItem"] = Function_GiveItem;
   lua["equipItem"] = Function_EquipItem;

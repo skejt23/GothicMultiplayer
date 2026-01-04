@@ -33,6 +33,13 @@ addEventHandler("onPlayerCommand", function(id, cmd, params)
         return
     end
 
+    if cmd == "world" then
+        print(getPlayerVirtualWorld(id))
+        setPlayerVirtualWorld(id, params)
+        print(getPlayerVirtualWorld(id))
+        return
+    end
+
     if cmd == "name" then
         print(getPlayerName(id))
         setPlayerName(id, params)

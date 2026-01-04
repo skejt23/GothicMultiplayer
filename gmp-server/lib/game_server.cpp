@@ -488,9 +488,22 @@ GameServer::GameServer() {
   EventManager::Instance().RegisterEvent(kEventOnPlayerDeathName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerDropItemName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerTakeItemName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerWeaponModeChangeName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerAmuletChangeName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerArmorChangeName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerBeltChangeName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerHandItemChangeName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerHelmetChangeName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerMeleeWeaponChangeName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerRangedWeaponChangeName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerRingChangeName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerShieldChangeName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerSpellSlotChangeName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerCastSpellName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerSpawnName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerRespawnName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerSpawnForName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerUnspawnForName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerHitName);
 }
 
@@ -929,6 +942,11 @@ void GameServer::HandlePlayerUpdate(Packet p) {
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
 
+  const auto old_state = updated_player.state;
+  const auto instance_or_nil = [](std::int16_t instance_id) -> std::optional<std::int16_t> {
+    return instance_id == 0 ? std::nullopt : std::optional<std::int16_t>{instance_id};
+  };
+
   updated_player.state.position = packet.state.position;
   updated_player.state.nrot = packet.state.nrot;
   updated_player.state.left_hand_item_instance = packet.state.left_hand_item_instance;
@@ -942,6 +960,41 @@ void GameServer::HandlePlayerUpdate(Packet p) {
   updated_player.state.ranged_weapon_instance = packet.state.ranged_weapon_instance;
   updated_player.state.health_points = updated_player.health;
   updated_player.state.mana_points = updated_player.mana;
+
+  if (old_state.weapon_mode != updated_player.state.weapon_mode) {
+    EventManager::Instance().TriggerEvent(
+        kEventOnPlayerWeaponModeChangeName,
+        OnPlayerWeaponModeChangeEvent{updated_player.player_id, old_state.weapon_mode, updated_player.state.weapon_mode});
+  }
+
+  if (old_state.left_hand_item_instance != updated_player.state.left_hand_item_instance) {
+    const auto instance = instance_or_nil(updated_player.state.left_hand_item_instance);
+    EventManager::Instance().TriggerEvent(kEventOnPlayerHandItemChangeName,
+                                          OnPlayerHandItemChangeEvent{updated_player.player_id, 0, instance});
+  }
+
+  if (old_state.right_hand_item_instance != updated_player.state.right_hand_item_instance) {
+    const auto instance = instance_or_nil(updated_player.state.right_hand_item_instance);
+    EventManager::Instance().TriggerEvent(kEventOnPlayerHandItemChangeName,
+                                          OnPlayerHandItemChangeEvent{updated_player.player_id, 1, instance});
+  }
+
+  if (old_state.equipped_armor_instance != updated_player.state.equipped_armor_instance) {
+    const auto instance = instance_or_nil(updated_player.state.equipped_armor_instance);
+    EventManager::Instance().TriggerEvent(kEventOnPlayerArmorChangeName, OnPlayerArmorChangeEvent{updated_player.player_id, instance});
+  }
+
+  if (old_state.melee_weapon_instance != updated_player.state.melee_weapon_instance) {
+    const auto instance = instance_or_nil(updated_player.state.melee_weapon_instance);
+    EventManager::Instance().TriggerEvent(kEventOnPlayerMeleeWeaponChangeName,
+                                          OnPlayerMeleeWeaponChangeEvent{updated_player.player_id, instance});
+  }
+
+  if (old_state.ranged_weapon_instance != updated_player.state.ranged_weapon_instance) {
+    const auto instance = instance_or_nil(updated_player.state.ranged_weapon_instance);
+    EventManager::Instance().TriggerEvent(kEventOnPlayerRangedWeaponChangeName,
+                                          OnPlayerRangedWeaponChangeEvent{updated_player.player_id, instance});
+  }
 }
 
 void GameServer::HandleVoice(Packet p) {
@@ -1606,6 +1659,99 @@ bool GameServer::SetPlayerWorld(PlayerId player_id, const std::string& world, st
   SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, player.connection);
 
   if (!player.is_ingame || !world_changed) {
+    return true;
+  }
+
+  SendExistingPlayersPacket(player);
+
+  PlayerSpawnPacket spawn_packet;
+  spawn_packet.packet_type = PT_PLAYER_SPAWN;
+  spawn_packet.player_id = player.player_id;
+  spawn_packet.player_name = player.name;
+  spawn_packet.position = player.state.position;
+  spawn_packet.normal = player.state.nrot;
+  spawn_packet.left_hand_item_instance = player.state.left_hand_item_instance;
+  spawn_packet.right_hand_item_instance = player.state.right_hand_item_instance;
+  spawn_packet.equipped_armor_instance = player.state.equipped_armor_instance;
+  spawn_packet.animation = player.state.animation;
+  spawn_packet.body_model = player.body_model;
+  spawn_packet.body_texture = player.body_texture;
+  spawn_packet.head_model = player.head_model;
+  spawn_packet.head_texture = player.head_texture;
+  spawn_packet.walk_style = player.walkstyle;
+
+  player_manager_.ForEachIngamePlayer([&](Player& existing_player) {
+    if (existing_player.player_id == player.player_id) {
+      return;
+    }
+    if (existing_player.world != player.world || existing_player.virtual_world != player.virtual_world) {
+      return;
+    }
+
+    existing_player.spawned_players.insert(player.player_id);
+    player.streamed_by_players.insert(existing_player.player_id);
+
+    SerializeAndSend(spawn_packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, existing_player.connection);
+    SendPlayerAttributeSnapshot(player_manager_, player, existing_player.connection);
+    if (!player.body_model.empty() || !player.head_model.empty()) {
+      PlayerVisualUpdatePacket visual_packet{};
+      visual_packet.packet_type = PT_PLAYER_VISUAL_UPDATE;
+      visual_packet.player_id = player.player_id;
+      visual_packet.body_model = player.body_model;
+      visual_packet.body_texture = player.body_texture;
+      visual_packet.head_model = player.head_model;
+      visual_packet.head_texture = player.head_texture;
+      SerializeAndSend(visual_packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, existing_player.connection);
+    }
+  });
+
+  return true;
+}
+bool GameServer::SetPlayerVirtualWorld(PlayerId player_id, std::int32_t virtual_world) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("setPlayerVirtualWorld called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  const auto clamped_virtual_world = std::clamp<std::int32_t>(virtual_world, 0, 65535);
+  const bool virtual_world_changed = clamped_virtual_world != player.virtual_world;
+
+  if (player.is_ingame && virtual_world_changed) {
+    DisconnectionInfoPacket left_packet;
+    left_packet.packet_type = PT_LEFT_GAME;
+    left_packet.disconnected_id = player.player_id;
+
+    for (const auto viewer_id : player.streamed_by_players) {
+      auto viewer_opt = player_manager_.GetPlayer(viewer_id);
+      if (!viewer_opt.has_value()) {
+        continue;
+      }
+      auto& viewer = viewer_opt->get();
+      viewer.spawned_players.erase(player.player_id);
+      SerializeAndSend(left_packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, viewer.connection);
+    }
+
+    for (const auto spawned_id : player.spawned_players) {
+      auto spawned_opt = player_manager_.GetPlayer(spawned_id);
+      if (!spawned_opt.has_value()) {
+        continue;
+      }
+      auto& spawned_player = spawned_opt->get();
+      spawned_player.streamed_by_players.erase(player.player_id);
+      DisconnectionInfoPacket packet;
+      packet.packet_type = PT_LEFT_GAME;
+      packet.disconnected_id = spawned_player.player_id;
+      SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, player.connection);
+    }
+    player.spawned_players.clear();
+    player.streamed_by_players.clear();
+  }
+
+  player.virtual_world = clamped_virtual_world;
+
+  if (!player.is_ingame || !virtual_world_changed) {
     return true;
   }
 

@@ -17,6 +17,21 @@ end)
 addEventHandler('onPlayerConnect', function(id)
     LOG_INFO("Player {} connected", id)
     spawnPlayer(id, 0, 0, 0) -- Khorinis
+
+    giveItem(id, "ITAR_PAL_H", 1)
+    giveItem(id, "ITMW_1H_VLK_DAGGER", 1)
+    equipItem(id, "ITMW_2H_AXE_L_01")
+
+    giveItem(id, "ITRW_ARROW", 100)
+    equipItem(id, "ITRW_BOW_L_01")
+
+    giveItem(id, "ITSC_LIGHT", 5)
+
+    giveItem(id, "ITRI_STR_02", 1)
+    giveItem(id, "ITRI_DEX_02", 1)
+
+    giveItem(id, "ITFO_APPLE", 5)
+    giveItem(id, "ITFO_STEW", 5)
 end)
 
 addEventHandler('onPlayerDisconnect', function(id)
@@ -47,6 +62,38 @@ addEventHandler('onPlayerTakeItem', function(playerId, itemInstance)
     LOG_INFO("Player {} picked up item {}", playerId, itemInstance)
 end)
 
+addEventHandler('onPlayerWeaponModeChange', function(playerId, weaponModeOld, WeaponModeNew)
+    LOG_INFO("Player {} changed weapon mode from {} to {}", playerId, weaponModeOld, WeaponModeNew)
+end)
+
+addEventHandler('onPlayerHandItemChange', function(playerId, handSlot, itemInstance)
+    LOG_INFO("Player {} changed equip state for Hand Item on slot {} for {}", playerId, handSlot, itemInstance)
+end)
+
+addEventHandler('onPlayerRingChange', function(playerId, handSlot, itemInstance)
+    LOG_INFO("Player {} changed equip state for Ring on slot {} for {}", playerId, handSlot, itemInstance)
+end)
+
+addEventHandler('onPlayerShieldChange', function(playerId, handSlot, itemInstance)
+    LOG_INFO("Player {} changed equip state for Shield on slot {} for {}", playerId, handSlot, itemInstance)
+end)
+
+addEventHandler('onPlayerArmorChange', function(playerId, itemInstance)
+    LOG_INFO("Player {} changed equip state for Armor for {}", playerId, itemInstance)
+end)
+
+addEventHandler('onPlayerMeleeWeaponChange', function(playerId, itemInstance)
+    LOG_INFO("Player {} changed equip state for Melee Weapon for {}", playerId, itemInstance)
+end)
+
+addEventHandler('onPlayerRangedWeaponChange', function(playerId, itemInstance)
+    LOG_INFO("Player {} changed equip state for Ranged Weapon for {}", playerId, itemInstance)
+end)
+
+addEventHandler('onPlayerSpellSlotChange', function(playerId, handSlot, itemInstance)
+    LOG_INFO("Player {} changed equip state for a Spell Slot on slot {} for {}", playerId, handSlot, itemInstance)
+end)
+
 addEventHandler('onPlayerCastSpell', function(casterId, spellId, targetId)
     LOG_INFO("Player {} cast spell {} on {}", casterId, spellId, optionalIdToString(targetId))
 end)
@@ -57,6 +104,14 @@ end)
 
 addEventHandler('onPlayerRespawn', function(playerId, posX, posY, posZ)
     LOG_INFO("Player {} respawned at {}", playerId, vectorToString(posX, posY, posZ))
+end)
+
+addEventHandler('onPlayerSpawnFor', function(playerId, spawnedId)
+    LOG_INFO("Player {} respawned for {}", spawnedId, playerId)
+end)
+
+addEventHandler('onPlayerUnpawnFor', function(playerId, spawnedId)
+    LOG_INFO("Player {} despawned for {}", spawnedId, playerId)
 end)
 
 addEventHandler('onPlayerHit', function(attackerId, victimId, damage)

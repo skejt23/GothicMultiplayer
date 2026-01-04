@@ -123,6 +123,7 @@ public:
   bool EquipItem(PlayerId player_id, const std::string& instance, std::int32_t slot_id = -1);
   bool UnequipItem(PlayerId player_id, const std::string& instance);
   bool SetPlayerWorld(PlayerId player_id, const std::string& world, std::optional<std::string> start_point = std::nullopt);
+  bool SetPlayerVirtualWorld(PlayerId player_id, std::int32_t virtual_world);
   std::optional<glm::vec3> GetPlayerPosition(PlayerId player_id) const;
   std::string GetHostname() const;
   std::uint32_t GetMaxSlots() const;
