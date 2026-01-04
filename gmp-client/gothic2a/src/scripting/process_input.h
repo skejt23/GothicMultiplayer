@@ -32,10 +32,12 @@ SOFTWARE.
 
 namespace gmp::gothic {
 
+constexpr int kMaxTrackedCode = MAX_MOUSE_BTNS_AND_CODES;
+
 // Input state arrays
-extern bool s_prevPressed[MAX_KEYS_AND_CODES + 1];
-extern bool s_pressedThisFrame[MAX_KEYS_AND_CODES + 1];
-extern bool s_toggledThisFrame[MAX_KEYS_AND_CODES + 1];
+extern bool s_prevPressed[kMaxTrackedCode + 1];
+extern bool s_pressedThisFrame[kMaxTrackedCode + 1];
+extern bool s_toggledThisFrame[kMaxTrackedCode + 1];
 
 // Process input and trigger key events
 void ProcessInput(zCInput* zinput);
@@ -164,4 +166,1125 @@ inline constexpr std::array kGameKeys = {
 // Bind all key constants to Lua state
 void BindInputConstants(sol::state& lua);
 
+// Bind Cursor related functions to Lua state
+void BindCursor(sol::state& lua);
+
 }  // namespace gmp::gothic
+
+/* luadoc (const)
+ *
+ * Escape key.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_ESCAPE
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Number key 1.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_1
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Number key 2.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_2
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Number key 3.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_3
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Number key 4.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_4
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Number key 5.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_5
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Number key 6.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_6
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Number key 7.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_7
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Number key 8.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_8
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Number key 9.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_9
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Number key 0.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_0
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Minus key.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_MINUS
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Equals key.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_EQUALS
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Backspace key.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_BACK
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Tab key.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_TAB
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Letter key Q.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_Q
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Letter key W.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_W
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Letter key E.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_E
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Letter key R.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_R
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Letter key T.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_T
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Letter key Y.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_Y
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Letter key U.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_U
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Letter key I.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_I
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Letter key O.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_O
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Letter key P.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_P
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Left bracket key.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_LBRACKET
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Right bracket key.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_RBRACKET
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Enter / Return key.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_RETURN
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Left Control key.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_LCONTROL
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Letter key A.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_A
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Letter key S.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_S
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Letter key D.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_D
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Letter key F.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_F
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Letter key G.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_G
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Letter key H.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_H
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Letter key J.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_J
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Letter key K.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_K
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Letter key L.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_L
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Semicolon key.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_SEMICOLON
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Apostrophe key.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_APOSTROPHE
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Grave accent key.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_GRAVE
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Left Shift key.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_LSHIFT
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Backslash key.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_BACKSLASH
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Letter key Z.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_Z
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Letter key X.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_X
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Letter key C.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_C
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Letter key V.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_V
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Letter key B.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_B
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Letter key N.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_N
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Letter key M.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_M
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Comma key.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_COMMA
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Period key.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_PERIOD
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Slash key.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_SLASH
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Right Shift key.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_RSHIFT
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Left Alt key.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_LMENU
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Spacebar key.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_SPACE
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Caps Lock key.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_CAPITAL
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Function key F1.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_F1
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Function key F2.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_F2
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Function key F3.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_F3
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Function key F4.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_F4
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Function key F5.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_F5
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Function key F6.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_F6
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Function key F7.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_F7
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Function key F8.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_F8
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Function key F9.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_F9
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Function key F10.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_F10
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Function key F11.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_F11
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Function key F12.
+ *
+ * @category Key
+ * @side     client
+ * @name     KEY_F12
+ *
+ */
+/* luadoc (const)
+ *
+ * Mouse delta X movement.
+ *
+ * @category Mouse
+ * @side     client
+ * @name     MOUSE_DX
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Mouse delta Y movement.
+ *
+ * @category Mouse
+ * @side     client
+ * @name     MOUSE_DY
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Mouse movement up.
+ *
+ * @category Mouse
+ * @side     client
+ * @name     MOUSE_UP
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Mouse movement down.
+ *
+ * @category Mouse
+ * @side     client
+ * @name     MOUSE_DOWN
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Mouse left direction.
+ *
+ * @category Mouse
+ * @side     client
+ * @name     MOUSE_LEFT
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Mouse right direction.
+ *
+ * @category Mouse
+ * @side     client
+ * @name     MOUSE_RIGHT
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Mouse wheel scroll up.
+ *
+ * @category Mouse
+ * @side     client
+ * @name     MOUSE_WHEELUP
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Mouse wheel scroll down.
+ *
+ * @category Mouse
+ * @side     client
+ * @name     MOUSE_WHEELDOWN
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Mouse left button.
+ *
+ * @category Mouse
+ * @side     client
+ * @name     MOUSE_BUTTONLEFT
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Mouse right button.
+ *
+ * @category Mouse
+ * @side     client
+ * @name     MOUSE_BUTTONRIGHT
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Mouse middle button.
+ *
+ * @category Mouse
+ * @side     client
+ * @name     MOUSE_BUTTONMID
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Mouse extra button 1.
+ *
+ * @category Mouse
+ * @side     client
+ * @name     MOUSE_XBUTTON1
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Mouse extra button 2.
+ *
+ * @category Mouse
+ * @side     client
+ * @name     MOUSE_XBUTTON2
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Mouse extra button 3.
+ *
+ * @category Mouse
+ * @side     client
+ * @name     MOUSE_XBUTTON3
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Mouse extra button 4.
+ *
+ * @category Mouse
+ * @side     client
+ * @name     MOUSE_XBUTTON4
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Mouse extra button 5.
+ *
+ * @category Mouse
+ * @side     client
+ * @name     MOUSE_XBUTTON5
+ *
+ */
+/* luadoc (const)
+ *
+ * Move left action.
+ *
+ * @category LogicalKey
+ * @side     client
+ * @name     GAME_LEFT
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Move right action.
+ *
+ * @category LogicalKey
+ * @side     client
+ * @name     GAME_RIGHT
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Move up action.
+ *
+ * @category LogicalKey
+ * @side     client
+ * @name     GAME_UP
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Move down action.
+ *
+ * @category LogicalKey
+ * @side     client
+ * @name     GAME_DOWN
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Primary action.
+ *
+ * @category LogicalKey
+ * @side     client
+ * @name     GAME_ACTION
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Slow movement / walk modifier.
+ *
+ * @category LogicalKey
+ * @side     client
+ * @name     GAME_SLOW
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Secondary action.
+ *
+ * @category LogicalKey
+ * @side     client
+ * @name     GAME_ACTION2
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Weapon action.
+ *
+ * @category LogicalKey
+ * @side     client
+ * @name     GAME_WEAPON
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Strafe movement.
+ *
+ * @category LogicalKey
+ * @side     client
+ * @name     GAME_SMOVE
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Alternate strafe movement.
+ *
+ * @category LogicalKey
+ * @side     client
+ * @name     GAME_SMOVE2
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Shift modifier.
+ *
+ * @category LogicalKey
+ * @side     client
+ * @name     GAME_SHIFT
+ *
+ */
+
+/* luadoc (const)
+ *
+ * End action.
+ *
+ * @category LogicalKey
+ * @side     client
+ * @name     GAME_END
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Open inventory.
+ *
+ * @category LogicalKey
+ * @side     client
+ * @name     GAME_INVENTORY
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Look mode.
+ *
+ * @category LogicalKey
+ * @side     client
+ * @name     GAME_LOOK
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Sneak mode.
+ *
+ * @category LogicalKey
+ * @side     client
+ * @name     GAME_SNEAK
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Strafe left.
+ *
+ * @category LogicalKey
+ * @side     client
+ * @name     GAME_STRAFELEFT
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Strafe right.
+ *
+ * @category LogicalKey
+ * @side     client
+ * @name     GAME_STRAFERIGHT
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Show status screen.
+ *
+ * @category LogicalKey
+ * @side     client
+ * @name     GAME_SCREEN_STATUS
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Show log screen.
+ *
+ * @category LogicalKey
+ * @side     client
+ * @name     GAME_SCREEN_LOG
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Show map screen.
+ *
+ * @category LogicalKey
+ * @side     client
+ * @name     GAME_SCREEN_MAP
+ *
+ */
+
+/* luadoc (const)
+ *
+ * First-person look.
+ *
+ * @category LogicalKey
+ * @side     client
+ * @name     GAME_LOOK_FP
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Lock target.
+ *
+ * @category LogicalKey
+ * @side     client
+ * @name     GAME_LOCK_TARGET
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Parry / block action.
+ *
+ * @category LogicalKey
+ * @side     client
+ * @name     GAME_PARADE
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Left-hand action.
+ *
+ * @category LogicalKey
+ * @side     client
+ * @name     GAME_ACTIONLEFT
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Right-hand action.
+ *
+ * @category LogicalKey
+ * @side     client
+ * @name     GAME_ACTIONRIGHT
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Use potion.
+ *
+ * @category LogicalKey
+ * @side     client
+ * @name     GAME_LAME_POTION
+ *
+ */
+
+/* luadoc (const)
+ *
+ * Use healing item.
+ *
+ * @category LogicalKey
+ * @side     client
+ * @name     GAME_LAME_HEAL
+ *
+ */

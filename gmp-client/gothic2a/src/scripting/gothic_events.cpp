@@ -45,35 +45,177 @@ struct LuaProxyArgs {
 std::map<std::string, std::function<void(LuaProxyArgs)>> g_gothic_event_proxies;
 
 void RegisterGothicEventProxies() {
+/* luadoc (event)
+*
+* Triggered once when the Gothic engine initializes.
+*
+* @name     onInit
+* @side     client
+* @category Game
+*
+*/
   g_gothic_event_proxies[kEventOnInitName] = [](LuaProxyArgs args) { args.callback(); };
 
+/* luadoc (event)
+*
+* Triggered when the Gothic engine is exiting.
+*
+* @name     onExit
+* @side     client
+* @category Game
+*
+*/
   g_gothic_event_proxies[kEventOnExitName] = [](LuaProxyArgs args) { args.callback(); };
 
+/* luadoc (event)
+*
+* Triggered each frame when the game renders.
+*
+* @name     onRender
+* @side     client
+* @category Game
+*
+*/
   g_gothic_event_proxies[kEventOnRenderName] = [](LuaProxyArgs args) {
     // onRender has no arguments for now
     args.callback();
   };
 
+/* luadoc (event)
+*
+* Triggered when a key is pressed.
+*
+* @name     onKeyDown
+* @side     client
+* @category Input
+* @param    (int) key    The key code pressed.
+*
+*/
   g_gothic_event_proxies[kEventOnKeyDownName] = [](LuaProxyArgs args) {
     OnKeyEvent event = std::any_cast<OnKeyEvent>(args.event);
     args.callback(event.key);
   };
 
+/* luadoc (event)
+*
+* Triggered when a key is released.
+*
+* @name     onKeyUp
+* @side     client
+* @category Input
+* @param    (int) key    The key code released.
+*
+*/
   g_gothic_event_proxies[kEventOnKeyUpName] = [](LuaProxyArgs args) {
     OnKeyEvent event = std::any_cast<OnKeyEvent>(args.event);
     args.callback(event.key);
   };
 
+/* luadoc (event)
+*
+* Triggered when a mouse button is pressed.
+*
+* @name     onMouseDown
+* @side     client
+* @category Input
+* @param    (int) button The mouse button pressed.
+*
+*/
+  g_gothic_event_proxies[kEventOnMouseDownName] = [](LuaProxyArgs args) {
+    OnMouseButtonEvent event = std::any_cast<OnMouseButtonEvent>(args.event);
+    args.callback(event.button);
+  };
+
+/* luadoc (event)
+*
+* Triggered when a mouse button is released.
+*
+* @name     onMouseUp
+* @side     client
+* @category Input
+* @param    (int) button The mouse button released.
+*
+*/
+  g_gothic_event_proxies[kEventOnMouseUpName] = [](LuaProxyArgs args) {
+    OnMouseButtonEvent event = std::any_cast<OnMouseButtonEvent>(args.event);
+    args.callback(event.button);
+  };
+
+/* luadoc (event)
+*
+* Triggered when the mouse cursor is moved.
+*
+* @name     onMouseMove
+* @side     client
+* @category Input
+* @param    (int) x Cursor X position.
+* @param    (int) y Cursor Y position.
+*
+*/
+  g_gothic_event_proxies[kEventOnMouseMoveName] = [](LuaProxyArgs args) {
+    OnMouseMoveEvent event = std::any_cast<OnMouseMoveEvent>(args.event);
+    args.callback(event.x, event.y);
+  };
+
+/* luadoc (event)
+*
+* Triggered when the mouse wheel is scrolled.
+*
+* @name     onMouseWheel
+* @side     client
+* @category Input
+* @param    (int) z Mouse wheel delta.
+*
+*/
+  g_gothic_event_proxies[kEventOnMouseWheelName] = [](LuaProxyArgs args) {
+    OnMouseWheelEvent event = std::any_cast<OnMouseWheelEvent>(args.event);
+    args.callback(event.z);
+  };
+
+/* luadoc (event)
+*
+* Triggered when a player object is created locally.
+*
+* @name     onPlayerCreate
+* @side     client
+* @category Player
+* @param    (int) player_id    The local player id.
+*
+*/
   g_gothic_event_proxies[kEventOnPlayerCreateName] = [](LuaProxyArgs args) {
     PlayerLifecycleEvent event = std::any_cast<PlayerLifecycleEvent>(args.event);
     args.callback(event.player_id);
   };
 
+/* luadoc (event)
+*
+* Triggered when a local player object is destroyed.
+*
+* @name     onPlayerDestroy
+* @side     client
+* @category Player
+* @param    (int) player_id    The local player id.
+*
+*/
   g_gothic_event_proxies[kEventOnPlayerDestroyName] = [](LuaProxyArgs args) {
     PlayerLifecycleEvent event = std::any_cast<PlayerLifecycleEvent>(args.event);
     args.callback(event.player_id);
   };
 
+/* luadoc (event)
+*
+* Triggered when a chat message is received locally.
+*
+* @name     onPlayerMessage
+* @side     client
+* @category Player
+* @param    (int) sender_id  Optional sender id (nil for system).
+* @param    (int) r           Red color component.
+* @param    (int) g           Green color component.
+* @param    (int) b           Blue color component.
+* @param    (string) message  Message text.
+*
+*/
   g_gothic_event_proxies[kEventOnPlayerMessageName] = [](LuaProxyArgs args) {
     OnPlayerMessageEvent event = std::any_cast<OnPlayerMessageEvent>(args.event);
     sol::state_view lua(args.callback.lua_state());
@@ -88,6 +230,10 @@ void RegisterGothicEventsInManager() {
   EventManager::Instance().RegisterEvent(kEventOnRenderName);
   EventManager::Instance().RegisterEvent(kEventOnKeyDownName);
   EventManager::Instance().RegisterEvent(kEventOnKeyUpName);
+  EventManager::Instance().RegisterEvent(kEventOnMouseDownName);
+  EventManager::Instance().RegisterEvent(kEventOnMouseUpName);
+  EventManager::Instance().RegisterEvent(kEventOnMouseMoveName);
+  EventManager::Instance().RegisterEvent(kEventOnMouseWheelName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerCreateName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerDestroyName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerMessageName);
@@ -99,6 +245,18 @@ void BindGothicEvents(sol::state& lua) {
   RegisterGothicEventProxies();
   RegisterGothicEventsInManager();
 
+/* luadoc (func)
+*
+* This function will bind function to specified event.
+*
+* @name     addEventHandler
+* @side     client
+* @category Event
+* @param    (string) eventName   The name of the event.
+* @param    (function) func     The reference to a function, keep in mind that function must have the same amount of arguments as event.
+* @return   (boolean)            True on success, false on failure.
+*
+*/
   lua.set_function("addEventHandler", [](std::string event_name, sol::protected_function lua_callback) -> bool {
     SPDLOG_TRACE("addEventHandler({})", event_name);
 

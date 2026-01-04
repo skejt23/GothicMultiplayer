@@ -38,6 +38,10 @@ constexpr const char* kEventOnExitName = "onExit";
 constexpr const char* kEventOnRenderName = "onRender";
 constexpr const char* kEventOnKeyDownName = "onKeyDown";
 constexpr const char* kEventOnKeyUpName = "onKeyUp";
+constexpr const char* kEventOnMouseDownName = "onMouseDown";
+constexpr const char* kEventOnMouseUpName = "onMouseUp";
+constexpr const char* kEventOnMouseMoveName = "onMouseMove";
+constexpr const char* kEventOnMouseWheelName = "onMouseWheel";
 constexpr const char* kEventOnPlayerCreateName = "onPlayerCreate";
 constexpr const char* kEventOnPlayerDestroyName = "onPlayerDestroy";
 constexpr const char* kEventOnPlayerMessageName = "onPlayerMessage";
@@ -45,6 +49,19 @@ constexpr const char* kEventOnPlayerMessageName = "onPlayerMessage";
 // Gothic-specific event structs
 struct OnKeyEvent {
   int key;
+};
+
+struct OnMouseButtonEvent {
+  int button;
+};
+
+struct OnMouseMoveEvent {
+  float x;
+  float y;
+};
+
+struct OnMouseWheelEvent {
+  float z;
 };
 
 struct PlayerLifecycleEvent {

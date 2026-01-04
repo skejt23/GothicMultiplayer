@@ -91,15 +91,27 @@ void GameClient::InitPacketHandlers() {
   packet_handlers_[PT_CASTSPELLONTARGET] = [this](Packet p) { OnCastSpellOnTarget(p); };
   packet_handlers_[PT_DROPITEM] = [this](Packet p) { OnDropItem(p); };
   packet_handlers_[PT_TAKEITEM] = [this](Packet p) { OnTakeItem(p); };
-  packet_handlers_[PT_WHISPER] = [this](Packet p) { OnWhisper(p); };
+  packet_handlers_[PT_GIVEITEM] = [this](Packet p) { OnGiveItem(p); };
+  packet_handlers_[PT_EQUIPITEM] = [this](Packet p) { OnEquipItem(p); };
+  packet_handlers_[PT_UNEQUIPITEM] = [this](Packet p) { OnUnequipItem(p); };
   packet_handlers_[PT_MSG] = [this](Packet p) { OnMessage(p); };
-  packet_handlers_[PT_COMMAND] = [this](Packet p) { OnRcon(p); };
   packet_handlers_[PT_EXISTING_PLAYERS] = [this](Packet p) { OnExistingPlayers(p); };
   packet_handlers_[PT_PLAYER_SPAWN] = [this](Packet p) { OnPlayerSpawn(p); };
   packet_handlers_[PT_JOIN_GAME] = [this](Packet p) { OnJoinGame(p); };
+  packet_handlers_[PT_PLAYER_NAME_UPDATE] = [this](Packet p) { OnPlayerNameUpdate(p); };
+  packet_handlers_[PT_PLAYER_INSTANCE_UPDATE] = [this](Packet p) { OnPlayerInstanceUpdate(p); };
+  packet_handlers_[PT_PLAYER_COLOR_UPDATE] = [this](Packet p) { OnPlayerColorUpdate(p); };
+  packet_handlers_[PT_PLAYER_SKILL_WEAPON_UPDATE] = [this](Packet p) { OnPlayerSkillWeaponUpdate(p); };
+  packet_handlers_[PT_PLAYER_TALENT_UPDATE] = [this](Packet p) { OnPlayerTalentUpdate(p); };
+  packet_handlers_[PT_PLAYER_VISUAL_UPDATE] = [this](Packet p) { OnPlayerVisualUpdate(p); };
+  packet_handlers_[PT_PLAYER_FATNESS_UPDATE] = [this](Packet p) { OnPlayerFatnessUpdate(p); };
+  packet_handlers_[PT_PLAYER_SCALE_UPDATE] = [this](Packet p) { OnPlayerScaleUpdate(p); };
+  packet_handlers_[PT_PLAYER_OVERLAY_UPDATE] = [this](Packet p) { OnPlayerOverlayUpdate(p); };
+  packet_handlers_[PT_PLAYER_ATTRIBUTE_UPDATE] = [this](Packet p) { OnPlayerAttributeUpdate(p); };
+  packet_handlers_[PT_PLAYER_ATTRIBUTE_SNAPSHOT] = [this](Packet p) { OnPlayerAttributeSnapshot(p); };
+  packet_handlers_[PT_PLAYER_WORLD_UPDATE] = [this](Packet p) { OnPlayerWorldUpdate(p); };
   packet_handlers_[PT_GAME_INFO] = [this](Packet p) { OnGameInfo(p); };
   packet_handlers_[PT_LEFT_GAME] = [this](Packet p) { OnLeftGame(p); };
-  packet_handlers_[PT_DISCORD_ACTIVITY] = [this](Packet p) { OnDiscordActivity(p); };
   packet_handlers_[Net::ID_DISCONNECTION_NOTIFICATION] = [this](Packet p) { OnDisconnectOrLostConnection(p); };
   packet_handlers_[Net::ID_CONNECTION_LOST] = [this](Packet p) { OnDisconnectOrLostConnection(p); };
 }
@@ -260,7 +272,7 @@ void GameClient::UpdatePlayerState(Player* player, const PlayerState& state) {
   player->set_right_hand_item(state.right_hand_item_instance);
   player->set_equipped_armor(state.equipped_armor_instance);
   player->set_animation(state.animation);
-  player->set_hp(state.health_points);
+  player->set_health(state.health_points);
   player->set_mana(state.mana_points);
   player->set_weapon_mode(state.weapon_mode);
   player->set_active_spell(state.active_spell_nr);
@@ -269,14 +281,15 @@ void GameClient::UpdatePlayerState(Player* player, const PlayerState& state) {
   player->set_ranged_weapon(state.ranged_weapon_instance);
 }
 
-void GameClient::JoinGame(const std::string& player_name, const std::string& character_name, int head_model, int skin_texture, int face_texture,
-                          int walk_style) {
+void GameClient::JoinGame(const std::string& player_name, const std::string& character_name, 
+                          const std::string& body_model, int body_texture, const std::string& head_model, int head_texture, int walk_style) {
   JoinGamePacket packet;
   packet.packet_type = PT_JOIN_GAME;
   // Position, rotation, and items will need to be filled by the caller or from the local player state
+  packet.body_model = body_model;
+  packet.body_texture = body_texture;
   packet.head_model = head_model;
-  packet.skin_texture = skin_texture;
-  packet.face_texture = face_texture;
+  packet.head_texture = head_texture;
   packet.walk_style = walk_style;
   packet.player_name = player_name;
 
@@ -293,25 +306,7 @@ void GameClient::SendChatMessage(const std::string& msg) {
   SerializeAndSend(packet, MEDIUM_PRIORITY, RELIABLE);
 }
 
-void GameClient::SendWhisper(std::uint64_t recipient_id, const std::string& msg) {
-  MessagePacket packet;
-  packet.packet_type = PT_WHISPER;
-  packet.message = msg;
-  packet.r = 255;
-  packet.g = 255;
-  packet.b = 255;
-  packet.recipient = recipient_id;
-  SerializeAndSend(packet, HIGH_PRIORITY, RELIABLE_ORDERED);
-}
-
-void GameClient::SendCommand(const std::string& msg) {
-  MessagePacket packet;
-  packet.packet_type = PT_COMMAND;
-  packet.message = msg;
-  SerializeAndSend(packet, HIGH_PRIORITY, RELIABLE_ORDERED);
-}
-
-void GameClient::SendCastSpell(std::uint64_t target_id, std::uint16_t spell_id) {
+void GameClient::SendCastSpell(std::uint32_t target_id, std::uint16_t spell_id) {
   CastSpellPacket packet;
   packet.spell_id = spell_id;
   packet.packet_type = target_id ? PT_CASTSPELLONTARGET : PT_CASTSPELL;
@@ -341,14 +336,6 @@ void GameClient::UpdatePlayerStats(const PlayerState& state) {
   packet.packet_type = PT_ACTUAL_STATISTICS;
   packet.state = state;
   SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED);
-}
-
-void GameClient::SendHPDiff(std::uint64_t player_id, std::int16_t diff) {
-  HPDiffPacket packet;
-  packet.packet_type = PT_HP_DIFF;
-  packet.player_id = player_id;
-  packet.hp_difference = diff;
-  SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE);
 }
 
 void GameClient::SyncGameTime() {
@@ -498,19 +485,28 @@ void GameClient::OnTakeItem(Packet p) {
   event_observer_.OnItemTaken(*packet.player_id, packet.item_instance);
 }
 
-void GameClient::OnWhisper(Packet p) {
-  MessagePacket packet;
+void GameClient::OnGiveItem(Packet p) {
+  GiveItemPacket packet;
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
 
-  if (!packet.sender) {
-    SPDLOG_ERROR("Invalid Message packet. No sender id.");
-    return;
-  }
+  event_observer_.OnItemGiven(packet.player_id, packet.item_instance, packet.item_amount);
+}
 
-  Player* sender = player_manager_.GetPlayer(*packet.sender);
-  std::string sender_name = sender ? sender->name() : "";
-  event_observer_.OnWhisperReceived(*packet.sender, sender_name, packet.message);
+void GameClient::OnEquipItem(Packet p) {
+  EquipItemPacket packet;
+  using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
+  auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
+
+  event_observer_.OnItemEquipped(packet.player_id, packet.item_instance, packet.slot_id);
+}
+
+void GameClient::OnUnequipItem(Packet p) {
+  UnequipItemPacket packet;
+  using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
+  auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
+
+  event_observer_.OnItemUnequipped(packet.player_id, packet.item_instance);
 }
 
 void GameClient::OnMessage(Packet p) {
@@ -530,12 +526,6 @@ void GameClient::OnMessage(Packet p) {
   event_observer_.OnPlayerMessage(packet.sender, packet.r, packet.g, packet.b, packet.message);
 }
 
-void GameClient::OnRcon(Packet p) {
-  bool is_admin = (p.data[1] == 0x41);
-  std::string response((char*)p.data + 1);
-  event_observer_.OnRconResponse(response, is_admin);
-}
-
 void GameClient::OnExistingPlayers(Packet p) {
   ExistingPlayersPacket packet;
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
@@ -547,19 +537,78 @@ void GameClient::OnExistingPlayers(Packet p) {
     // Create Player object and populate it
     Player* player = player_manager_.CreatePlayer(existing_player.player_id);
     player->set_name(existing_player.player_name);
+    player->set_instance(existing_player.instance);
+    player->set_name_color(existing_player.name_color_r, existing_player.name_color_g, existing_player.name_color_b);
     player->set_position(existing_player.position.x, existing_player.position.y, existing_player.position.z);
     player->set_left_hand_item(existing_player.left_hand_item_instance);
     player->set_right_hand_item(existing_player.right_hand_item_instance);
     player->set_equipped_armor(existing_player.equipped_armor_instance);
+    player->set_body_model(existing_player.body_model);
+    player->set_body_texture(existing_player.body_texture);
     player->set_head_model(existing_player.head_model);
-    player->set_skin_texture(existing_player.skin_texture);
-    player->set_face_texture(existing_player.face_texture);
+    player->set_head_texture(existing_player.head_texture);
     player->set_walk_style(existing_player.walk_style);
+
+    player->set_strength(existing_player.strength);
+    player->set_dexterity(existing_player.dexterity);
+    player->set_level(existing_player.level);
+    player->set_exp(existing_player.exp);
+    player->set_next_level_exp(existing_player.next_level_exp);
+    player->set_learn_points(existing_player.learn_points);
+    player->set_max_health(static_cast<std::int16_t>(existing_player.max_health));
+    player->set_max_mana(static_cast<std::int16_t>(existing_player.max_mana));
+    player->set_health(static_cast<std::int16_t>(existing_player.health));
+    player->set_mana(static_cast<std::int16_t>(existing_player.mana));
+
+    player->set_fatness(existing_player.fatness);
+    player->set_scale(existing_player.scale);
+
+    for (const auto& entry : existing_player.weapon_skills) {
+      player->set_weapon_skill(entry.skill_id, entry.percentage);
+    }
+    for (const auto& entry : existing_player.talents) {
+      player->set_talent(entry.talent_id, entry.value);
+    }
+    for (const auto& overlay : existing_player.overlays) {
+      player->add_overlay(overlay);
+    }
+
     player->set_has_joined(true);
     player->set_has_spawned(true);
 
     event_observer_.OnPlayerJoined(*player);
     event_observer_.OnPlayerSpawned(*player);
+
+    // Mirror the update callbacks that used to arrive as separate packets.
+    event_observer_.OnPlayerInstanceUpdate(existing_player.player_id, existing_player.instance);
+    event_observer_.OnPlayerColorUpdate(existing_player.player_id, existing_player.name_color_r, existing_player.name_color_g, existing_player.name_color_b);
+    if (!existing_player.body_model.empty() || !existing_player.head_model.empty()) {
+      event_observer_.OnPlayerVisualUpdate(existing_player.player_id, existing_player.body_model, existing_player.body_texture, existing_player.head_model,
+                                           existing_player.head_texture);
+    }
+    event_observer_.OnPlayerFatnessUpdate(existing_player.player_id, existing_player.fatness);
+    event_observer_.OnPlayerScaleUpdate(existing_player.player_id, existing_player.scale);
+
+    event_observer_.OnPlayerAttributeUpdate(existing_player.player_id, ATTR_STRENGTH, existing_player.strength);
+    event_observer_.OnPlayerAttributeUpdate(existing_player.player_id, ATTR_DEXTERITY, existing_player.dexterity);
+    event_observer_.OnPlayerAttributeUpdate(existing_player.player_id, ATTR_LEVEL, existing_player.level);
+    event_observer_.OnPlayerAttributeUpdate(existing_player.player_id, ATTR_EXP, existing_player.exp);
+    event_observer_.OnPlayerAttributeUpdate(existing_player.player_id, ATTR_NEXT_LEVEL_EXP, existing_player.next_level_exp);
+    event_observer_.OnPlayerAttributeUpdate(existing_player.player_id, ATTR_LEARN_POINTS, existing_player.learn_points);
+    event_observer_.OnPlayerAttributeUpdate(existing_player.player_id, ATTR_MAX_HEALTH, existing_player.max_health);
+    event_observer_.OnPlayerAttributeUpdate(existing_player.player_id, ATTR_MAX_MANA, existing_player.max_mana);
+    event_observer_.OnPlayerAttributeUpdate(existing_player.player_id, ATTR_HEALTH, existing_player.health);
+    event_observer_.OnPlayerAttributeUpdate(existing_player.player_id, ATTR_MANA, existing_player.mana);
+
+    for (const auto& entry : existing_player.weapon_skills) {
+      event_observer_.OnPlayerSkillWeaponUpdate(existing_player.player_id, entry.skill_id, entry.percentage);
+    }
+    for (const auto& entry : existing_player.talents) {
+      event_observer_.OnPlayerTalentUpdate(existing_player.player_id, entry.talent_id, entry.value);
+    }
+    for (const auto& overlay : existing_player.overlays) {
+      event_observer_.OnPlayerOverlayUpdate(existing_player.player_id, overlay, true);
+    }
   }
 }
 
@@ -573,6 +622,37 @@ void GameClient::OnPlayerSpawn(Packet p) {
   const bool has_local_player = player_manager_.HasLocalPlayer();
   const bool is_local_spawn = has_local_player && (player_manager_.GetLocalPlayer().id() == static_cast<std::uint64_t>(packet.player_id));
 
+  const auto emit_snapshot_callbacks = [&](std::uint32_t player_id) {
+    event_observer_.OnPlayerInstanceUpdate(player_id, packet.instance);
+    event_observer_.OnPlayerColorUpdate(player_id, packet.name_color_r, packet.name_color_g, packet.name_color_b);
+    if (!packet.body_model.empty() || !packet.head_model.empty()) {
+      event_observer_.OnPlayerVisualUpdate(player_id, packet.body_model, packet.body_texture, packet.head_model, packet.head_texture);
+    }
+    event_observer_.OnPlayerFatnessUpdate(player_id, packet.fatness);
+    event_observer_.OnPlayerScaleUpdate(player_id, packet.scale);
+
+    event_observer_.OnPlayerAttributeUpdate(player_id, ATTR_STRENGTH, packet.strength);
+    event_observer_.OnPlayerAttributeUpdate(player_id, ATTR_DEXTERITY, packet.dexterity);
+    event_observer_.OnPlayerAttributeUpdate(player_id, ATTR_LEVEL, packet.level);
+    event_observer_.OnPlayerAttributeUpdate(player_id, ATTR_EXP, packet.exp);
+    event_observer_.OnPlayerAttributeUpdate(player_id, ATTR_NEXT_LEVEL_EXP, packet.next_level_exp);
+    event_observer_.OnPlayerAttributeUpdate(player_id, ATTR_LEARN_POINTS, packet.learn_points);
+    event_observer_.OnPlayerAttributeUpdate(player_id, ATTR_MAX_HEALTH, packet.max_health);
+    event_observer_.OnPlayerAttributeUpdate(player_id, ATTR_MAX_MANA, packet.max_mana);
+    event_observer_.OnPlayerAttributeUpdate(player_id, ATTR_HEALTH, packet.health);
+    event_observer_.OnPlayerAttributeUpdate(player_id, ATTR_MANA, packet.mana);
+
+    for (const auto& entry : packet.weapon_skills) {
+      event_observer_.OnPlayerSkillWeaponUpdate(player_id, entry.skill_id, entry.percentage);
+    }
+    for (const auto& entry : packet.talents) {
+      event_observer_.OnPlayerTalentUpdate(player_id, entry.talent_id, entry.value);
+    }
+    for (const auto& overlay : packet.overlays) {
+      event_observer_.OnPlayerOverlayUpdate(player_id, overlay, true);
+    }
+  };
+
   if (is_local_spawn) {
     auto& local_player = player_manager_.GetLocalPlayer();
     local_player.set_name(packet.player_name);
@@ -582,14 +662,41 @@ void GameClient::OnPlayerSpawn(Packet p) {
     local_player.set_right_hand_item(packet.right_hand_item_instance);
     local_player.set_equipped_armor(packet.equipped_armor_instance);
     local_player.set_animation(packet.animation);
+    local_player.set_body_model(packet.body_model);
+    local_player.set_body_texture(packet.body_texture);
     local_player.set_head_model(packet.head_model);
-    local_player.set_skin_texture(packet.skin_texture);
-    local_player.set_face_texture(packet.face_texture);
+    local_player.set_head_texture(packet.head_texture);
     local_player.set_walk_style(packet.walk_style);
+
+    local_player.set_instance(packet.instance);
+    local_player.set_name_color(packet.name_color_r, packet.name_color_g, packet.name_color_b);
+    local_player.set_strength(packet.strength);
+    local_player.set_dexterity(packet.dexterity);
+    local_player.set_level(packet.level);
+    local_player.set_exp(packet.exp);
+    local_player.set_next_level_exp(packet.next_level_exp);
+    local_player.set_learn_points(packet.learn_points);
+    local_player.set_max_health(packet.max_health);
+    local_player.set_max_mana(packet.max_mana);
+    local_player.set_health(static_cast<std::int16_t>(packet.health));
+    local_player.set_mana(static_cast<std::int16_t>(packet.mana));
+    local_player.set_fatness(packet.fatness);
+    local_player.set_scale(packet.scale);
+    for (const auto& entry : packet.weapon_skills) {
+      local_player.set_weapon_skill(entry.skill_id, entry.percentage);
+    }
+    for (const auto& entry : packet.talents) {
+      local_player.set_talent(entry.talent_id, entry.value);
+    }
+    for (const auto& overlay : packet.overlays) {
+      local_player.add_overlay(overlay);
+    }
+
     local_player.set_has_spawned(true);
     is_in_game_ = true;
 
     event_observer_.OnLocalPlayerSpawned(local_player);
+    emit_snapshot_callbacks(packet.player_id);
     return;
   }
 
@@ -607,15 +714,43 @@ void GameClient::OnPlayerSpawn(Packet p) {
   player->set_right_hand_item(packet.right_hand_item_instance);
   player->set_equipped_armor(packet.equipped_armor_instance);
   player->set_animation(packet.animation);
+  player->set_body_model(packet.body_model);
+  player->set_body_texture(packet.body_texture);
   player->set_head_model(packet.head_model);
-  player->set_skin_texture(packet.skin_texture);
-  player->set_face_texture(packet.face_texture);
+  player->set_head_texture(packet.head_texture);
   player->set_walk_style(packet.walk_style);
+
+  player->set_instance(packet.instance);
+  player->set_name_color(packet.name_color_r, packet.name_color_g, packet.name_color_b);
+  player->set_strength(packet.strength);
+  player->set_dexterity(packet.dexterity);
+  player->set_level(packet.level);
+  player->set_exp(packet.exp);
+  player->set_next_level_exp(packet.next_level_exp);
+  player->set_learn_points(packet.learn_points);
+  player->set_max_health(packet.max_health);
+  player->set_max_mana(packet.max_mana);
+  player->set_health(static_cast<std::int16_t>(packet.health));
+  player->set_mana(static_cast<std::int16_t>(packet.mana));
+  player->set_fatness(packet.fatness);
+  player->set_scale(packet.scale);
+  for (const auto& entry : packet.weapon_skills) {
+    player->set_weapon_skill(entry.skill_id, entry.percentage);
+  }
+  for (const auto& entry : packet.talents) {
+    player->set_talent(entry.talent_id, entry.value);
+  }
+  for (const auto& overlay : packet.overlays) {
+    player->add_overlay(overlay);
+  }
+
   player->set_has_spawned(true);
 
   if (!was_spawned) {
     event_observer_.OnPlayerSpawned(*player);
   }
+
+  emit_snapshot_callbacks(packet.player_id);
 }
 
 void GameClient::OnJoinGame(Packet p) {
@@ -645,14 +780,292 @@ void GameClient::OnJoinGame(Packet p) {
   player->set_left_hand_item(packet.left_hand_item_instance);
   player->set_right_hand_item(packet.right_hand_item_instance);
   player->set_equipped_armor(packet.equipped_armor_instance);
+  player->set_body_model(packet.body_model);
+  player->set_body_texture(packet.body_texture);
   player->set_head_model(packet.head_model);
-  player->set_skin_texture(packet.skin_texture);
-  player->set_face_texture(packet.face_texture);
+  player->set_head_texture(packet.head_texture);
   player->set_walk_style(packet.walk_style);
   if (!was_joined) {
     player->set_has_joined(true);
     event_observer_.OnPlayerJoined(*player);
   }
+}
+
+void GameClient::OnPlayerNameUpdate(Packet p) {
+  PlayerNameUpdatePacket packet;
+  using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
+  auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
+
+  SPDLOG_DEBUG("PlayerNameUpdatePacket: {}", packet);
+
+  Player* player = player_manager_.GetPlayer(packet.player_id);
+  if (!player && player_manager_.HasLocalPlayer() && player_manager_.GetLocalPlayer().id() == packet.player_id) {
+    player = &player_manager_.GetLocalPlayer();
+  }
+
+  if (player) {
+    player->set_name(packet.name);
+  }
+
+  event_observer_.OnPlayerNameUpdate(packet.player_id, packet.name);
+}
+
+void GameClient::OnPlayerInstanceUpdate(Packet p) {
+  PlayerInstanceUpdatePacket packet;
+  using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
+  auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
+
+  SPDLOG_DEBUG("PlayerInstanceUpdatePacket: {}", packet);
+
+  Player* player = player_manager_.GetPlayer(packet.player_id);
+  if (!player && player_manager_.HasLocalPlayer() && player_manager_.GetLocalPlayer().id() == packet.player_id) {
+    player = &player_manager_.GetLocalPlayer();
+  }
+
+  if (player) {
+    player->set_instance(packet.instance);
+  }
+
+  event_observer_.OnPlayerInstanceUpdate(packet.player_id, packet.instance);
+}
+
+void GameClient::OnPlayerColorUpdate(Packet p) {
+  PlayerColorUpdatePacket packet;
+  using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
+  auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
+
+  SPDLOG_DEBUG("PlayerColorUpdatePacket: {}", packet);
+
+  Player* player = player_manager_.GetPlayer(packet.player_id);
+  if (!player && player_manager_.HasLocalPlayer() && player_manager_.GetLocalPlayer().id() == packet.player_id) {
+    player = &player_manager_.GetLocalPlayer();
+  }
+
+  if (player) {
+    player->set_name_color(packet.r, packet.g, packet.b);
+  }
+
+  event_observer_.OnPlayerColorUpdate(packet.player_id, packet.r, packet.g, packet.b);
+}
+
+void GameClient::OnPlayerSkillWeaponUpdate(Packet p) {
+  PlayerSkillWeaponUpdatePacket packet;
+  using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
+  auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
+
+  SPDLOG_DEBUG("PlayerSkillWeaponUpdatePacket: {}", packet);
+
+  Player* player = player_manager_.GetPlayer(packet.player_id);
+  if (!player && player_manager_.HasLocalPlayer() && player_manager_.GetLocalPlayer().id() == packet.player_id) {
+    player = &player_manager_.GetLocalPlayer();
+  }
+
+  if (player) {
+    player->set_weapon_skill(packet.skill_id, packet.percentage);
+  }
+
+  event_observer_.OnPlayerSkillWeaponUpdate(packet.player_id, packet.skill_id, packet.percentage);
+}
+
+void GameClient::OnPlayerTalentUpdate(Packet p) {
+  PlayerTalentUpdatePacket packet;
+  using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
+  auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
+
+  SPDLOG_DEBUG("PlayerTalentUpdatePacket: {}", packet);
+
+  Player* player = player_manager_.GetPlayer(packet.player_id);
+  if (!player && player_manager_.HasLocalPlayer() && player_manager_.GetLocalPlayer().id() == packet.player_id) {
+    player = &player_manager_.GetLocalPlayer();
+  }
+
+  if (player) {
+    player->set_talent(packet.talent_id, packet.talent_value);
+  }
+
+  event_observer_.OnPlayerTalentUpdate(packet.player_id, packet.talent_id, packet.talent_value);
+}
+
+void GameClient::OnPlayerVisualUpdate(Packet p) {
+  PlayerVisualUpdatePacket packet;
+  using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
+  auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
+
+  SPDLOG_DEBUG("PlayerVisualUpdatePacket: {}", packet);
+
+  Player* player = player_manager_.GetPlayer(packet.player_id);
+  if (!player && player_manager_.HasLocalPlayer() && player_manager_.GetLocalPlayer().id() == packet.player_id) {
+    player = &player_manager_.GetLocalPlayer();
+  }
+
+  if (player) {
+    player->set_body_model(packet.body_model);
+    player->set_body_texture(packet.body_texture);
+    player->set_head_model(packet.head_model);
+    player->set_head_texture(packet.head_texture);
+  }
+
+  event_observer_.OnPlayerVisualUpdate(packet.player_id, packet.body_model, packet.body_texture, packet.head_model, packet.head_texture);
+}
+
+void GameClient::OnPlayerFatnessUpdate(Packet p) {
+  PlayerFatnessUpdatePacket packet;
+  using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
+  auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
+
+  SPDLOG_DEBUG("PlayerFatnessUpdatePacket: {}", packet);
+
+  Player* player = player_manager_.GetPlayer(packet.player_id);
+  if (!player && player_manager_.HasLocalPlayer() && player_manager_.GetLocalPlayer().id() == packet.player_id) {
+    player = &player_manager_.GetLocalPlayer();
+  }
+
+  if (player) {
+    player->set_fatness(packet.fatness);
+  }
+
+  event_observer_.OnPlayerFatnessUpdate(packet.player_id, packet.fatness);
+}
+
+void GameClient::OnPlayerScaleUpdate(Packet p) {
+  PlayerScaleUpdatePacket packet;
+  using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
+  auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
+
+  SPDLOG_DEBUG("PlayerScaleUpdatePacket: {}", packet);
+
+  Player* player = player_manager_.GetPlayer(packet.player_id);
+  if (!player && player_manager_.HasLocalPlayer() && player_manager_.GetLocalPlayer().id() == packet.player_id) {
+    player = &player_manager_.GetLocalPlayer();
+  }
+
+  if (player) {
+    player->set_scale(packet.scale);
+  }
+
+  event_observer_.OnPlayerScaleUpdate(packet.player_id, packet.scale);
+}
+
+void GameClient::OnPlayerOverlayUpdate(Packet p) {
+  PlayerOverlayUpdatePacket packet;
+  using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
+  auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
+
+  SPDLOG_DEBUG("PlayerOverlayUpdatePacket: {}", packet);
+
+  Player* player = player_manager_.GetPlayer(packet.player_id);
+  if (!player && player_manager_.HasLocalPlayer() && player_manager_.GetLocalPlayer().id() == packet.player_id) {
+    player = &player_manager_.GetLocalPlayer();
+  }
+
+  if (player) {
+    if (packet.apply) {
+      player->add_overlay(packet.overlay);
+    } else {
+      player->remove_overlay(packet.overlay);
+    }
+  }
+
+  event_observer_.OnPlayerOverlayUpdate(packet.player_id, packet.overlay, packet.apply != 0);
+}
+
+void GameClient::OnPlayerAttributeUpdate(Packet p) {
+  PlayerAttributeUpdatePacket packet;
+  using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
+  auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
+
+  SPDLOG_DEBUG("PlayerAttributeUpdatePacket: {}", packet);
+
+  Player* player = player_manager_.GetPlayer(packet.player_id);
+  if (!player && player_manager_.HasLocalPlayer() && player_manager_.GetLocalPlayer().id() == packet.player_id) {
+    player = &player_manager_.GetLocalPlayer();
+  }
+
+  if (player) {
+    switch (packet.attribute_id) {
+      case ATTR_STRENGTH:
+        player->set_strength(packet.value);
+        break;
+      case ATTR_DEXTERITY:
+        player->set_dexterity(packet.value);
+        break;
+      case ATTR_LEVEL:
+        player->set_level(packet.value);
+        break;
+      case ATTR_EXP:
+        player->set_exp(packet.value);
+        break;
+      case ATTR_NEXT_LEVEL_EXP:
+        player->set_next_level_exp(packet.value);
+        break;
+      case ATTR_LEARN_POINTS:
+        player->set_learn_points(packet.value);
+        break;
+      case ATTR_HEALTH:
+        player->set_health(static_cast<std::int16_t>(packet.value));
+        break;
+      case ATTR_MAX_HEALTH:
+        player->set_max_health(static_cast<std::int16_t>(packet.value));
+        break;
+      case ATTR_MANA:
+        player->set_mana(static_cast<std::int16_t>(packet.value));
+        break;
+      case ATTR_MAX_MANA:
+        player->set_max_mana(static_cast<std::int16_t>(packet.value));
+        break;
+      default:
+        break;
+    }
+  }
+
+  event_observer_.OnPlayerAttributeUpdate(packet.player_id, packet.attribute_id, packet.value);
+}
+
+void GameClient::OnPlayerAttributeSnapshot(Packet p) {
+  PlayerAttributeSnapshotPacket packet;
+  using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
+  auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
+
+  SPDLOG_DEBUG("PlayerAttributeSnapshotPacket: {}", packet);
+
+  Player* player = player_manager_.GetPlayer(packet.player_id);
+  if (!player && player_manager_.HasLocalPlayer() && player_manager_.GetLocalPlayer().id() == packet.player_id) {
+    player = &player_manager_.GetLocalPlayer();
+  }
+
+  if (player) {
+    player->set_strength(packet.strength);
+    player->set_dexterity(packet.dexterity);
+    player->set_level(packet.level);
+    player->set_exp(packet.exp);
+    player->set_next_level_exp(packet.next_level_exp);
+    player->set_learn_points(packet.learn_points);
+    player->set_max_health(static_cast<std::int16_t>(packet.max_health));
+    player->set_max_mana(static_cast<std::int16_t>(packet.max_mana));
+    player->set_health(static_cast<std::int16_t>(packet.health));
+    player->set_mana(static_cast<std::int16_t>(packet.mana));
+  }
+
+  event_observer_.OnPlayerAttributeUpdate(packet.player_id, ATTR_STRENGTH, packet.strength);
+  event_observer_.OnPlayerAttributeUpdate(packet.player_id, ATTR_DEXTERITY, packet.dexterity);
+  event_observer_.OnPlayerAttributeUpdate(packet.player_id, ATTR_LEVEL, packet.level);
+  event_observer_.OnPlayerAttributeUpdate(packet.player_id, ATTR_EXP, packet.exp);
+  event_observer_.OnPlayerAttributeUpdate(packet.player_id, ATTR_NEXT_LEVEL_EXP, packet.next_level_exp);
+  event_observer_.OnPlayerAttributeUpdate(packet.player_id, ATTR_LEARN_POINTS, packet.learn_points);
+  event_observer_.OnPlayerAttributeUpdate(packet.player_id, ATTR_MAX_HEALTH, packet.max_health);
+  event_observer_.OnPlayerAttributeUpdate(packet.player_id, ATTR_MAX_MANA, packet.max_mana);
+  event_observer_.OnPlayerAttributeUpdate(packet.player_id, ATTR_HEALTH, packet.health);
+  event_observer_.OnPlayerAttributeUpdate(packet.player_id, ATTR_MANA, packet.mana);
+}
+
+void GameClient::OnPlayerWorldUpdate(Packet p) {
+  PlayerWorldUpdatePacket packet;
+  using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
+  auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
+
+  SPDLOG_DEBUG("PlayerWorldUpdatePacket: {}", packet);
+
+  event_observer_.OnPlayerWorldUpdate(packet.player_id, packet.world_name, packet.start_point);
 }
 
 void GameClient::OnGameInfo(Packet p) {
@@ -676,17 +1089,6 @@ void GameClient::OnLeftGame(Packet p) {
 
   // Remove from player manager
   player_manager_.RemovePlayer(packet.disconnected_id);
-}
-
-void GameClient::OnDiscordActivity(Packet p) {
-  DiscordActivityPacket packet;
-  using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
-  auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
-
-  SPDLOG_DEBUG("DiscordActivityPacket: {}", packet);
-
-  event_observer_.OnDiscordActivityUpdate(packet.state, packet.details, packet.large_image_key, packet.large_image_text, packet.small_image_key,
-                                          packet.small_image_text);
 }
 
 void GameClient::OnDisconnectOrLostConnection(Packet p) {

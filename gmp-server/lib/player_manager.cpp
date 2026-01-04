@@ -31,9 +31,10 @@ PlayerManager::PlayerId PlayerManager::AddPlayer(Net::ConnectionHandle connectio
   player.player_id = player_id;
   player.connection = connection;
   player.name = name;
-  player.head = 0;
-  player.skin = 0;
-  player.body = 0;
+  player.body_model.clear();
+  player.body_texture = 0;
+  player.head_model.clear();
+  player.head_texture = 0;
   player.flags = 0;
   player.walkstyle = 0;
   player.fight_pos = 0;
@@ -43,7 +44,15 @@ PlayerManager::PlayerId PlayerManager::AddPlayer(Net::ConnectionHandle connectio
   player.passed_crc_test = 0;
   player.mute = 0;
   player.health = 0;
+  player.max_health = 100;
   player.mana = 0;
+  player.max_mana = 100;
+  player.level = 0;
+  player.exp = 0;
+  player.next_level_exp = 0;
+  player.learn_points = 0;
+  player.strength = 0;
+  player.dexterity = 0;
   player.tod = 0;
 
   players_[player_id] = std::move(player);

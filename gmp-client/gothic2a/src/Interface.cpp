@@ -102,7 +102,6 @@ void InterfaceLoop(void) {
     screen->Print(2500, 2000, Language::Instance()[Language::HCONTROLS]);
     screen->Print(2500, 2200, Language::Instance()[Language::HCHAT]);
     screen->Print(2500, 2400, Language::Instance()[Language::HCHATMAIN]);
-    screen->Print(2500, 2600, Language::Instance()[Language::HCHATWHISPER]);
     screen->Print(2500, 2800, Language::Instance()[Language::HPLAYERLIST]);
     screen->Print(2500, 3000, Language::Instance()[Language::HMAP]);
     screen->Print(2500, 3200, Language::Instance()[Language::HANIMSMENU]);

@@ -49,7 +49,6 @@ SOFTWARE.
 #include "Interface.h"
 #include "ZenGin/zGothicAPI.h"
 #include "config.h"
-#include "discord_presence.h"
 #include "language.h"
 #include "net_enums.h"
 #include "packets.h"
@@ -67,6 +66,18 @@ float fWRatio, fHRatio;
 extern CIngame* global_ingame;
 
 using namespace Net;
+
+namespace {
+oCMenu_Status* GetStatusMenu() {
+  zSTRING status_menu_name("MENU_STATUS");
+  if (auto* menu = dynamic_cast<oCMenu_Status*>(zCMenu::GetByName(status_menu_name))) {
+    return menu;
+  }
+
+  zSTRING fallback_name("STATUS");
+  return dynamic_cast<oCMenu_Status*>(zCMenu::GetByName(fallback_name));
+}
+}  // namespace
 
 NetGame::NetGame() : task_scheduler(nullptr), game_client(nullptr), resource_runtime(nullptr) {
   task_scheduler = std::make_unique<gmp::GothicTaskScheduler>();
@@ -151,7 +162,7 @@ void NetGame::JoinGame() {
     player->name[0] = sanitized_name.c_str();
 
     // Call the new GameClient JoinGame method
-    game_client->JoinGame(sanitized_name, sanitized_name, 0, 0, 0, 0);
+    game_client->JoinGame(sanitized_name, sanitized_name, "", 0, "", 0, 0);
 
     // Set up the local player now that we have the player ID from the server
     CIngame* g = new CIngame();
@@ -172,33 +183,8 @@ void NetGame::SendMessage(const char* msg) {
   game_client->SendChatMessage(msg);
 }
 
-void NetGame::SendWhisper(const char* player_name, const char* msg) {
-  // Find the player by name
-  bool found = false;
-  size_t length = strlen(player_name);
-  std::uint64_t recipient_id = 0;
-
-  for (size_t i = 0; i < this->players.size(); i++) {
-    if (this->players[i]->GetNameLength() == length) {
-      if (!memcmp(this->players[i]->GetName(), player_name, length)) {
-        recipient_id = this->players[i]->base_player().id();
-        found = true;
-        break;
-      }
-    }
-  }
-
-  if (found) {
-    game_client->SendWhisper(recipient_id, msg);
-  }
-}
-
-void NetGame::SendCommand(const char* msg) {
-  game_client->SendCommand(msg);
-}
-
 void NetGame::SendCastSpell(oCNpc* Target, short SpellId) {
-  std::uint64_t target_id = 0;
+  std::uint32_t target_id = 0;
   if (Target) {
     for (int i = 0; i < (int)players.size(); i++) {
       if (players[i]->npc == Target) {
@@ -256,12 +242,6 @@ void NetGame::UpdatePlayerStats(short anim) {
   game_client->UpdatePlayerStats(state);
 }
 
-void NetGame::SendHPDiff(size_t who, short diff) {
-  if (who < this->players.size()) {
-    game_client->SendHPDiff(this->players[who]->base_player().id(), diff);
-  }
-}
-
 void NetGame::SyncGameTime() {
   game_client->SyncGameTime();
 }
@@ -279,9 +259,6 @@ void NetGame::Disconnect() {
     game_client->Disconnect();
     Gothic2APlayer::DeleteAllPlayers();
     CChat::GetInstance()->ClearChat();
-    if (global_ingame) {
-      global_ingame->WhisperingTo.clear();
-    }
   }
 
   if (resource_runtime) {
@@ -454,7 +431,7 @@ void NetGame::SpawnRemotePlayer(gmp::client::Player& new_player) {
   oCNpc* npc = zfactory->CreateNpc(player->GetInstance());
   newhero->SetNpc(npc);
   newhero->npc->SetGuild(9);
-  newhero->base_player().set_hp(static_cast<short>(newhero->GetHealth()));
+  newhero->base_player().set_health(static_cast<short>(newhero->GetHealth()));
   newhero->SetPosition(pos);
   newhero->SetName(new_player.name().c_str());
   (void)new_player;
@@ -462,7 +439,7 @@ void NetGame::SpawnRemotePlayer(gmp::client::Player& new_player) {
   CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(0, 255, 0, 255), "%s%s", new_player.name().c_str(),
                                      Language::Instance()[Language::SOMEONE_JOIN_GAME].ToChar());
   newhero->base_player().set_enabled(false);
-  newhero->base_player().set_update_hp_packet_counter(0);
+  newhero->base_player().set_update_health_packet_counter(0);
   this->players.push_back(newhero);
 }
 
@@ -478,6 +455,220 @@ void NetGame::OnPlayerLeft(std::uint64_t player_id, const std::string& player_na
       break;
     }
   }
+}
+
+void NetGame::OnPlayerNameUpdate(std::uint64_t player_id, const std::string& name) {
+  Gothic2APlayer* cplayer = GetPlayerById(player_id);
+  if (!cplayer) {
+    return;
+  }
+
+  zSTRING new_name(name.c_str());
+  cplayer->SetName(new_name);
+  cplayer->base_player().set_name(name);
+}
+
+void NetGame::OnPlayerInstanceUpdate(std::uint64_t player_id, const std::string& instance) {
+  Gothic2APlayer* cplayer = GetPlayerById(player_id);
+  if (!cplayer || !cplayer->GetNpc()) {
+    return;
+  }
+
+  if (auto* parser = zCParser::GetParser()) {
+    zSTRING instance_name(instance.c_str());
+    const int instance_id = parser->GetIndex(instance_name);
+    if (instance_id >= 0) {
+      cplayer->GetNpc()->InitByScript(instance_id, 0);
+      cplayer->base_player().set_instance(instance);
+    }
+  }
+}
+
+void NetGame::OnPlayerColorUpdate(std::uint64_t player_id, std::uint8_t r, std::uint8_t g, std::uint8_t b) {
+  Gothic2APlayer* cplayer = GetPlayerById(player_id);
+  if (!cplayer) {
+    return;
+  }
+
+  cplayer->SetNameColor(zCOLOR(r, g, b, 255));
+  cplayer->base_player().set_name_color(r, g, b);
+}
+
+void NetGame::OnPlayerSkillWeaponUpdate(std::uint64_t player_id, std::int32_t skill_id, std::int32_t percentage) {
+  Gothic2APlayer* cplayer = GetPlayerById(player_id);
+  if (!cplayer || !cplayer->GetNpc()) {
+    return;
+  }
+
+  cplayer->GetNpc()->SetHitChance(skill_id, percentage);
+  cplayer->base_player().set_weapon_skill(skill_id, percentage);
+}
+
+void NetGame::OnPlayerTalentUpdate(std::uint64_t player_id, std::int32_t talent_id, std::int32_t talent_value) {
+  Gothic2APlayer* cplayer = GetPlayerById(player_id);
+  if (!cplayer || !cplayer->GetNpc()) {
+    return;
+  }
+
+  cplayer->GetNpc()->SetTalentSkill(talent_id, talent_value);
+  cplayer->base_player().set_talent(talent_id, talent_value);
+}
+
+void NetGame::OnPlayerVisualUpdate(std::uint64_t player_id, const std::string& body_model, std::int16_t body_texture,
+                                   const std::string& head_model, std::int16_t head_texture) {
+  Gothic2APlayer* cplayer = GetPlayerById(player_id);
+  if (!cplayer || !cplayer->GetNpc()) {
+    return;
+  }
+
+  zSTRING body(body_model.c_str());
+  zSTRING head(head_model.c_str());
+  cplayer->GetNpc()->SetAdditionalVisuals(body, body_texture, 0, head, head_texture, 0, 0);
+  cplayer->base_player().set_body_model(body_model);
+  cplayer->base_player().set_body_texture(body_texture);
+  cplayer->base_player().set_head_model(head_model);
+  cplayer->base_player().set_head_texture(head_texture);
+}
+
+void NetGame::OnPlayerFatnessUpdate(std::uint64_t player_id, float fatness) {
+  Gothic2APlayer* cplayer = GetPlayerById(player_id);
+  if (!cplayer || !cplayer->GetNpc()) {
+    return;
+  }
+
+  cplayer->GetNpc()->SetFatness(fatness);
+  cplayer->base_player().set_fatness(fatness);
+}
+
+void NetGame::OnPlayerScaleUpdate(std::uint64_t player_id, const glm::vec3& scale) {
+  Gothic2APlayer* cplayer = GetPlayerById(player_id);
+  if (!cplayer || !cplayer->GetNpc()) {
+    return;
+  }
+
+  cplayer->GetNpc()->SetModelScale(zVEC3{scale.x, scale.y, scale.z});
+  cplayer->base_player().set_scale(scale);
+}
+
+void NetGame::OnPlayerOverlayUpdate(std::uint64_t player_id, const std::string& overlay, bool apply) {
+  Gothic2APlayer* cplayer = GetPlayerById(player_id);
+  if (!cplayer || !cplayer->GetNpc()) {
+    return;
+  }
+
+  zSTRING overlay_name(overlay.c_str());
+  if (apply) {
+    cplayer->GetNpc()->ApplyOverlay(overlay_name);
+    cplayer->base_player().add_overlay(overlay);
+    return;
+  }
+
+  if (cplayer->GetNpc()->GetOverlay(overlay_name) != 0) {
+    cplayer->GetNpc()->RemoveOverlay(overlay_name);
+  }
+  cplayer->base_player().remove_overlay(overlay);
+}
+
+void NetGame::OnPlayerAttributeUpdate(std::uint64_t player_id, PlayerAttributeId attribute_id, std::int32_t value) {
+  Gothic2APlayer* cplayer = GetPlayerById(player_id);
+  if (!cplayer || !cplayer->GetNpc()) {
+    return;
+  }
+
+  oCNpc* npc = cplayer->GetNpc();
+  const bool is_local = cplayer->IsLocalPlayer();
+  const int clamped_value = std::max(0, static_cast<int>(value));
+
+  switch (attribute_id) {
+    case ATTR_STRENGTH:
+      npc->SetAttribute(NPC_ATR_STRENGTH, clamped_value);
+      cplayer->base_player().set_strength(clamped_value);
+      break;
+    case ATTR_DEXTERITY:
+      npc->SetAttribute(NPC_ATR_DEXTERITY, clamped_value);
+      cplayer->base_player().set_dexterity(clamped_value);
+      break;
+    case ATTR_LEVEL:
+      npc->level = clamped_value;
+      cplayer->base_player().set_level(clamped_value);
+      break;
+    case ATTR_EXP:
+      npc->experience_points = clamped_value;
+      cplayer->base_player().set_exp(clamped_value);
+      if (is_local) {
+        if (auto* status_menu = GetStatusMenu()) {
+          status_menu->SetExperience(npc->experience_points, 0, npc->experience_points_next_level);
+        }
+      }
+      break;
+    case ATTR_NEXT_LEVEL_EXP:
+      npc->experience_points_next_level = clamped_value;
+      cplayer->base_player().set_next_level_exp(clamped_value);
+      if (is_local) {
+        if (auto* status_menu = GetStatusMenu()) {
+          status_menu->SetExperience(npc->experience_points, 0, npc->experience_points_next_level);
+        }
+      }
+      break;
+    case ATTR_LEARN_POINTS:
+      npc->learn_points = static_cast<unsigned long>(clamped_value);
+      cplayer->base_player().set_learn_points(clamped_value);
+      if (is_local) {
+        if (auto* status_menu = GetStatusMenu()) {
+          status_menu->SetLearnPoints(npc->learn_points);
+        }
+      }
+      break;
+    case ATTR_MAX_HEALTH: {
+      npc->SetAttribute(NPC_ATR_HITPOINTSMAX, clamped_value);
+      cplayer->base_player().set_max_health(static_cast<std::int16_t>(clamped_value));
+      int current_health = npc->GetAttribute(NPC_ATR_HITPOINTS);
+      if (current_health > clamped_value) {
+        npc->SetAttribute(NPC_ATR_HITPOINTS, clamped_value);
+        cplayer->base_player().set_health(static_cast<std::int16_t>(clamped_value));
+      }
+      break;
+    }
+    case ATTR_HEALTH: {
+      int max_health = npc->GetAttribute(NPC_ATR_HITPOINTSMAX);
+      int clamped_health = std::min(clamped_value, max_health);
+      npc->SetAttribute(NPC_ATR_HITPOINTS, clamped_health);
+      cplayer->base_player().set_health(static_cast<std::int16_t>(clamped_health));
+      break;
+    }
+    case ATTR_MAX_MANA: {
+      npc->SetAttribute(NPC_ATR_MANAMAX, clamped_value);
+      cplayer->base_player().set_max_mana(static_cast<std::int16_t>(clamped_value));
+      int current_mana = npc->GetAttribute(NPC_ATR_MANA);
+      if (current_mana > clamped_value) {
+        npc->SetAttribute(NPC_ATR_MANA, clamped_value);
+        cplayer->base_player().set_mana(static_cast<std::int16_t>(clamped_value));
+      }
+      break;
+    }
+    case ATTR_MANA: {
+      int max_mana = npc->GetAttribute(NPC_ATR_MANAMAX);
+      int clamped_mana = std::min(clamped_value, max_mana);
+      npc->SetAttribute(NPC_ATR_MANA, clamped_mana);
+      cplayer->base_player().set_mana(static_cast<std::int16_t>(clamped_mana));
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+void NetGame::OnPlayerWorldUpdate(std::uint64_t player_id, const std::string& world_name, const std::string& start_point) {
+  Gothic2APlayer* cplayer = GetPlayerById(player_id);
+  if (!cplayer || !cplayer->IsLocalPlayer() || !ogame) {
+    return;
+  }
+
+  zSTRING z_world(world_name.c_str());
+  zSTRING z_start_point(start_point.c_str());
+  Patch::ChangeLevelEnabled(true);
+  ogame->ChangeLevel(z_world, z_start_point);
+  Patch::ChangeLevelEnabled(false);
 }
 
 void NetGame::OnPlayerStateUpdate(std::uint64_t player_id, const PlayerState& state) {
@@ -689,19 +880,19 @@ void NetGame::OnPlayerStateUpdate(std::uint64_t player_id, const PlayerState& st
       cplayer->npc->attribute[NPC_ATR_HITPOINTS] = 1;
     }
   }
-  if ((!cplayer->base_player().hp()) && (state.health_points == cplayer->npc->attribute[NPC_ATR_HITPOINTSMAX])) {
-    cplayer->base_player().set_hp(state.health_points);
+  if ((!cplayer->base_player().health()) && (state.health_points == cplayer->npc->attribute[NPC_ATR_HITPOINTSMAX])) {
+    cplayer->base_player().set_health(state.health_points);
     auto pos = cplayer->npc->GetPositionWorld();
     cplayer->npc->ResetPos(pos);
   } else if ((cplayer->npc->attribute[NPC_ATR_HITPOINTS] > 0) && (state.health_points == 0)) {
-    cplayer->base_player().set_hp(0);
+    cplayer->base_player().set_health(0);
   } else {
-    if (cplayer->base_player().update_hp_packet_counter() >= 5) {
-      cplayer->base_player().set_hp(state.health_points);
+    if (cplayer->base_player().update_health_packet_counter() >= 5) {
+      cplayer->base_player().set_health(state.health_points);
       cplayer->npc->attribute[NPC_ATR_HITPOINTS] = static_cast<int>(state.health_points);
-      cplayer->base_player().set_update_hp_packet_counter(0);
+      cplayer->base_player().set_update_health_packet_counter(0);
     } else
-      cplayer->base_player().set_update_hp_packet_counter(cplayer->base_player().update_hp_packet_counter() + 1);
+      cplayer->base_player().set_update_health_packet_counter(cplayer->base_player().update_health_packet_counter() + 1);
   }
 
   // Update mana
@@ -810,8 +1001,8 @@ void NetGame::OnPlayerPositionUpdate(std::uint64_t player_id, float x, float y, 
 void NetGame::OnPlayerDied(std::uint64_t player_id) {
   Gothic2APlayer* cplayer = GetPlayerById(player_id);
   if (cplayer) {
-    cplayer->base_player().set_hp(0);
-    cplayer->base_player().set_update_hp_packet_counter(0);
+    cplayer->base_player().set_health(0);
+    cplayer->base_player().set_update_health_packet_counter(0);
     cplayer->SetHealth(0);
   }
 }
@@ -855,6 +1046,85 @@ void NetGame::OnItemTaken(std::uint64_t player_id, std::uint16_t item_instance) 
   }
 }
 
+void NetGame::OnItemGiven(std::uint64_t player_id, const std::string& item_instance, std::int32_t amount) {
+  if (amount <= 0) {
+    return;
+  }
+
+  Gothic2APlayer* cplayer = GetPlayerById(player_id);
+  if (!cplayer) {
+    return;
+  }
+
+  int index = zCParser::GetParser()->GetIndex(item_instance.c_str());
+  if (index < 0) {
+    SPDLOG_WARN("Could not find item instance {}", item_instance);
+    return;
+  }
+
+  if (oCItem* existing = cplayer->npc->inventory2.IsIn(index, 1)) {
+    existing->amount += amount;
+    return;
+  }
+
+  oCItem* item = static_cast<oCItem*>(zfactory->CreateItem(index));
+  if (!item) {
+    SPDLOG_WARN("Could not create item instance {}", item_instance);
+    return;
+  }
+
+  item->amount = amount;
+  cplayer->npc->inventory2.Insert(item);
+}
+
+void NetGame::OnItemEquipped(std::uint64_t player_id, const std::string& item_instance, std::int16_t slot_id) {
+  (void)slot_id;
+
+  Gothic2APlayer* cplayer = GetPlayerById(player_id);
+  if (!cplayer) {
+    return;
+  }
+
+  int index = zCParser::GetParser()->GetIndex(item_instance.c_str());
+  if (index < 0) {
+    SPDLOG_WARN("Could not find item instance {}", item_instance);
+    return;
+  }
+
+  oCItem* item = cplayer->npc->inventory2.IsIn(index, 1);
+  if (!item) {
+    item = static_cast<oCItem*>(zfactory->CreateItem(index));
+    if (!item) {
+      SPDLOG_WARN("Could not create item instance {}", item_instance);
+      return;
+    }
+    item->amount = 1;
+    cplayer->npc->inventory2.Insert(item);
+  }
+
+  cplayer->npc->EquipItem(item);
+}
+
+void NetGame::OnItemUnequipped(std::uint64_t player_id, const std::string& item_instance) {
+  Gothic2APlayer* cplayer = GetPlayerById(player_id);
+  if (!cplayer) {
+    return;
+  }
+
+  int index = zCParser::GetParser()->GetIndex(item_instance.c_str());
+  if (index < 0) {
+    SPDLOG_WARN("Could not find item instance {}", item_instance);
+    return;
+  }
+
+  oCItem* item = cplayer->npc->inventory2.IsIn(index, 1);
+  if (!item) {
+    return;
+  }
+
+  cplayer->npc->UnequipItem(item);
+}
+
 void NetGame::OnSpellCast(std::uint64_t caster_id, std::uint16_t spell_id) {
   Gothic2APlayer* caster = GetPlayerById(caster_id);
   if (caster && spell_id >= 0 && spell_id < 100) {
@@ -895,24 +1165,4 @@ void NetGame::OnPlayerMessage(std::optional<std::uint64_t> sender_id, std::uint8
   }
 
   EventManager::Instance().TriggerEvent(gmp::gothic::kEventOnPlayerMessageName, gmp::gothic::OnPlayerMessageEvent{sender_id, r, g, b, message});
-}
-
-void NetGame::OnWhisperReceived(std::uint64_t sender_id, const std::string& sender_name, const std::string& message) {
-  Gothic2APlayer* sender = GetPlayerById(sender_id);
-  if (sender) {
-    CChat::GetInstance()->WriteMessage(WHISPER, true, zCOLOR(0, 255, 255, 255), "%s -> %s", sender->npc->GetName().ToChar(), message.c_str());
-  }
-}
-
-void NetGame::OnRconResponse(const std::string& response, bool is_admin) {
-  if (is_admin) {
-    this->IsAdminOrModerator = true;
-  }
-  CChat::GetInstance()->WriteMessage(ADMIN, false, RED, "%s", response.c_str());
-}
-
-void NetGame::OnDiscordActivityUpdate(const std::string& state, const std::string& details, const std::string& large_image_key,
-                                      const std::string& large_image_text, const std::string& small_image_key, const std::string& small_image_text) {
-  SPDLOG_DEBUG("Discord activity update: {} - {}", state, details);
-  DiscordRichPresence::Instance().UpdateActivity(state, details, 0, 0, large_image_key, large_image_text, small_image_key, small_image_text);
 }

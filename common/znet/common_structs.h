@@ -34,6 +34,19 @@ SOFTWARE.
 
 using PlayerID = std::uint32_t;
 
+enum PlayerAttributeId : std::uint8_t {
+  ATTR_STRENGTH = 0,
+  ATTR_DEXTERITY,
+  ATTR_LEVEL,
+  ATTR_EXP,
+  ATTR_NEXT_LEVEL_EXP,
+  ATTR_LEARN_POINTS,
+  ATTR_HEALTH,
+  ATTR_MAX_HEALTH,
+  ATTR_MANA,
+  ATTR_MAX_MANA,
+};
+
 struct PlayerState {
   glm::vec3 position{0.0f};
   glm::vec3 nrot{0.0f};

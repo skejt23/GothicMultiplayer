@@ -147,14 +147,14 @@ void Gothic2APlayer::RespawnPlayer() {
   global_ingame->Shrinker->UnShrinkNpc(npc);
   npc->GetSpellBook()->Close(1);
   if (!IsLocalPlayer()) {
-    base_player_.set_hp(static_cast<short>(npc->attribute[NPC_ATR_HITPOINTSMAX]));
+    base_player_.set_health(static_cast<short>(npc->attribute[NPC_ATR_HITPOINTSMAX]));
     auto player_pos = npc->GetPositionWorld();
     npc->ResetPos(player_pos);
   } else {
     npc->RefreshNpc();
     npc->SetMovLock(0);
     npc->SetWeaponMode(NPC_WEAPON_NONE);
-    base_player_.set_hp(static_cast<short>(npc->attribute[NPC_ATR_HITPOINTSMAX]));
+    base_player_.set_health(static_cast<short>(npc->attribute[NPC_ATR_HITPOINTSMAX]));
     auto pos = npc->GetPositionWorld();
     npc->ResetPos(pos);
   }

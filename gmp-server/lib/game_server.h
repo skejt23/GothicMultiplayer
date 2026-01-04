@@ -96,7 +96,34 @@ public:
   void SendPlayerMessageToPlayer(PlayerId sender_id, PlayerId receiver_id, std::uint8_t r, std::uint8_t g,
                                  std::uint8_t b, const std::string& text);
   bool SpawnPlayer(PlayerId player_id, std::optional<glm::vec3> position_override = std::nullopt);
+  bool SetPlayerName(PlayerId player_id, const std::string& name);
+  bool SetPlayerInstance(PlayerId player_id, const std::string& instance);
+  bool SetPlayerColor(PlayerId player_id, std::uint8_t r, std::uint8_t g, std::uint8_t b);
+  bool SetPlayerStrength(PlayerId player_id, std::int32_t strength);
+  bool SetPlayerDexterity(PlayerId player_id, std::int32_t dexterity);
+  bool SetPlayerLevel(PlayerId player_id, std::int32_t level);
+  bool SetPlayerExp(PlayerId player_id, std::int32_t exp);
+  bool SetPlayerNextLevelExp(PlayerId player_id, std::int32_t next_level_exp);
+  bool SetPlayerLearnPoints(PlayerId player_id, std::int32_t learn_points);
+  bool SetPlayerMaxHealth(PlayerId player_id, std::int32_t max_health);
+  bool SetPlayerHealth(PlayerId player_id, std::int32_t health);
+  bool SetPlayerMaxMana(PlayerId player_id, std::int32_t max_mana);
+  bool SetPlayerMana(PlayerId player_id, std::int32_t mana);
+  bool SetPlayerSkillWeapon(PlayerId player_id, std::int32_t skill_id, std::int32_t percentage);
+  bool SetPlayerTalent(PlayerId player_id, std::int32_t talent_id, std::int32_t talent_value);
+  bool SetPlayerVisual(PlayerId player_id, const std::string& body_model, std::int16_t body_texture, const std::string& head_model,
+                       std::int16_t head_texture);
+  bool SetPlayerFatness(PlayerId player_id, float fatness);
+  bool SetPlayerScale(PlayerId player_id, const glm::vec3& scale);
+  bool ApplyPlayerOverlay(PlayerId player_id, const std::string& overlay);
+  bool RemovePlayerOverlay(PlayerId player_id, const std::string& overlay);
   bool SetPlayerPosition(PlayerId player_id, const glm::vec3& position);
+  bool SetPlayerAngle(PlayerId player_id, float angle);
+  bool GiveItem(PlayerId player_id, const std::string& instance, std::int32_t amount);
+  bool EquipItem(PlayerId player_id, const std::string& instance, std::int32_t slot_id = -1);
+  bool UnequipItem(PlayerId player_id, const std::string& instance);
+  bool SetPlayerWorld(PlayerId player_id, const std::string& world, std::optional<std::string> start_point = std::nullopt);
+  bool SetPlayerVirtualWorld(PlayerId player_id, std::int32_t virtual_world);
   std::optional<glm::vec3> GetPlayerPosition(PlayerId player_id) const;
   std::string GetHostname() const;
   std::uint32_t GetMaxSlots() const;
@@ -126,12 +153,9 @@ private:
   void HandleVoice(Packet p);
   void SomeoneJoinGame(Packet p);
   void HandlePlayerUpdate(Packet p);
-  void MakeHPDiff(Packet p);
   void HandlePlayerDisconnect(Net::ConnectionHandle connection);
   void HandlePlayerDeath(Player& victim, std::optional<PlayerId> killer_id);
   void HandleNormalMsg(Packet p);
-  void HandleWhisp(Packet p);
-  void HandleRMConsole(Packet p);
   void HandleGameInfo(Packet p);
   void HandleMapNameReq(Packet p);
   void SendDisconnectionInfo(PlayerId player_id);

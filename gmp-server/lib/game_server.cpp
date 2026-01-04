@@ -36,7 +36,9 @@ SOFTWARE.
 #include <array>
 #include <charconv>
 #include <chrono>
+#include <cmath>
 #include <dylib.hpp>
+#include <limits>
 #include <filesystem>
 #include <fstream>
 #include <future>
@@ -80,6 +82,7 @@ using namespace Net;
 namespace {
 
 constexpr std::size_t kMaxWorldNameLength = 32;
+constexpr std::size_t kMaxPlayerNameLength = 64;
 constexpr const char* kBanListFileName = "bans.json";
 constexpr std::string_view kFrame = "-========================================-";
 
@@ -159,6 +162,47 @@ std::optional<MasterServerEndpointInfo> ParseMasterServerEndpoint(std::string_vi
   return info;
 }
 
+void PopulatePlayerSpawnSnapshot(PlayerSpawnPacket& packet, const PlayerManager::Player& player) {
+  packet.instance = player.instance;
+  packet.name_color_r = player.name_color_r;
+  packet.name_color_g = player.name_color_g;
+  packet.name_color_b = player.name_color_b;
+
+  packet.strength = player.strength;
+  packet.dexterity = player.dexterity;
+  packet.level = player.level;
+  packet.exp = player.exp;
+  packet.next_level_exp = player.next_level_exp;
+  packet.learn_points = player.learn_points;
+  packet.health = player.health;
+  packet.max_health = player.max_health;
+  packet.mana = player.mana;
+  packet.max_mana = player.max_mana;
+
+  packet.fatness = player.fatness;
+  packet.scale = player.scale;
+
+  packet.weapon_skills.clear();
+  packet.weapon_skills.reserve(player.weapon_skills.size());
+  for (const auto& [skill_id, percentage] : player.weapon_skills) {
+    PlayerSpawnPacket::SkillEntry entry;
+    entry.skill_id = skill_id;
+    entry.percentage = percentage;
+    packet.weapon_skills.push_back(std::move(entry));
+  }
+
+  packet.talents.clear();
+  packet.talents.reserve(player.talents.size());
+  for (const auto& [talent_id, value] : player.talents) {
+    PlayerSpawnPacket::TalentEntry entry;
+    entry.talent_id = talent_id;
+    entry.value = value;
+    packet.talents.push_back(std::move(entry));
+  }
+
+  packet.overlays = player.overlays;
+}
+
 std::string SanitizeWorldName(std::string world) {
   if (world.size() > kMaxWorldNameLength) {
     SPDLOG_WARN("World name '{}' is longer than {} characters and will be truncated", world, kMaxWorldNameLength);
@@ -194,6 +238,15 @@ std::string SanitizeServerText(std::string text) {
     }
   }
   return text;
+}
+
+std::string SanitizePlayerName(std::string name) {
+  name = SanitizeServerText(std::move(name));
+  if (name.size() > kMaxPlayerNameLength) {
+    SPDLOG_WARN("Player name '{}' is longer than {} characters and will be truncated", name, kMaxPlayerNameLength);
+    name.resize(kMaxPlayerNameLength);
+  }
+  return name;
 }
 
 std::uint8_t ClampColorComponent(int value) {
@@ -242,6 +295,185 @@ void SerializeAndSend(const Packet& packet, Net::PacketPriority priority, Net::P
   g_net_server->Send(buffer.data(), written_size, priority, reliable, channel, id);
 }
 
+template <typename Packet>
+void BroadcastToRelevant(PlayerManager& player_manager, const PlayerManager::Player& subject, const Packet& packet, Net::PacketPriority priority,
+                         Net::PacketReliability reliable, std::uint32_t channel = 0) {
+  if (subject.is_ingame) {
+    SerializeAndSend(packet, priority, reliable, subject.connection, channel);
+  }
+
+  for (const auto& viewer_id : subject.streamed_by_players) {
+    auto viewer_opt = player_manager.GetPlayer(viewer_id);
+    if (!viewer_opt.has_value()) {
+      continue;
+    }
+    const auto& viewer = viewer_opt->get();
+    if (!viewer.is_ingame) {
+      continue;
+    }
+    if (viewer.world != subject.world || viewer.virtual_world != subject.virtual_world) {
+      continue;
+    }
+    SerializeAndSend(packet, priority, reliable, viewer.connection, channel);
+  }
+}
+
+void SendPlayerAttributeUpdate(PlayerManager& player_manager, const PlayerManager::Player& subject, PlayerAttributeId attribute_id,
+                               std::int32_t value) {
+  PlayerAttributeUpdatePacket packet{};
+  packet.packet_type = PT_PLAYER_ATTRIBUTE_UPDATE;
+  packet.player_id = subject.player_id;
+  packet.attribute_id = attribute_id;
+  packet.value = value;
+
+  BroadcastToRelevant(player_manager, subject, packet, IMMEDIATE_PRIORITY, RELIABLE);
+}
+
+void SendPlayerAttributeSnapshot(PlayerManager& player_manager, const PlayerManager::Player& subject, Net::ConnectionHandle connection) {
+  PlayerAttributeSnapshotPacket packet{};
+  packet.packet_type = PT_PLAYER_ATTRIBUTE_SNAPSHOT;
+  packet.player_id = subject.player_id;
+  packet.strength = subject.strength;
+  packet.dexterity = subject.dexterity;
+  packet.level = subject.level;
+  packet.exp = subject.exp;
+  packet.next_level_exp = subject.next_level_exp;
+  packet.learn_points = subject.learn_points;
+  packet.health = subject.health;
+  packet.max_health = subject.max_health;
+  packet.mana = subject.mana;
+  packet.max_mana = subject.max_mana;
+  SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, connection);
+}
+
+void SendPlayerInstanceUpdate(PlayerManager& player_manager, const PlayerManager::Player& subject, Net::ConnectionHandle connection) {
+  PlayerInstanceUpdatePacket packet{};
+  packet.packet_type = PT_PLAYER_INSTANCE_UPDATE;
+  packet.player_id = subject.player_id;
+  packet.instance = subject.instance;
+  SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, connection);
+}
+
+void BroadcastPlayerInstanceUpdate(PlayerManager& player_manager, const PlayerManager::Player& subject) {
+  PlayerInstanceUpdatePacket packet{};
+  packet.packet_type = PT_PLAYER_INSTANCE_UPDATE;
+  packet.player_id = subject.player_id;
+  packet.instance = subject.instance;
+  BroadcastToRelevant(player_manager, subject, packet, IMMEDIATE_PRIORITY, RELIABLE);
+}
+
+void SendPlayerColorUpdate(PlayerManager& player_manager, const PlayerManager::Player& subject, Net::ConnectionHandle connection) {
+  PlayerColorUpdatePacket packet{};
+  packet.packet_type = PT_PLAYER_COLOR_UPDATE;
+  packet.player_id = subject.player_id;
+  packet.r = subject.name_color_r;
+  packet.g = subject.name_color_g;
+  packet.b = subject.name_color_b;
+  SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, connection);
+}
+
+void BroadcastPlayerColorUpdate(PlayerManager& player_manager, const PlayerManager::Player& subject) {
+  PlayerColorUpdatePacket packet{};
+  packet.packet_type = PT_PLAYER_COLOR_UPDATE;
+  packet.player_id = subject.player_id;
+  packet.r = subject.name_color_r;
+  packet.g = subject.name_color_g;
+  packet.b = subject.name_color_b;
+  BroadcastToRelevant(player_manager, subject, packet, IMMEDIATE_PRIORITY, RELIABLE);
+}
+
+void SendPlayerSkillWeaponUpdate(PlayerManager& player_manager, const PlayerManager::Player& subject, std::int32_t skill_id,
+                                 std::int32_t percentage, Net::ConnectionHandle connection) {
+  PlayerSkillWeaponUpdatePacket packet{};
+  packet.packet_type = PT_PLAYER_SKILL_WEAPON_UPDATE;
+  packet.player_id = subject.player_id;
+  packet.skill_id = skill_id;
+  packet.percentage = percentage;
+  SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, connection);
+}
+
+void BroadcastPlayerSkillWeaponUpdate(PlayerManager& player_manager, const PlayerManager::Player& subject, std::int32_t skill_id,
+                                      std::int32_t percentage) {
+  PlayerSkillWeaponUpdatePacket packet{};
+  packet.packet_type = PT_PLAYER_SKILL_WEAPON_UPDATE;
+  packet.player_id = subject.player_id;
+  packet.skill_id = skill_id;
+  packet.percentage = percentage;
+  BroadcastToRelevant(player_manager, subject, packet, IMMEDIATE_PRIORITY, RELIABLE);
+}
+
+void SendPlayerTalentUpdate(PlayerManager& player_manager, const PlayerManager::Player& subject, std::int32_t talent_id,
+                            std::int32_t talent_value, Net::ConnectionHandle connection) {
+  PlayerTalentUpdatePacket packet{};
+  packet.packet_type = PT_PLAYER_TALENT_UPDATE;
+  packet.player_id = subject.player_id;
+  packet.talent_id = talent_id;
+  packet.talent_value = talent_value;
+  SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, connection);
+}
+
+void BroadcastPlayerTalentUpdate(PlayerManager& player_manager, const PlayerManager::Player& subject, std::int32_t talent_id,
+                                 std::int32_t talent_value) {
+  PlayerTalentUpdatePacket packet{};
+  packet.packet_type = PT_PLAYER_TALENT_UPDATE;
+  packet.player_id = subject.player_id;
+  packet.talent_id = talent_id;
+  packet.talent_value = talent_value;
+  BroadcastToRelevant(player_manager, subject, packet, IMMEDIATE_PRIORITY, RELIABLE);
+}
+
+void SendPlayerFatnessUpdate(PlayerManager& player_manager, const PlayerManager::Player& subject, Net::ConnectionHandle connection) {
+  PlayerFatnessUpdatePacket packet{};
+  packet.packet_type = PT_PLAYER_FATNESS_UPDATE;
+  packet.player_id = subject.player_id;
+  packet.fatness = subject.fatness;
+  SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, connection);
+}
+
+void BroadcastPlayerFatnessUpdate(PlayerManager& player_manager, const PlayerManager::Player& subject) {
+  PlayerFatnessUpdatePacket packet{};
+  packet.packet_type = PT_PLAYER_FATNESS_UPDATE;
+  packet.player_id = subject.player_id;
+  packet.fatness = subject.fatness;
+  BroadcastToRelevant(player_manager, subject, packet, IMMEDIATE_PRIORITY, RELIABLE);
+}
+
+void SendPlayerScaleUpdate(PlayerManager& player_manager, const PlayerManager::Player& subject, Net::ConnectionHandle connection) {
+  PlayerScaleUpdatePacket packet{};
+  packet.packet_type = PT_PLAYER_SCALE_UPDATE;
+  packet.player_id = subject.player_id;
+  packet.scale = subject.scale;
+  SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, connection);
+}
+
+void BroadcastPlayerScaleUpdate(PlayerManager& player_manager, const PlayerManager::Player& subject) {
+  PlayerScaleUpdatePacket packet{};
+  packet.packet_type = PT_PLAYER_SCALE_UPDATE;
+  packet.player_id = subject.player_id;
+  packet.scale = subject.scale;
+  BroadcastToRelevant(player_manager, subject, packet, IMMEDIATE_PRIORITY, RELIABLE);
+}
+
+void SendPlayerOverlayUpdate(PlayerManager& player_manager, const PlayerManager::Player& subject, const std::string& overlay,
+                             bool apply, Net::ConnectionHandle connection) {
+  PlayerOverlayUpdatePacket packet{};
+  packet.packet_type = PT_PLAYER_OVERLAY_UPDATE;
+  packet.player_id = subject.player_id;
+  packet.overlay = overlay;
+  packet.apply = apply ? 1 : 0;
+  SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, connection);
+}
+
+void BroadcastPlayerOverlayUpdate(PlayerManager& player_manager, const PlayerManager::Player& subject, const std::string& overlay,
+                                  bool apply) {
+  PlayerOverlayUpdatePacket packet{};
+  packet.packet_type = PT_PLAYER_OVERLAY_UPDATE;
+  packet.player_id = subject.player_id;
+  packet.overlay = overlay;
+  packet.apply = apply ? 1 : 0;
+  BroadcastToRelevant(player_manager, subject, packet, IMMEDIATE_PRIORITY, RELIABLE);
+}
+
 void LoadNetworkLibrary() {
   try {
     static dylib lib("znet_server");
@@ -288,14 +520,26 @@ GameServer::GameServer() {
   EventManager::Instance().RegisterEvent(kEventOnPlayerDisconnectName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerMessageName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerCommandName);
-  EventManager::Instance().RegisterEvent(kEventOnPlayerWhisperName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerKillName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerDeathName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerDropItemName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerTakeItemName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerWeaponModeChangeName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerAmuletChangeName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerArmorChangeName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerBeltChangeName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerHandItemChangeName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerHelmetChangeName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerMeleeWeaponChangeName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerRangedWeaponChangeName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerRingChangeName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerShieldChangeName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerSpellSlotChangeName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerCastSpellName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerSpawnName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerRespawnName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerSpawnForName);
+  EventManager::Instance().RegisterEvent(kEventOnPlayerUnspawnForName);
   EventManager::Instance().RegisterEvent(kEventOnPlayerHitName);
 }
 
@@ -342,6 +586,8 @@ bool GameServer::Init() {
     return false;
   }
 
+  const auto bound_port = static_cast<std::uint16_t>(g_net_server->GetPort());
+
   ban_manager_ = std::make_unique<BanManager>(*g_net_server);
   ban_manager_->Load();
   g_is_server_running = true;
@@ -383,7 +629,7 @@ bool GameServer::Init() {
     return false;
   }
 
-  resource_server_ = std::make_unique<ResourceServer>(config_.Get<std::int32_t>("port"), std::filesystem::absolute("public"));
+  resource_server_ = std::make_unique<ResourceServer>(bound_port, std::filesystem::absolute("public"));
   if (!resource_server_->Start()) {
     return false;
   }
@@ -477,12 +723,14 @@ void GameServer::Run() {
         player_a_update_packet.player_id = player_a.player_id;
         player_a_update_packet.state = player_a.state;
         player_a_update_packet.state.health_points = player_a.health;
+        player_a_update_packet.state.mana_points = player_a.mana;
 
         PlayerStateUpdatePacket player_b_update_packet;
         player_b_update_packet.packet_type = PT_ACTUAL_STATISTICS;
         player_b_update_packet.player_id = player_b.player_id;
         player_b_update_packet.state = player_b.state;
         player_b_update_packet.state.health_points = player_b.health;
+        player_b_update_packet.state.mana_points = player_b.mana;
 
         SerializeAndSend(player_a_update_packet, IMMEDIATE_PRIORITY, UNRELIABLE, player_b.connection);
         SerializeAndSend(player_b_update_packet, IMMEDIATE_PRIORITY, UNRELIABLE, player_a.connection);
@@ -520,7 +768,10 @@ void GameServer::ProcessRespawns() {
     if (respawn_time == 0 || player.tod + respawn_time <= now) {
       player.flags = 0;
       player.tod = 0;
-      player.health = 100;
+      player.health = player.max_health;
+      player.mana = player.max_mana;
+      player.state.health_points = player.health;
+      player.state.mana_points = player.mana;
 
       SendRespawnInfo(player.player_id);
     }
@@ -597,9 +848,6 @@ bool GameServer::HandlePacket(Net::ConnectionHandle connectionHandle, unsigned c
     case PT_ACTUAL_STATISTICS:  // dostarcza nam informacji o sobie
       HandlePlayerUpdate(p);
       break;
-    case PT_HP_DIFF:
-      MakeHPDiff(p);
-      break;
     case PT_MSG:
       HandleNormalMsg(p);
       break;
@@ -614,12 +862,6 @@ bool GameServer::HandlePacket(Net::ConnectionHandle connectionHandle, unsigned c
       break;
     case PT_TAKEITEM:
       HandleTakeItem(p);
-      break;
-    case PT_WHISPER:
-      HandleWhisp(p);
-      break;
-    case PT_COMMAND:
-      HandleRMConsole(p);
       break;
     case PT_GAME_INFO:  // na razie tylko czas
       HandleGameInfo(p);
@@ -709,11 +951,12 @@ void GameServer::SomeoneJoinGame(Packet p) {
   player.state.right_hand_item_instance = packet.right_hand_item_instance;
   player.state.equipped_armor_instance = packet.equipped_armor_instance;
   player.state.animation = packet.animation;
-  player.head = packet.head_model;
-  player.skin = packet.skin_texture;
-  player.body = packet.face_texture;
+  player.body_model = packet.body_model;
+  player.body_texture = packet.body_texture;
+  player.head_model = packet.head_model;
+  player.head_texture = packet.head_texture;
   player.walkstyle = packet.walk_style;
-  player.name = packet.player_name;
+  player.name = SanitizePlayerName(packet.player_name);
 
   // Inform the joining player about already spawned players before any spawn happens
   SendExistingPlayersPacket(player);
@@ -737,70 +980,69 @@ void GameServer::HandlePlayerUpdate(Packet p) {
   using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
   auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
 
-  updated_player.state = packet.state;
-}
+  const auto old_state = updated_player.state;
+  const auto instance_or_nil = [](std::int16_t instance_id) -> std::optional<std::int16_t> {
+    return instance_id == 0 ? std::nullopt : std::optional<std::int16_t>{instance_id};
+  };
 
-void GameServer::MakeHPDiff(Packet p) {
-  PlayerId victim_player_id;
-  short diffed_hp;
+  updated_player.state.position = packet.state.position;
+  updated_player.state.nrot = packet.state.nrot;
+  updated_player.state.left_hand_item_instance = packet.state.left_hand_item_instance;
+  updated_player.state.right_hand_item_instance = packet.state.right_hand_item_instance;
+  updated_player.state.equipped_armor_instance = packet.state.equipped_armor_instance;
+  updated_player.state.animation = packet.state.animation;
+  updated_player.state.weapon_mode = packet.state.weapon_mode;
+  updated_player.state.active_spell_nr = packet.state.active_spell_nr;
+  updated_player.state.head_direction = packet.state.head_direction;
+  updated_player.state.melee_weapon_instance = packet.state.melee_weapon_instance;
+  updated_player.state.ranged_weapon_instance = packet.state.ranged_weapon_instance;
+  updated_player.state.health_points = updated_player.health;
+  updated_player.state.mana_points = updated_player.mana;
 
-  auto attacker_opt = player_manager_.GetPlayerByConnection(p.id);
-  if (!attacker_opt.has_value())
-    return;
+  if (old_state.weapon_mode != updated_player.state.weapon_mode) {
+    EventManager::Instance().TriggerEvent(
+        kEventOnPlayerWeaponModeChangeName,
+        OnPlayerWeaponModeChangeEvent{updated_player.player_id, old_state.weapon_mode, updated_player.state.weapon_mode});
+  }
 
-  auto& attacker = attacker_opt.value().get();
+  if (old_state.left_hand_item_instance != updated_player.state.left_hand_item_instance) {
+    const auto instance = instance_or_nil(updated_player.state.left_hand_item_instance);
+    EventManager::Instance().TriggerEvent(kEventOnPlayerHandItemChangeName,
+                                          OnPlayerHandItemChangeEvent{updated_player.player_id, 0, instance});
+  }
 
-  if (attacker.is_ingame) {
-    memcpy(&victim_player_id, p.data + 1, sizeof(PlayerId));
-    memcpy(&diffed_hp, p.data + (1 + sizeof(PlayerId)), 2);
+  if (old_state.right_hand_item_instance != updated_player.state.right_hand_item_instance) {
+    const auto instance = instance_or_nil(updated_player.state.right_hand_item_instance);
+    EventManager::Instance().TriggerEvent(kEventOnPlayerHandItemChangeName,
+                                          OnPlayerHandItemChangeEvent{updated_player.player_id, 1, instance});
+  }
 
-    auto victim_opt = player_manager_.GetPlayer(victim_player_id);
-    if (!victim_opt.has_value()) {
-      return;
-    }
-    auto& victim = victim_opt.value().get();
+  if (old_state.equipped_armor_instance != updated_player.state.equipped_armor_instance) {
+    const auto instance = instance_or_nil(updated_player.state.equipped_armor_instance);
+    EventManager::Instance().TriggerEvent(kEventOnPlayerArmorChangeName, OnPlayerArmorChangeEvent{updated_player.player_id, instance});
+  }
 
-    if ((victim.health <= 0) || (victim.tod)) {
-      return;
-    }
+  if (old_state.melee_weapon_instance != updated_player.state.melee_weapon_instance) {
+    const auto instance = instance_or_nil(updated_player.state.melee_weapon_instance);
+    EventManager::Instance().TriggerEvent(kEventOnPlayerMeleeWeaponChangeName,
+                                          OnPlayerMeleeWeaponChangeEvent{updated_player.player_id, instance});
+  }
 
-    std::optional<PlayerId> killer_id;
-    if (victim_player_id != attacker.player_id) {
-      killer_id = attacker.player_id;
-    }
-
-    if (victim_player_id == attacker.player_id) {
-      if (victim.health) {
-        victim.health += diffed_hp;
-      }
-    } else {
-      victim.health += diffed_hp;
-      if (victim.health == 1) {
-        victim.health = 0;
-      } else if (victim.health < 0) {
-        victim.health = 0;
-      }
-    }
-
-    if (diffed_hp < 0) {
-      EventManager::Instance().TriggerEvent(kEventOnPlayerHitName,
-                                            OnPlayerHitEvent{killer_id, victim.player_id, static_cast<std::int16_t>(-diffed_hp)});
-    }
-
-    if (victim.health <= 0) {
-      HandlePlayerDeath(victim, killer_id);
-    } else if (victim.health > 100) {
-      victim.health = 100;
-    }
-
-    victim.state.health_points = victim.health;
+  if (old_state.ranged_weapon_instance != updated_player.state.ranged_weapon_instance) {
+    const auto instance = instance_or_nil(updated_player.state.ranged_weapon_instance);
+    EventManager::Instance().TriggerEvent(kEventOnPlayerRangedWeaponChangeName,
+                                          OnPlayerRangedWeaponChangeEvent{updated_player.player_id, instance});
   }
 }
 
 void GameServer::HandleVoice(Packet p) {
   // TODO: no need to resend player id right now, it won't be needed until we add 3d chat
+  if (p.length == 0) {
+    return;
+  }
+
   std::string data;
-  data.reserve(p.length);
+  data.resize(p.length);
   memcpy(data.data(), p.data, p.length);
   player_manager_.ForEachIngamePlayer([&](const Player& existing_player) {
     if (existing_player.connection != p.id) {
@@ -849,41 +1091,6 @@ void GameServer::HandleNormalMsg(Packet p) {
       [&](const Player& existing_player) { SerializeAndSend(packet, LOW_PRIORITY, RELIABLE_ORDERED, existing_player.connection); });
 
   SPDLOG_INFO("{}", packet);
-}
-
-void GameServer::HandleWhisp(Packet p) {
-  auto player_opt = player_manager_.GetPlayerByConnection(p.id);
-  if (!player_opt.has_value() || !player_opt.value().get().is_ingame)
-    return;
-
-  auto& player = player_opt.value().get();
-
-  MessagePacket packet;
-  using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
-  auto state = bitsery::quickDeserialization<InputAdapter>({p.data, p.length}, packet);
-
-  packet.message = SanitizeServerText(packet.message);
-  packet.r = 255;
-  packet.g = 255;
-  packet.b = 255;
-
-  if (!packet.recipient.has_value()) {
-    SPDLOG_ERROR("No recipient in whisper packet!");
-    return;
-  }
-
-  auto recipient_opt = player_manager_.GetPlayer(*packet.recipient);
-  if (!recipient_opt.has_value())
-    return;
-  auto& recipient = recipient_opt.value().get();
-  packet.sender = player.player_id;
-
-  EventManager::Instance().TriggerEvent(kEventOnPlayerWhisperName, OnPlayerWhisperEvent{player.player_id, recipient.player_id, packet.message});
-
-  SerializeAndSend(packet, LOW_PRIORITY, RELIABLE_ORDERED, player.connection);
-  SerializeAndSend(packet, LOW_PRIORITY, RELIABLE_ORDERED, recipient.connection);
-
-  SPDLOG_INFO("({} WHISPERS TO {}) {}", player.name, recipient.name, (const char*)(p.data + 1 + sizeof(PlayerId)));
 }
 
 void GameServer::HandleCastSpell(Packet p, bool target) {
@@ -962,10 +1169,6 @@ void GameServer::HandleTakeItem(Packet p) {
     }
   });
   SPDLOG_INFO("{} TOOK ITEM.", player.name);
-}
-
-void GameServer::HandleRMConsole(Packet p) {
-  // Intentionally left blank. This can be implemented in the scripts.
 }
 
 void GameServer::AddToPublicListHTTP() {
@@ -1154,9 +1357,10 @@ void GameServer::BroadcastPlayerJoined(const Player& joining_player) {
   packet.right_hand_item_instance = joining_player.state.right_hand_item_instance;
   packet.equipped_armor_instance = joining_player.state.equipped_armor_instance;
   packet.animation = joining_player.state.animation;
-  packet.head_model = joining_player.head;
-  packet.skin_texture = joining_player.skin;
-  packet.face_texture = joining_player.body;
+  packet.body_model = joining_player.body_model;
+  packet.body_texture = joining_player.body_texture;
+  packet.head_model = joining_player.head_model;
+  packet.head_texture = joining_player.head_texture;
   packet.walk_style = joining_player.walkstyle;
   packet.player_name = joining_player.name;
   packet.player_id = joining_player.player_id;
@@ -1181,6 +1385,10 @@ void GameServer::SendExistingPlayersPacket(Player& target_player) {
       return;
     }
 
+    if (existing_player.world != target_player.world || existing_player.virtual_world != target_player.virtual_world) {
+      return;
+    }
+
     target_player.spawned_players.insert(existing_player.player_id);
     existing_player.streamed_by_players.insert(target_player.player_id);
 
@@ -1190,11 +1398,49 @@ void GameServer::SendExistingPlayersPacket(Player& target_player) {
     player_packet.left_hand_item_instance = existing_player.state.left_hand_item_instance;
     player_packet.right_hand_item_instance = existing_player.state.right_hand_item_instance;
     player_packet.equipped_armor_instance = existing_player.state.equipped_armor_instance;
-    player_packet.head_model = existing_player.head;
-    player_packet.skin_texture = existing_player.skin;
-    player_packet.face_texture = existing_player.body;
+    player_packet.body_model = existing_player.body_model;
+    player_packet.body_texture = existing_player.body_texture;
+    player_packet.head_model = existing_player.head_model;
+    player_packet.head_texture = existing_player.head_texture;
     player_packet.walk_style = existing_player.walkstyle;
     player_packet.player_name = existing_player.name;
+    player_packet.instance = existing_player.instance;
+    player_packet.name_color_r = existing_player.name_color_r;
+    player_packet.name_color_g = existing_player.name_color_g;
+    player_packet.name_color_b = existing_player.name_color_b;
+
+    player_packet.strength = existing_player.strength;
+    player_packet.dexterity = existing_player.dexterity;
+    player_packet.level = existing_player.level;
+    player_packet.exp = existing_player.exp;
+    player_packet.next_level_exp = existing_player.next_level_exp;
+    player_packet.learn_points = existing_player.learn_points;
+    player_packet.health = existing_player.health;
+    player_packet.max_health = existing_player.max_health;
+    player_packet.mana = existing_player.mana;
+    player_packet.max_mana = existing_player.max_mana;
+
+    player_packet.fatness = existing_player.fatness;
+    player_packet.scale = existing_player.scale;
+
+    player_packet.weapon_skills.reserve(existing_player.weapon_skills.size());
+    for (const auto& [skill_id, percentage] : existing_player.weapon_skills) {
+      ExistingPlayerInfo::SkillEntry entry;
+      entry.skill_id = skill_id;
+      entry.percentage = percentage;
+      player_packet.weapon_skills.push_back(std::move(entry));
+    }
+
+    player_packet.talents.reserve(existing_player.talents.size());
+    for (const auto& [talent_id, value] : existing_player.talents) {
+      ExistingPlayerInfo::TalentEntry entry;
+      entry.talent_id = talent_id;
+      entry.value = value;
+      player_packet.talents.push_back(std::move(entry));
+    }
+
+    player_packet.overlays = existing_player.overlays;
+
     existing_players.push_back(std::move(player_packet));
   });
 
@@ -1205,7 +1451,7 @@ void GameServer::SendExistingPlayersPacket(Player& target_player) {
   ExistingPlayersPacket existing_players_packet;
   existing_players_packet.packet_type = PT_EXISTING_PLAYERS;
   existing_players_packet.existing_players = std::move(existing_players);
-  SerializeAndSend(existing_players_packet, IMMEDIATE_PRIORITY, RELIABLE, target_player.connection);
+  SerializeAndSend(existing_players_packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, target_player.connection);
 }
 
 bool GameServer::SpawnPlayer(PlayerId player_id, std::optional<glm::vec3> position_override) {
@@ -1229,8 +1475,10 @@ bool GameServer::SpawnPlayer(PlayerId player_id, std::optional<glm::vec3> positi
 
   player.flags = 0;
   player.tod = 0;
-  player.health = 100;
+  player.health = player.max_health;
+  player.mana = player.max_mana;
   player.state.health_points = player.health;
+  player.state.mana_points = player.mana;
 
   player.is_ingame = 1;
 
@@ -1244,12 +1492,14 @@ bool GameServer::SpawnPlayer(PlayerId player_id, std::optional<glm::vec3> positi
   packet.right_hand_item_instance = player.state.right_hand_item_instance;
   packet.equipped_armor_instance = player.state.equipped_armor_instance;
   packet.animation = player.state.animation;
-  packet.head_model = player.head;
-  packet.skin_texture = player.skin;
-  packet.face_texture = player.body;
+  packet.body_model = player.body_model;
+  packet.body_texture = player.body_texture;
+  packet.head_model = player.head_model;
+  packet.head_texture = player.head_texture;
   packet.walk_style = player.walkstyle;
+  PopulatePlayerSpawnSnapshot(packet, player);
 
-  SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE, player.connection);
+  SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, player.connection);
 
   player_manager_.ForEachIngamePlayer([&](Player& existing_player) {
     if (existing_player.player_id == player.player_id) {
@@ -1259,7 +1509,7 @@ bool GameServer::SpawnPlayer(PlayerId player_id, std::optional<glm::vec3> positi
     existing_player.spawned_players.insert(player.player_id);
     player.streamed_by_players.insert(existing_player.player_id);
 
-    SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE, existing_player.connection);
+    SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, existing_player.connection);
   });
 
   if (was_dead) {
@@ -1267,6 +1517,31 @@ bool GameServer::SpawnPlayer(PlayerId player_id, std::optional<glm::vec3> positi
   }
 
   EventManager::Instance().TriggerEvent(kEventOnPlayerSpawnName, OnPlayerSpawnEvent{player.player_id, player.state.position});
+  return true;
+}
+
+bool GameServer::SetPlayerName(PlayerId player_id, const std::string& name) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("setPlayerName called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto sanitized_name = SanitizePlayerName(name);
+  if (sanitized_name.empty()) {
+    SPDLOG_WARN("setPlayerName called with empty name for player id {}", player_id);
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  player.name = sanitized_name;
+
+  PlayerNameUpdatePacket packet{};
+  packet.packet_type = PT_PLAYER_NAME_UPDATE;
+  packet.player_id = player.player_id;
+  packet.name = player.name;
+
+  BroadcastToRelevant(player_manager_, player, packet, IMMEDIATE_PRIORITY, RELIABLE);
   return true;
 }
 
@@ -1285,9 +1560,600 @@ bool GameServer::SetPlayerPosition(PlayerId player_id, const glm::vec3& position
   packet.player_id = player.player_id;
   packet.position = position;
 
-  player_manager_.ForEachIngamePlayer(
-      [&](const Player& existing_player) { SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE, existing_player.connection); });
+  BroadcastToRelevant(player_manager_, player, packet, IMMEDIATE_PRIORITY, RELIABLE);
 
+  return true;
+}
+
+bool GameServer::SetPlayerAngle(PlayerId player_id, float angle) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("setPlayerAngle called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  const float angle_radians = angle;
+  player.state.nrot = glm::vec3{std::cos(angle_radians), 0.0f, -std::sin(angle_radians)};
+
+  PlayerStateUpdatePacket packet{};
+  packet.packet_type = PT_ACTUAL_STATISTICS;
+  packet.player_id = player.player_id;
+  packet.state = player.state;
+  packet.state.health_points = player.health;
+  packet.state.mana_points = player.mana;
+
+  BroadcastToRelevant(player_manager_, player, packet, IMMEDIATE_PRIORITY, RELIABLE);
+  return true;
+}
+
+bool GameServer::SetPlayerWorld(PlayerId player_id, const std::string& world, std::optional<std::string> start_point) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("setPlayerWorld called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  const auto sanitized_world = SanitizeWorldName(world);
+  const bool world_changed = sanitized_world != player.world;
+
+  if (player.is_ingame && world_changed) {
+    DisconnectionInfoPacket left_packet;
+    left_packet.packet_type = PT_LEFT_GAME;
+    left_packet.disconnected_id = player.player_id;
+
+    for (const auto viewer_id : player.streamed_by_players) {
+      auto viewer_opt = player_manager_.GetPlayer(viewer_id);
+      if (!viewer_opt.has_value()) {
+        continue;
+      }
+      auto& viewer = viewer_opt->get();
+      viewer.spawned_players.erase(player.player_id);
+      SerializeAndSend(left_packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, viewer.connection);
+    }
+
+    for (const auto spawned_id : player.spawned_players) {
+      auto spawned_opt = player_manager_.GetPlayer(spawned_id);
+      if (!spawned_opt.has_value()) {
+        continue;
+      }
+      auto& spawned_player = spawned_opt->get();
+      spawned_player.streamed_by_players.erase(player.player_id);
+      DisconnectionInfoPacket packet;
+      packet.packet_type = PT_LEFT_GAME;
+      packet.disconnected_id = spawned_player.player_id;
+      SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, player.connection);
+    }
+    player.spawned_players.clear();
+    player.streamed_by_players.clear();
+  }
+
+  player.world = sanitized_world;
+  std::string start_point_name = SanitizeServerText(start_point.value_or(""));
+  if (start_point_name.size() > 64) {
+    start_point_name.resize(64);
+  }
+
+  PlayerWorldUpdatePacket packet{};
+  packet.packet_type = PT_PLAYER_WORLD_UPDATE;
+  packet.player_id = player.player_id;
+  packet.world_name = player.world;
+  packet.start_point = start_point_name;
+
+  SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, player.connection);
+
+  if (!player.is_ingame || !world_changed) {
+    return true;
+  }
+
+  SendExistingPlayersPacket(player);
+
+  PlayerSpawnPacket spawn_packet;
+  spawn_packet.packet_type = PT_PLAYER_SPAWN;
+  spawn_packet.player_id = player.player_id;
+  spawn_packet.player_name = player.name;
+  spawn_packet.position = player.state.position;
+  spawn_packet.normal = player.state.nrot;
+  spawn_packet.left_hand_item_instance = player.state.left_hand_item_instance;
+  spawn_packet.right_hand_item_instance = player.state.right_hand_item_instance;
+  spawn_packet.equipped_armor_instance = player.state.equipped_armor_instance;
+  spawn_packet.animation = player.state.animation;
+  spawn_packet.body_model = player.body_model;
+  spawn_packet.body_texture = player.body_texture;
+  spawn_packet.head_model = player.head_model;
+  spawn_packet.head_texture = player.head_texture;
+  spawn_packet.walk_style = player.walkstyle;
+  PopulatePlayerSpawnSnapshot(spawn_packet, player);
+
+  player_manager_.ForEachIngamePlayer([&](Player& existing_player) {
+    if (existing_player.player_id == player.player_id) {
+      return;
+    }
+    if (existing_player.world != player.world || existing_player.virtual_world != player.virtual_world) {
+      return;
+    }
+
+    existing_player.spawned_players.insert(player.player_id);
+    player.streamed_by_players.insert(existing_player.player_id);
+
+    SerializeAndSend(spawn_packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, existing_player.connection);
+  });
+
+  return true;
+}
+bool GameServer::SetPlayerVirtualWorld(PlayerId player_id, std::int32_t virtual_world) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("setPlayerVirtualWorld called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  const auto clamped_virtual_world = std::clamp<std::int32_t>(virtual_world, 0, 65535);
+  const bool virtual_world_changed = clamped_virtual_world != player.virtual_world;
+
+  if (player.is_ingame && virtual_world_changed) {
+    DisconnectionInfoPacket left_packet;
+    left_packet.packet_type = PT_LEFT_GAME;
+    left_packet.disconnected_id = player.player_id;
+
+    for (const auto viewer_id : player.streamed_by_players) {
+      auto viewer_opt = player_manager_.GetPlayer(viewer_id);
+      if (!viewer_opt.has_value()) {
+        continue;
+      }
+      auto& viewer = viewer_opt->get();
+      viewer.spawned_players.erase(player.player_id);
+      SerializeAndSend(left_packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, viewer.connection);
+    }
+
+    for (const auto spawned_id : player.spawned_players) {
+      auto spawned_opt = player_manager_.GetPlayer(spawned_id);
+      if (!spawned_opt.has_value()) {
+        continue;
+      }
+      auto& spawned_player = spawned_opt->get();
+      spawned_player.streamed_by_players.erase(player.player_id);
+      DisconnectionInfoPacket packet;
+      packet.packet_type = PT_LEFT_GAME;
+      packet.disconnected_id = spawned_player.player_id;
+      SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, player.connection);
+    }
+    player.spawned_players.clear();
+    player.streamed_by_players.clear();
+  }
+
+  player.virtual_world = clamped_virtual_world;
+
+  if (!player.is_ingame || !virtual_world_changed) {
+    return true;
+  }
+
+  SendExistingPlayersPacket(player);
+
+  PlayerSpawnPacket spawn_packet;
+  spawn_packet.packet_type = PT_PLAYER_SPAWN;
+  spawn_packet.player_id = player.player_id;
+  spawn_packet.player_name = player.name;
+  spawn_packet.position = player.state.position;
+  spawn_packet.normal = player.state.nrot;
+  spawn_packet.left_hand_item_instance = player.state.left_hand_item_instance;
+  spawn_packet.right_hand_item_instance = player.state.right_hand_item_instance;
+  spawn_packet.equipped_armor_instance = player.state.equipped_armor_instance;
+  spawn_packet.animation = player.state.animation;
+  spawn_packet.body_model = player.body_model;
+  spawn_packet.body_texture = player.body_texture;
+  spawn_packet.head_model = player.head_model;
+  spawn_packet.head_texture = player.head_texture;
+  spawn_packet.walk_style = player.walkstyle;
+  PopulatePlayerSpawnSnapshot(spawn_packet, player);
+
+  player_manager_.ForEachIngamePlayer([&](Player& existing_player) {
+    if (existing_player.player_id == player.player_id) {
+      return;
+    }
+    if (existing_player.world != player.world || existing_player.virtual_world != player.virtual_world) {
+      return;
+    }
+
+    existing_player.spawned_players.insert(player.player_id);
+    player.streamed_by_players.insert(existing_player.player_id);
+
+    SerializeAndSend(spawn_packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, existing_player.connection);
+  });
+
+  return true;
+}
+
+bool GameServer::SetPlayerStrength(PlayerId player_id, std::int32_t strength) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("setPlayerStrength called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  player.strength = std::max<std::int32_t>(0, strength);
+  SendPlayerAttributeUpdate(player_manager_, player, ATTR_STRENGTH, player.strength);
+  return true;
+}
+
+bool GameServer::SetPlayerDexterity(PlayerId player_id, std::int32_t dexterity) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("setPlayerDexterity called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  player.dexterity = std::max<std::int32_t>(0, dexterity);
+  SendPlayerAttributeUpdate(player_manager_, player, ATTR_DEXTERITY, player.dexterity);
+  return true;
+}
+
+bool GameServer::SetPlayerLevel(PlayerId player_id, std::int32_t level) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("setPlayerLevel called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  player.level = std::max<std::int32_t>(0, level);
+  SendPlayerAttributeUpdate(player_manager_, player, ATTR_LEVEL, player.level);
+  return true;
+}
+
+bool GameServer::SetPlayerExp(PlayerId player_id, std::int32_t exp) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("setPlayerExp called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  player.exp = std::max<std::int32_t>(0, exp);
+  SendPlayerAttributeUpdate(player_manager_, player, ATTR_EXP, player.exp);
+  return true;
+}
+
+bool GameServer::SetPlayerNextLevelExp(PlayerId player_id, std::int32_t next_level_exp) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("setPlayerNextLevelExp called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  player.next_level_exp = std::max<std::int32_t>(0, next_level_exp);
+  SendPlayerAttributeUpdate(player_manager_, player, ATTR_NEXT_LEVEL_EXP, player.next_level_exp);
+  return true;
+}
+
+bool GameServer::SetPlayerLearnPoints(PlayerId player_id, std::int32_t learn_points) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("setPlayerLearnPoints called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  player.learn_points = std::max<std::int32_t>(0, learn_points);
+  SendPlayerAttributeUpdate(player_manager_, player, ATTR_LEARN_POINTS, player.learn_points);
+  return true;
+}
+
+bool GameServer::SetPlayerMaxHealth(PlayerId player_id, std::int32_t max_health) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("setPlayerMaxHealth called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  player.max_health = static_cast<std::int16_t>(std::max<std::int32_t>(0, max_health));
+  if (player.health > player.max_health) {
+    player.health = player.max_health;
+  }
+  player.state.health_points = player.health;
+  SendPlayerAttributeUpdate(player_manager_, player, ATTR_MAX_HEALTH, player.max_health);
+  SendPlayerAttributeUpdate(player_manager_, player, ATTR_HEALTH, player.health);
+  return true;
+}
+
+bool GameServer::SetPlayerHealth(PlayerId player_id, std::int32_t health) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("setPlayerHealth called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  const auto clamped = std::clamp<std::int32_t>(health, 0, player.max_health);
+  player.health = static_cast<std::int16_t>(clamped);
+  player.state.health_points = player.health;
+  SendPlayerAttributeUpdate(player_manager_, player, ATTR_HEALTH, player.health);
+  return true;
+}
+
+bool GameServer::SetPlayerMaxMana(PlayerId player_id, std::int32_t max_mana) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("setPlayerMaxMana called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  player.max_mana = static_cast<std::int16_t>(std::max<std::int32_t>(0, max_mana));
+  if (player.mana > player.max_mana) {
+    player.mana = player.max_mana;
+  }
+  player.state.mana_points = player.mana;
+  SendPlayerAttributeUpdate(player_manager_, player, ATTR_MAX_MANA, player.max_mana);
+  SendPlayerAttributeUpdate(player_manager_, player, ATTR_MANA, player.mana);
+  return true;
+}
+
+bool GameServer::SetPlayerMana(PlayerId player_id, std::int32_t mana) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("setPlayerMana called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  const auto clamped = std::clamp<std::int32_t>(mana, 0, player.max_mana);
+  player.mana = static_cast<std::int16_t>(clamped);
+  player.state.mana_points = player.mana;
+  SendPlayerAttributeUpdate(player_manager_, player, ATTR_MANA, player.mana);
+  return true;
+}
+
+bool GameServer::SetPlayerVisual(PlayerId player_id, const std::string& body_model, std::int16_t body_texture, const std::string& head_model,
+                                 std::int16_t head_texture) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("setPlayerVisual called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  player.body_model = SanitizeServerText(body_model);
+  player.head_model = SanitizeServerText(head_model);
+  if (player.body_model.size() > 64) {
+    player.body_model.resize(64);
+  }
+  if (player.head_model.size() > 64) {
+    player.head_model.resize(64);
+  }
+  player.body_texture = static_cast<std::int16_t>(std::clamp<int>(body_texture, 0, 255));
+  player.head_texture = static_cast<std::int16_t>(std::clamp<int>(head_texture, 0, 255));
+
+  PlayerVisualUpdatePacket packet{};
+  packet.packet_type = PT_PLAYER_VISUAL_UPDATE;
+  packet.player_id = player.player_id;
+  packet.body_model = player.body_model;
+  packet.body_texture = player.body_texture;
+  packet.head_model = player.head_model;
+  packet.head_texture = player.head_texture;
+
+  BroadcastToRelevant(player_manager_, player, packet, IMMEDIATE_PRIORITY, RELIABLE);
+  return true;
+}
+
+bool GameServer::SetPlayerInstance(PlayerId player_id, const std::string& instance) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("setPlayerInstance called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  player.instance = SanitizeServerText(instance);
+  if (player.instance.size() > 255) {
+    player.instance.resize(255);
+  }
+
+  BroadcastPlayerInstanceUpdate(player_manager_, player);
+  return true;
+}
+
+bool GameServer::SetPlayerColor(PlayerId player_id, std::uint8_t r, std::uint8_t g, std::uint8_t b) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("setPlayerColor called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  player.name_color_r = r;
+  player.name_color_g = g;
+  player.name_color_b = b;
+
+  BroadcastPlayerColorUpdate(player_manager_, player);
+  return true;
+}
+
+bool GameServer::SetPlayerSkillWeapon(PlayerId player_id, std::int32_t skill_id, std::int32_t percentage) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("setPlayerSkillWeapon called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  const auto clamped = std::clamp<std::int32_t>(percentage, 0, 100);
+  player.weapon_skills[skill_id] = clamped;
+  BroadcastPlayerSkillWeaponUpdate(player_manager_, player, skill_id, clamped);
+  return true;
+}
+
+bool GameServer::SetPlayerTalent(PlayerId player_id, std::int32_t talent_id, std::int32_t talent_value) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("setPlayerTalent called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  const auto clamped = std::max<std::int32_t>(0, talent_value);
+  player.talents[talent_id] = clamped;
+  BroadcastPlayerTalentUpdate(player_manager_, player, talent_id, clamped);
+  return true;
+}
+
+bool GameServer::SetPlayerFatness(PlayerId player_id, float fatness) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("setPlayerFatness called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  player.fatness = fatness;
+  BroadcastPlayerFatnessUpdate(player_manager_, player);
+  return true;
+}
+
+bool GameServer::SetPlayerScale(PlayerId player_id, const glm::vec3& scale) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("setPlayerScale called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  player.scale = scale;
+  BroadcastPlayerScaleUpdate(player_manager_, player);
+  return true;
+}
+
+bool GameServer::ApplyPlayerOverlay(PlayerId player_id, const std::string& overlay) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("applyPlayerOverlay called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  auto overlay_name = SanitizeServerText(overlay);
+  if (overlay_name.size() > 255) {
+    overlay_name.resize(255);
+  }
+  if (overlay_name.empty()) {
+    return false;
+  }
+
+  if (std::find(player.overlays.begin(), player.overlays.end(), overlay_name) == player.overlays.end()) {
+    player.overlays.push_back(overlay_name);
+    BroadcastPlayerOverlayUpdate(player_manager_, player, overlay_name, true);
+  }
+
+  return true;
+}
+
+bool GameServer::RemovePlayerOverlay(PlayerId player_id, const std::string& overlay) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("removePlayerOverlay called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  auto overlay_name = SanitizeServerText(overlay);
+  if (overlay_name.size() > 255) {
+    overlay_name.resize(255);
+  }
+  if (overlay_name.empty()) {
+    return false;
+  }
+
+  auto it = std::find(player.overlays.begin(), player.overlays.end(), overlay_name);
+  if (it == player.overlays.end()) {
+    return false;
+  }
+
+  player.overlays.erase(it);
+  BroadcastPlayerOverlayUpdate(player_manager_, player, overlay_name, false);
+  return true;
+}
+
+bool GameServer::GiveItem(PlayerId player_id, const std::string& instance, std::int32_t amount) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("giveItem called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto item_instance = SanitizeServerText(instance);
+  if (item_instance.size() > 255) {
+    item_instance.resize(255);
+  }
+  if (item_instance.empty() || amount <= 0) {
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  GiveItemPacket packet{};
+  packet.packet_type = PT_GIVEITEM;
+  packet.player_id = player.player_id;
+  packet.item_instance = std::move(item_instance);
+  packet.item_amount = std::max<std::int32_t>(0, amount);
+
+  BroadcastToRelevant(player_manager_, player, packet, IMMEDIATE_PRIORITY, RELIABLE);
+  return true;
+}
+
+bool GameServer::EquipItem(PlayerId player_id, const std::string& instance, std::int32_t slot_id) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("equipItem called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto item_instance = SanitizeServerText(instance);
+  if (item_instance.size() > 255) {
+    item_instance.resize(255);
+  }
+  if (item_instance.empty()) {
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  EquipItemPacket packet{};
+  packet.packet_type = PT_EQUIPITEM;
+  packet.player_id = player.player_id;
+  packet.item_instance = std::move(item_instance);
+  packet.slot_id = static_cast<std::int16_t>(std::clamp<std::int32_t>(
+      slot_id, std::numeric_limits<std::int16_t>::min(), std::numeric_limits<std::int16_t>::max()));
+
+  BroadcastToRelevant(player_manager_, player, packet, IMMEDIATE_PRIORITY, RELIABLE);
+  return true;
+}
+
+bool GameServer::UnequipItem(PlayerId player_id, const std::string& instance) {
+  auto player_opt = player_manager_.GetPlayer(player_id);
+  if (!player_opt.has_value()) {
+    SPDLOG_WARN("unequipItem called for unknown player id {}", player_id);
+    return false;
+  }
+
+  auto item_instance = SanitizeServerText(instance);
+  if (item_instance.size() > 255) {
+    item_instance.resize(255);
+  }
+  if (item_instance.empty()) {
+    return false;
+  }
+
+  auto& player = player_opt->get();
+  UnequipItemPacket packet{};
+  packet.packet_type = PT_UNEQUIPITEM;
+  packet.player_id = player.player_id;
+  packet.item_instance = std::move(item_instance);
+
+  BroadcastToRelevant(player_manager_, player, packet, IMMEDIATE_PRIORITY, RELIABLE);
   return true;
 }
 

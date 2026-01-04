@@ -80,7 +80,6 @@ CIngame::CIngame() {
   mapusable = false;
   if (MMap->CheckMap())
     mapusable = true;
-  WhisperingTo = "";
   chat_interface->WriteMessage(NORMAL, false, "Gothic Multiplayer");
   global_ingame = this;
   HooksManager::GetInstance()->AddHook(HT_RENDER, (DWORD)CIngame::Loop);
@@ -312,10 +311,8 @@ void CIngame::HandleInput() {
     // CHAT ANIM
     if (!player->IsMovLock())
       player->SetMovLock(1);
-    if (chat_interface->PrintMsgType == NORMAL) {
-      const int random_anim = gmp::client::random::Int(1, 10);
-      chat_interface->StartChatAnimation(random_anim);
-    }
+    const int random_anim = gmp::client::random::Int(1, 10);
+    chat_interface->StartChatAnimation(random_anim);
     // INPUT
     if (zinput->KeyToggled(KEY_ESCAPE))
       ClearAfterWrite();
@@ -328,54 +325,23 @@ void CIngame::HandleInput() {
     }
     char key = GInput::GetCharacterFormKeyboard();
     screen->SetFontColor(Normal);
-    if (chat_interface->PrintMsgType != WHISPER)
-      screen->Print(0, 200 * Config::Instance().ChatLines, arrow);
-    else
-      screen->Print(0, 200 * (Config::Instance().ChatLines + 1), arrow);
+    screen->Print(0, 200 * Config::Instance().ChatLines, arrow);
     if (key == 0x0D) {
       if (chatbuffer.length() != 0) {
-        switch (chat_interface->PrintMsgType) {
-          case NORMAL:
-            if (!memcmp("passwd", chatbuffer.c_str(), 6) || !memcmp("login", chatbuffer.c_str(), 5))
-              CChat::GetInstance()->WriteMessage(NORMAL, false, zCOLOR(255, 0, 0), Language::Instance()[Language::CHAT_WRONGWINDOW].ToChar());
-            else {
-              if (MuteTimer < clock()) {
-                if (SpamMessages < 3) {
-                  NetGame::Instance().SendMessage(chatbuffer.c_str());
-                  if (ChatTimer > clock()) {
-                    SpamMessages++;
-                  } else {
-                    SpamMessages = 0;
-                  }
-                  ChatTimer = clock() + 3000;
-                } else {
-                  MuteTimer = clock() + 60000;
-                  SpamMessages = 0;
-                  MuteCountdown = true;
-                }
-              }
+        if (MuteTimer < clock()) {
+          if (SpamMessages < 3) {
+            NetGame::Instance().SendMessage(chatbuffer.c_str());
+            if (ChatTimer > clock()) {
+              SpamMessages++;
+            } else {
+              SpamMessages = 0;
             }
-            break;
-          case WHISPER:
-            if (chatbuffer[0] == '/') {
-              if (!memcmp(player->GetName().ToChar(), chatbuffer.c_str() + 1, strlen(chatbuffer.c_str() + 1)))
-                chat_interface->WriteMessage(WHISPER, false, zCOLOR(255, 0, 0), Language::Instance()[Language::CHAT_CANTWHISPERTOYOURSELF].ToChar());
-              else {
-                if (PlayerExists(chatbuffer.c_str() + 1)) {
-                  WhisperingTo = chatbuffer.c_str() + 1;
-                  chat_interface->SetWhisperTo(WhisperingTo);
-                } else
-                  chat_interface->WriteMessage(WHISPER, false, zCOLOR(255, 0, 0),
-                                               Language::Instance()[Language::CHAT_PLAYER_DOES_NOT_EXIST].ToChar());
-              }
-            } else if (WhisperingTo.length() > 0) {
-              NetGame::Instance().SendWhisper(WhisperingTo.c_str(), chatbuffer.c_str());
-            }
-            break;
-          case ADMIN:
-            NetGame::Instance().SendCommand(chatbuffer.c_str());
-            CChat::GetInstance()->WriteMessage(ADMIN, false, COLOR_RED, "%s", chatbuffer.c_str());
-            break;
+            ChatTimer = clock() + 3000;
+          } else {
+            MuteTimer = clock() + 60000;
+            SpamMessages = 0;
+            MuteCountdown = true;
+          }
         }
         chatbuffer.clear();
       }
@@ -393,10 +359,7 @@ void CIngame::HandleInput() {
       ChatTmp = buffer;
     } else
       ChatTmp = chatbuffer.c_str();
-    if (chat_interface->PrintMsgType != WHISPER)
-      screen->Print(200, 200 * Config::Instance().ChatLines, ChatTmp);
-    else
-      screen->Print(200, 200 * (Config::Instance().ChatLines + 1), ChatTmp);
+    screen->Print(200, 200 * Config::Instance().ChatLines, ChatTmp);
   }
 }
 
@@ -438,16 +401,15 @@ void CIngame::CheckForUpdate() {
 
 void CIngame::CheckForHPDiff() {
   for (size_t i = 0; i < NetGame::Instance().players.size(); i++) {
-    if (NetGame::Instance().players[i]->base_player().hp() != static_cast<short>(NetGame::Instance().players[i]->npc->attribute[NPC_ATR_HITPOINTS])) {
+    if (NetGame::Instance().players[i]->base_player().health() !=
+        static_cast<short>(NetGame::Instance().players[i]->npc->attribute[NPC_ATR_HITPOINTS])) {
       if (!ValidatePlayerForHPDiff(NetGame::Instance().players[i])) {
         if (NetGame::Instance().players[i]->npc->attribute[NPC_ATR_HITPOINTS] <= 0) {
           NetGame::Instance().players[i]->RespawnPlayer();
         }
-        NetGame::Instance().players[i]->npc->attribute[NPC_ATR_HITPOINTS] = static_cast<int>(NetGame::Instance().players[i]->base_player().hp());
       }
-      NetGame::Instance().SendHPDiff(i, static_cast<short>(static_cast<short>(NetGame::Instance().players[i]->npc->attribute[NPC_ATR_HITPOINTS]) -
-                                                           NetGame::Instance().players[i]->base_player().hp()));
-      NetGame::Instance().players[i]->base_player().set_hp(static_cast<short>(NetGame::Instance().players[i]->npc->attribute[NPC_ATR_HITPOINTS]));
+      NetGame::Instance().players[i]->npc->attribute[NPC_ATR_HITPOINTS] =
+          static_cast<int>(NetGame::Instance().players[i]->base_player().health());
     }
   }
 }

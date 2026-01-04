@@ -36,14 +36,26 @@ inline const std::string kEventOnPlayerConnectName = "onPlayerConnect";
 inline const std::string kEventOnPlayerDisconnectName = "onPlayerDisconnect";
 inline const std::string kEventOnPlayerMessageName = "onPlayerMessage";
 inline const std::string kEventOnPlayerCommandName = "onPlayerCommand";
-inline const std::string kEventOnPlayerWhisperName = "onPlayerWhisper";
 inline const std::string kEventOnPlayerKillName = "onPlayerKill";
 inline const std::string kEventOnPlayerDeathName = "onPlayerDeath";
 inline const std::string kEventOnPlayerDropItemName = "onPlayerDropItem";
 inline const std::string kEventOnPlayerTakeItemName = "onPlayerTakeItem";
 inline const std::string kEventOnPlayerCastSpellName = "onPlayerCastSpell";
+inline const std::string kEventOnPlayerWeaponModeChangeName = "onPlayerWeaponModeChange";
+inline const std::string kEventOnPlayerAmuletChangeName = "onPlayerAmuletChange";
+inline const std::string kEventOnPlayerArmorChangeName = "onPlayerArmorChange";
+inline const std::string kEventOnPlayerBeltChangeName = "onPlayerBeltChange";
+inline const std::string kEventOnPlayerHandItemChangeName = "onPlayerHandItemChange";
+inline const std::string kEventOnPlayerHelmetChangeName = "onPlayerHelmetChange";
+inline const std::string kEventOnPlayerMeleeWeaponChangeName = "onPlayerMeleeWeaponChange";
+inline const std::string kEventOnPlayerRangedWeaponChangeName = "onPlayerRangedWeaponChange";
+inline const std::string kEventOnPlayerRingChangeName = "onPlayerRingChange";
+inline const std::string kEventOnPlayerShieldChangeName = "onPlayerShieldChange";
+inline const std::string kEventOnPlayerSpellSlotChangeName = "onPlayerSpellSlotChange";
 inline const std::string kEventOnPlayerSpawnName = "onPlayerSpawn";
 inline const std::string kEventOnPlayerRespawnName = "onPlayerRespawn";
+inline const std::string kEventOnPlayerSpawnForName = "onPlayerSpawnFor";
+inline const std::string kEventOnPlayerUnspawnForName = "onPlayerUnspawnFor";
 inline const std::string kEventOnPlayerHitName = "onPlayerHit";
 
 struct OnGameTimeEvent {
@@ -61,12 +73,6 @@ struct OnPlayerCommandEvent {
   std::uint64_t pid;
   std::string command;
   std::string params;
-};
-
-struct OnPlayerWhisperEvent {
-  std::uint64_t from_id;
-  std::uint64_t to_id;
-  std::string text;
 };
 
 struct OnPlayerKillEvent {
@@ -96,6 +102,65 @@ struct OnPlayerCastSpellEvent {
   std::optional<std::uint64_t> target_id;
 };
 
+struct OnPlayerWeaponModeChangeEvent {
+  std::uint64_t player_id;
+  std::uint8_t old_mode;
+  std::uint8_t new_mode;
+};
+
+struct OnPlayerAmuletChangeEvent {
+  std::uint64_t player_id;
+  std::optional<std::int16_t> instance_id;
+};
+
+struct OnPlayerArmorChangeEvent {
+  std::uint64_t player_id;
+  std::optional<std::int16_t> instance_id;
+};
+
+struct OnPlayerBeltChangeEvent {
+  std::uint64_t player_id;
+  std::optional<std::int16_t> instance_id;
+};
+
+struct OnPlayerHandItemChangeEvent {
+  std::uint64_t player_id;
+  std::uint8_t hand;
+  std::optional<std::int16_t> instance_id;
+};
+
+struct OnPlayerHelmetChangeEvent {
+  std::uint64_t player_id;
+  std::optional<std::int16_t> instance_id;
+};
+
+struct OnPlayerMeleeWeaponChangeEvent {
+  std::uint64_t player_id;
+  std::optional<std::int16_t> instance_id;
+};
+
+struct OnPlayerRangedWeaponChangeEvent {
+  std::uint64_t player_id;
+  std::optional<std::int16_t> instance_id;
+};
+
+struct OnPlayerRingChangeEvent {
+  std::uint64_t player_id;
+  std::uint8_t hand_id;
+  std::optional<std::int16_t> instance_id;
+};
+
+struct OnPlayerShieldChangeEvent {
+  std::uint64_t player_id;
+  std::optional<std::int16_t> instance_id;
+};
+
+struct OnPlayerSpellSlotChangeEvent {
+  std::uint64_t player_id;
+  std::uint8_t slot_id;
+  std::optional<std::int16_t> instance_id;
+};
+
 struct OnPlayerSpawnEvent {
   std::uint64_t player_id;
   glm::vec3 position;
@@ -104,6 +169,16 @@ struct OnPlayerSpawnEvent {
 struct OnPlayerRespawnEvent {
   std::uint64_t player_id;
   glm::vec3 position;
+};
+
+struct OnPlayerSpawnForEvent {
+  std::uint64_t player_id;
+  std::uint64_t spawn_id;
+};
+
+struct OnPlayerUnspawnForEvent {
+  std::uint64_t player_id;
+  std::uint64_t spawn_id;
 };
 
 struct OnPlayerHitEvent {
