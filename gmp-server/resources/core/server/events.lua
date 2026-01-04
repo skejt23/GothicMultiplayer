@@ -74,8 +74,8 @@ addEventHandler('onPlayerRingChange', function(playerId, handSlot, itemInstance)
     LOG_INFO("Player {} changed equip state for Ring on slot {} for {}", playerId, handSlot, itemInstance)
 end)
 
-addEventHandler('onPlayerShieldChange', function(playerId, handSlot, itemInstance)
-    LOG_INFO("Player {} changed equip state for Shield on slot {} for {}", playerId, handSlot, itemInstance)
+addEventHandler('onPlayerShieldChange', function(playerId, itemInstance)
+    LOG_INFO("Player {} changed equip state for Shield for {}", playerId, itemInstance)
 end)
 
 addEventHandler('onPlayerArmorChange', function(playerId, itemInstance)

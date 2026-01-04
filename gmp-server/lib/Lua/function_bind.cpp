@@ -1270,35 +1270,35 @@ sol::object Function_GetPlayerPosition(std::uint32_t player_id, sol::this_state 
 
 /* luadoc (func)
 *
-* Set a player's facing angle (radians).
+* Set a player's facing angle (degrees).
 *
 * @name     setPlayerAngle
 * @side     server
 * @category Player
 * @param    (int) player_id      Target player id.
-* @param    (int) angle_radians  Angle in radians.
+* @param    (number) angle_degrees  Angle in degrees.
 * @return   (boolean)               True on success.
 *
 */
-bool Function_SetPlayerAngle(std::uint32_t player_id, float angle_radians) {
+bool Function_SetPlayerAngle(std::uint32_t player_id, float angle_degrees) {
   if (!g_server) {
     SPDLOG_WARN("Cannot set player angle before the server is initialized");
     return false;
   }
 
-  // Angle is expressed in radians to match client-side behavior.
-  return g_server->SetPlayerAngle(player_id, angle_radians);
+  // Expose degrees in Lua (more ergonomic for script authors), convert to radians for the server.
+  return g_server->SetPlayerAngle(player_id, glm::radians(angle_degrees));
 }
 
 /* luadoc (func)
 *
-* Get a player's facing angle in radians or nil if unavailable.
+* Get a player's facing angle in degrees or nil if unavailable.
 *
 * @name     getPlayerAngle
 * @side     server
 * @category Player
 * @param    (int) player_id  Target player id.
-* @return   (int|nil)        Angle in radians or nil.
+* @return   (number|nil)     Angle in degrees or nil.
 *
 */
 sol::object Function_GetPlayerAngle(std::uint32_t player_id, sol::this_state ts) {
@@ -1314,8 +1314,9 @@ sol::object Function_GetPlayerAngle(std::uint32_t player_id, sol::this_state ts)
 
   const auto& nrot = player_opt->get().state.nrot;
   const float angle_radians = std::atan2(-nrot.z, nrot.x);
+  const float angle_degrees = glm::degrees(angle_radians);
   sol::state_view lua(ts);
-  return sol::make_object(lua, angle_radians);
+  return sol::make_object(lua, angle_degrees);
 }
 
 /* luadoc (func)

@@ -433,11 +433,6 @@ void BroadcastPlayerOverlayUpdate(PlayerManager& player_manager, const PlayerMan
   BroadcastToRelevant(player_manager, subject, packet, IMMEDIATE_PRIORITY, RELIABLE);
 }
 
-PlayerSpawnPacket CreatePlayerSpawnPacket(const PlayerManager::Player& player) {
-  auto packet = CreatePlayerSpawnPacket(player);
-  return packet;
-}
-
 void LoadNetworkLibrary() {
   try {
     static dylib lib("znet_server");

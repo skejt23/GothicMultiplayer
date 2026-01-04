@@ -2310,7 +2310,7 @@ void BindMath(sol::state& lua) {
 *
 * This function will get the 3d distance between two points.
 *
-* @name     getDistance2d
+* @name     getDistance3d
 * @side     shared
 * @category Math
 * @param  (float) x1      The position on X axis of the first point.

@@ -29,7 +29,7 @@ SOFTWARE.
 
 #include <spdlog/spdlog.h>
 
-#include "shared/lua_constants.h"
+#include "lua_constants.h"
 
 namespace lua {
 namespace bindings {
