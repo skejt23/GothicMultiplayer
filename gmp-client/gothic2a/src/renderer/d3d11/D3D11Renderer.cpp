@@ -1747,6 +1747,7 @@ void zCRnd_D3D_DX11::Vid_SetScreenMode(zTRnd_ScreenMode mode) {
   }
 
   // Store the requested mode - will be used when Init() creates the device
+  zTRnd_ScreenMode previous_mode = screen_mode_;
   screen_mode_ = mode;
 
   if (!impl_ || !impl_->GetDevice()) {
@@ -1755,10 +1756,15 @@ void zCRnd_D3D_DX11::Vid_SetScreenMode(zTRnd_ScreenMode mode) {
     return;
   }
 
-  // Check if device was already created in the correct mode
-  // The device mode is determined at Init() time based on screen_mode_
-  // Runtime switching is complex and not currently supported
-  SPDLOG_DEBUG("Vid_SetScreenMode: Device already created, mode set to {}", (int)mode);
+  // If the mode has actually changed, switch fullscreen state
+  if (mode != previous_mode) {
+    bool want_fullscreen = (mode == zRND_SCRMODE_FULLSCREEN);
+    SPDLOG_INFO("Vid_SetScreenMode: Switching to {} mode", want_fullscreen ? "fullscreen" : "windowed");
+    if (!impl_->SetFullscreenState(want_fullscreen)) {
+      SPDLOG_WARN("Vid_SetScreenMode: Failed to switch fullscreen state, reverting to previous mode");
+      screen_mode_ = previous_mode;
+    }
+  }
 }
 
 zTRnd_ScreenMode zCRnd_D3D_DX11::Vid_GetScreenMode() {

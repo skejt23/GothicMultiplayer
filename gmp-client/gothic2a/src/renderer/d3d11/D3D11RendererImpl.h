@@ -65,8 +65,8 @@ SOFTWARE.
 #include <memory>
 #include <unordered_map>
 
-#include "NativeRenderState.h"
 #include "D3D11Vertex.h"
+#include "NativeRenderState.h"
 
 namespace gmp::renderer::d3d11 {
 
@@ -255,6 +255,9 @@ struct D3D11RendererImpl {
   ID3D11Device* device = nullptr;
   ID3D11DeviceContext* context = nullptr;
   IDXGISwapChain* swap_chain = nullptr;
+
+  // DXGI output for fullscreen mode transitions.
+  IDXGIOutput* dxgi_output = nullptr;
 
   // RenderDoc/PIX markers (optional). Queried from the device context.
   ID3DUserDefinedAnnotation* user_annotation = nullptr;
@@ -519,6 +522,7 @@ struct D3D11RendererImpl {
   // --- Lifecycle ---
   bool Init(void* hwnd, int width, int height, bool fullscreen);
   bool Resize(int width, int height);
+  bool SetFullscreenState(bool fullscreen);
   void Cleanup();
 
   // --- Frame Management ---
@@ -566,8 +570,6 @@ struct D3D11RendererImpl {
   void SetTextureWrap(int stage, bool enable);
   void SetTextureFilter(int stage, int filter);
   void SetHasLightmap(bool has_lightmap);
-
-
 
   // Semantic hints (populated by ShaderSemanticBridge in the higher-level renderer).
   void SetSemanticBaseRgbGen(int rgb_gen);
@@ -648,6 +650,9 @@ struct D3D11RendererImpl {
   [[nodiscard]] const RendererCapabilities& GetCapabilities() const {
     return capabilities_;
   }
+  [[nodiscard]] bool IsFullscreen() const {
+    return fullscreen;
+  }
 
   // D3D11-native helpers
   void SetFillMode(unsigned long mode);
@@ -688,8 +693,6 @@ private:
   void ApplyPrebuiltSamplerState(int stage);
 
   [[nodiscard]] bool IsAdditiveBlendForAlphaPoly() const;
-
-
 
   // --- D3D11 State Object Caches (typed descriptors) ---
   // These caches own the created D3D11 state objects and are released in Cleanup().

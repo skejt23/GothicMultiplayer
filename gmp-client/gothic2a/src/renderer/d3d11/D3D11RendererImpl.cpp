@@ -42,7 +42,6 @@ SOFTWARE.
 #include "D3D11MapTracker.h"
 #include "D3D11VertexBuffer.h"
 
-
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -2075,14 +2074,23 @@ bool D3D11RendererImpl::CreateDeviceAndSwapChain(HWND target_hwnd, int width, in
     return false;
   }
 
+  // Cache the primary output for fullscreen transitions.
+  SafeRelease(dxgi_output);
+  hr = dxgi_adapter->EnumOutputs(0, &dxgi_output);
+  if (FAILED(hr)) {
+    dxgi_output = nullptr;  // Ensure clean state on failure
+    SPDLOG_WARN("Failed to get DXGI output (fullscreen may not work): 0x{:08X}", static_cast<unsigned int>(hr));
+    // Not fatal - we can still run in windowed mode
+  }
+
   // Create swap chain description
   DXGI_SWAP_CHAIN_DESC scd = {};
   scd.BufferCount = 1;  // Single back buffer for compatibility
   scd.BufferDesc.Width = width;
   scd.BufferDesc.Height = height;
   scd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-  scd.BufferDesc.RefreshRate.Numerator = 60;
-  scd.BufferDesc.RefreshRate.Denominator = 1;
+  scd.BufferDesc.RefreshRate.Numerator = 0;  // Let DXGI find the best refresh rate
+  scd.BufferDesc.RefreshRate.Denominator = 0;
   scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
   scd.OutputWindow = target_hwnd;
   scd.SampleDesc.Count = 1;
@@ -2097,18 +2105,32 @@ bool D3D11RendererImpl::CreateDeviceAndSwapChain(HWND target_hwnd, int width, in
     return false;
   }
 
-  // Disable Alt+Enter fullscreen switching (we handle it ourselves)
-  dxgi_factory->MakeWindowAssociation(target_hwnd, DXGI_MWA_NO_ALT_ENTER);
-
-  if (FAILED(hr)) {
-    SPDLOG_ERROR("D3D11CreateDeviceAndSwapChain failed: 0x{:08X}", static_cast<unsigned int>(hr));
-    return false;
-  }
+  // Disable Alt+Enter and prevent DXGI from changing window styles
+  dxgi_factory->MakeWindowAssociation(target_hwnd, DXGI_MWA_NO_ALT_ENTER | DXGI_MWA_NO_WINDOW_CHANGES);
 
   capabilities_.feature_level = obtained_feature_level;
   capabilities_.max_texture_size = D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION;
 
   SPDLOG_INFO("D3D11 device created with feature level 0x{:04X}", static_cast<unsigned int>(obtained_feature_level));
+
+  // Switch to fullscreen if requested.
+  // This is done after creating the swap chain because DXGI recommends creating
+  // windowed first and then calling SetFullscreenState for best compatibility.
+  if (is_fullscreen && dxgi_output) {
+    SPDLOG_INFO("Switching to fullscreen mode");
+    hr = swap_chain->SetFullscreenState(TRUE, dxgi_output);
+    if (FAILED(hr)) {
+      SPDLOG_WARN("Failed to set fullscreen state: 0x{:08X}. Continuing in windowed mode.", static_cast<unsigned int>(hr));
+      fullscreen = false;
+    } else {
+      fullscreen = true;
+      // After entering fullscreen, we need to resize the buffers to match the display mode.
+      hr = swap_chain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH);
+      if (FAILED(hr)) {
+        SPDLOG_WARN("Failed to resize buffers after fullscreen switch: 0x{:08X}", static_cast<unsigned int>(hr));
+      }
+    }
+  }
 
   return true;
 }
@@ -3070,7 +3092,7 @@ bool D3D11RendererImpl::Resize(int width, int height) {
     return false;
   }
 
-  SPDLOG_INFO("Resizing D3D11 to {}x{}", width, height);
+  SPDLOG_INFO("Resizing D3D11 to {}x{} (fullscreen={})", width, height, fullscreen);
 
   // Release old views
   context->OMSetRenderTargets(0, nullptr, nullptr);
@@ -3078,8 +3100,30 @@ bool D3D11RendererImpl::Resize(int width, int height) {
   SafeRelease(dsv);
   SafeRelease(depth_stencil_texture);
 
+  HRESULT hr;
+
+  // In fullscreen mode, we need to call ResizeTarget to change the display mode.
+  // This actually changes the monitor resolution. ResizeBuffers alone only changes
+  // the back buffer size, not the display mode.
+  if (fullscreen) {
+    DXGI_MODE_DESC target_mode = {};
+    target_mode.Width = width;
+    target_mode.Height = height;
+    target_mode.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    target_mode.RefreshRate.Numerator = 0;  // Let DXGI find the best refresh rate
+    target_mode.RefreshRate.Denominator = 0;
+    target_mode.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
+    target_mode.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
+
+    hr = swap_chain->ResizeTarget(&target_mode);
+    if (FAILED(hr)) {
+      SPDLOG_ERROR("ResizeTarget failed: 0x{:08X}", static_cast<unsigned int>(hr));
+      // Try to continue anyway - ResizeBuffers might still work
+    }
+  }
+
   // Resize swap chain buffers
-  HRESULT hr = swap_chain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH);
+  hr = swap_chain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH);
   if (FAILED(hr)) {
     SPDLOG_ERROR("Failed to resize swap chain: 0x{:08X}", static_cast<unsigned int>(hr));
     return false;
@@ -3105,9 +3149,98 @@ bool D3D11RendererImpl::Resize(int width, int height) {
   return true;
 }
 
+bool D3D11RendererImpl::SetFullscreenState(bool want_fullscreen) {
+  if (!swap_chain) {
+    SPDLOG_ERROR("SetFullscreenState: No swap chain");
+    return false;
+  }
+
+  if (want_fullscreen == fullscreen) {
+    SPDLOG_DEBUG("SetFullscreenState: Already in requested mode (fullscreen={})", fullscreen);
+    return true;
+  }
+
+  SPDLOG_INFO("SetFullscreenState: Switching to {} mode", want_fullscreen ? "fullscreen" : "windowed");
+
+  // Release views before mode switch (required by DXGI)
+  context->OMSetRenderTargets(0, nullptr, nullptr);
+  SafeRelease(rtv);
+  SafeRelease(dsv);
+  SafeRelease(depth_stencil_texture);
+
+  // Switch fullscreen state
+  HRESULT hr = swap_chain->SetFullscreenState(want_fullscreen ? TRUE : FALSE, want_fullscreen ? dxgi_output : nullptr);
+  if (FAILED(hr)) {
+    SPDLOG_ERROR("SetFullscreenState failed: 0x{:08X}", static_cast<unsigned int>(hr));
+
+    // Query actual DXGI state to keep our flag in sync
+    BOOL actual_fullscreen = FALSE;
+    IDXGIOutput* actual_output = nullptr;
+    if (SUCCEEDED(swap_chain->GetFullscreenState(&actual_fullscreen, &actual_output))) {
+      fullscreen = (actual_fullscreen == TRUE);
+      if (actual_output) {
+        actual_output->Release();
+      }
+    }
+
+    // Try to recover by recreating views at current size
+    if (!CreateRenderTargetView() || !CreateDepthStencilView(screen_width, screen_height)) {
+      SPDLOG_ERROR("Failed to recover after SetFullscreenState failure");
+    }
+    context->OMSetRenderTargets(1, &rtv, dsv);
+    return false;
+  }
+
+  fullscreen = want_fullscreen;
+
+  // When entering fullscreen, set the display mode to the current resolution
+  if (want_fullscreen) {
+    DXGI_MODE_DESC target_mode = {};
+    target_mode.Width = screen_width;
+    target_mode.Height = screen_height;
+    target_mode.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    target_mode.RefreshRate.Numerator = 0;  // Let DXGI find the best refresh rate
+    target_mode.RefreshRate.Denominator = 0;
+    target_mode.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
+    target_mode.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
+
+    hr = swap_chain->ResizeTarget(&target_mode);
+    if (FAILED(hr)) {
+      SPDLOG_WARN("ResizeTarget failed after fullscreen switch: 0x{:08X}", static_cast<unsigned int>(hr));
+      // Continue anyway - the display mode might still be acceptable
+    }
+  }
+
+  // Resize buffers to match the new mode
+  hr = swap_chain->ResizeBuffers(0, screen_width, screen_height, DXGI_FORMAT_UNKNOWN, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH);
+  if (FAILED(hr)) {
+    SPDLOG_ERROR("ResizeBuffers failed after fullscreen switch: 0x{:08X}", static_cast<unsigned int>(hr));
+    return false;
+  }
+
+  // Recreate views
+  if (!CreateRenderTargetView() || !CreateDepthStencilView(screen_width, screen_height)) {
+    SPDLOG_ERROR("Failed to recreate views after fullscreen switch");
+    return false;
+  }
+
+  // Rebind render targets
+  context->OMSetRenderTargets(1, &rtv, dsv);
+  SetViewport(0, 0, screen_width, screen_height);
+
+  SPDLOG_INFO("SetFullscreenState: Successfully switched to {} mode", fullscreen ? "fullscreen" : "windowed");
+  return true;
+}
+
 void D3D11RendererImpl::Cleanup() {
   if (auto* logger = spdlog::default_logger_raw()) {
     logger->info("Cleaning up D3D11RendererImpl");
+  }
+
+  // Exit fullscreen mode before cleanup (required by DXGI before releasing swap chain)
+  if (swap_chain && fullscreen) {
+    swap_chain->SetFullscreenState(FALSE, nullptr);
+    fullscreen = false;
   }
 
   // Ensure any engine-owned vertex buffers release their D3D11 buffers before we tear down the device.
@@ -3229,6 +3362,7 @@ void D3D11RendererImpl::Cleanup() {
   SafeRelease(dsv);
   SafeRelease(rtv);
   SafeRelease(swap_chain);
+  SafeRelease(dxgi_output);
   SafeRelease(user_annotation);
   SafeRelease(context);
 
