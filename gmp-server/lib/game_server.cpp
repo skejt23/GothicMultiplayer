@@ -162,6 +162,47 @@ std::optional<MasterServerEndpointInfo> ParseMasterServerEndpoint(std::string_vi
   return info;
 }
 
+void PopulatePlayerSpawnSnapshot(PlayerSpawnPacket& packet, const PlayerManager::Player& player) {
+  packet.instance = player.instance;
+  packet.name_color_r = player.name_color_r;
+  packet.name_color_g = player.name_color_g;
+  packet.name_color_b = player.name_color_b;
+
+  packet.strength = player.strength;
+  packet.dexterity = player.dexterity;
+  packet.level = player.level;
+  packet.exp = player.exp;
+  packet.next_level_exp = player.next_level_exp;
+  packet.learn_points = player.learn_points;
+  packet.health = player.health;
+  packet.max_health = player.max_health;
+  packet.mana = player.mana;
+  packet.max_mana = player.max_mana;
+
+  packet.fatness = player.fatness;
+  packet.scale = player.scale;
+
+  packet.weapon_skills.clear();
+  packet.weapon_skills.reserve(player.weapon_skills.size());
+  for (const auto& [skill_id, percentage] : player.weapon_skills) {
+    PlayerSpawnPacket::SkillEntry entry;
+    entry.skill_id = skill_id;
+    entry.percentage = percentage;
+    packet.weapon_skills.push_back(std::move(entry));
+  }
+
+  packet.talents.clear();
+  packet.talents.reserve(player.talents.size());
+  for (const auto& [talent_id, value] : player.talents) {
+    PlayerSpawnPacket::TalentEntry entry;
+    entry.talent_id = talent_id;
+    entry.value = value;
+    packet.talents.push_back(std::move(entry));
+  }
+
+  packet.overlays = player.overlays;
+}
+
 std::string SanitizeWorldName(std::string world) {
   if (world.size() > kMaxWorldNameLength) {
     SPDLOG_WARN("World name '{}' is longer than {} characters and will be truncated", world, kMaxWorldNameLength);
@@ -545,6 +586,8 @@ bool GameServer::Init() {
     return false;
   }
 
+  const auto bound_port = static_cast<std::uint16_t>(g_net_server->GetPort());
+
   ban_manager_ = std::make_unique<BanManager>(*g_net_server);
   ban_manager_->Load();
   g_is_server_running = true;
@@ -586,7 +629,7 @@ bool GameServer::Init() {
     return false;
   }
 
-  resource_server_ = std::make_unique<ResourceServer>(config_.Get<std::int32_t>("port"), std::filesystem::absolute("public"));
+  resource_server_ = std::make_unique<ResourceServer>(bound_port, std::filesystem::absolute("public"));
   if (!resource_server_->Start()) {
     return false;
   }
@@ -994,8 +1037,12 @@ void GameServer::HandlePlayerUpdate(Packet p) {
 
 void GameServer::HandleVoice(Packet p) {
   // TODO: no need to resend player id right now, it won't be needed until we add 3d chat
+  if (p.length == 0) {
+    return;
+  }
+
   std::string data;
-  data.reserve(p.length);
+  data.resize(p.length);
   memcpy(data.data(), p.data, p.length);
   player_manager_.ForEachIngamePlayer([&](const Player& existing_player) {
     if (existing_player.connection != p.id) {
@@ -1328,7 +1375,6 @@ void GameServer::BroadcastPlayerJoined(const Player& joining_player) {
 
 void GameServer::SendExistingPlayersPacket(Player& target_player) {
   std::vector<ExistingPlayerInfo> existing_players;
-  std::vector<PlayerId> existing_player_ids;
   player_manager_.ForEachPlayer([&](Player& existing_player) {
     if (existing_player.player_id == target_player.player_id) {
       return;
@@ -1358,8 +1404,44 @@ void GameServer::SendExistingPlayersPacket(Player& target_player) {
     player_packet.head_texture = existing_player.head_texture;
     player_packet.walk_style = existing_player.walkstyle;
     player_packet.player_name = existing_player.name;
+    player_packet.instance = existing_player.instance;
+    player_packet.name_color_r = existing_player.name_color_r;
+    player_packet.name_color_g = existing_player.name_color_g;
+    player_packet.name_color_b = existing_player.name_color_b;
+
+    player_packet.strength = existing_player.strength;
+    player_packet.dexterity = existing_player.dexterity;
+    player_packet.level = existing_player.level;
+    player_packet.exp = existing_player.exp;
+    player_packet.next_level_exp = existing_player.next_level_exp;
+    player_packet.learn_points = existing_player.learn_points;
+    player_packet.health = existing_player.health;
+    player_packet.max_health = existing_player.max_health;
+    player_packet.mana = existing_player.mana;
+    player_packet.max_mana = existing_player.max_mana;
+
+    player_packet.fatness = existing_player.fatness;
+    player_packet.scale = existing_player.scale;
+
+    player_packet.weapon_skills.reserve(existing_player.weapon_skills.size());
+    for (const auto& [skill_id, percentage] : existing_player.weapon_skills) {
+      ExistingPlayerInfo::SkillEntry entry;
+      entry.skill_id = skill_id;
+      entry.percentage = percentage;
+      player_packet.weapon_skills.push_back(std::move(entry));
+    }
+
+    player_packet.talents.reserve(existing_player.talents.size());
+    for (const auto& [talent_id, value] : existing_player.talents) {
+      ExistingPlayerInfo::TalentEntry entry;
+      entry.talent_id = talent_id;
+      entry.value = value;
+      player_packet.talents.push_back(std::move(entry));
+    }
+
+    player_packet.overlays = existing_player.overlays;
+
     existing_players.push_back(std::move(player_packet));
-    existing_player_ids.push_back(existing_player.player_id);
   });
 
   if (existing_players.empty()) {
@@ -1370,43 +1452,6 @@ void GameServer::SendExistingPlayersPacket(Player& target_player) {
   existing_players_packet.packet_type = PT_EXISTING_PLAYERS;
   existing_players_packet.existing_players = std::move(existing_players);
   SerializeAndSend(existing_players_packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, target_player.connection);
-
-  for (const auto player_id : existing_player_ids) {
-    auto existing_player_opt = player_manager_.GetPlayer(player_id);
-    if (!existing_player_opt.has_value()) {
-      continue;
-    }
-    const auto& existing_player = existing_player_opt->get();
-    SendPlayerAttributeSnapshot(player_manager_, existing_player, target_player.connection);
-
-    if (!existing_player.body_model.empty() || !existing_player.head_model.empty()) {
-      PlayerVisualUpdatePacket packet{};
-      packet.packet_type = PT_PLAYER_VISUAL_UPDATE;
-      packet.player_id = existing_player.player_id;
-      packet.body_model = existing_player.body_model;
-      packet.body_texture = existing_player.body_texture;
-      packet.head_model = existing_player.head_model;
-      packet.head_texture = existing_player.head_texture;
-      SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, target_player.connection);
-    }
-
-    SendPlayerInstanceUpdate(player_manager_, existing_player, target_player.connection);
-    SendPlayerColorUpdate(player_manager_, existing_player, target_player.connection);
-    SendPlayerFatnessUpdate(player_manager_, existing_player, target_player.connection);
-    SendPlayerScaleUpdate(player_manager_, existing_player, target_player.connection);
-
-    for (const auto& [skill_id, percentage] : existing_player.weapon_skills) {
-      SendPlayerSkillWeaponUpdate(player_manager_, existing_player, skill_id, percentage, target_player.connection);
-    }
-
-    for (const auto& [talent_id, value] : existing_player.talents) {
-      SendPlayerTalentUpdate(player_manager_, existing_player, talent_id, value, target_player.connection);
-    }
-
-    for (const auto& overlay : existing_player.overlays) {
-      SendPlayerOverlayUpdate(player_manager_, existing_player, overlay, true, target_player.connection);
-    }
-  }
 }
 
 bool GameServer::SpawnPlayer(PlayerId player_id, std::optional<glm::vec3> position_override) {
@@ -1452,36 +1497,9 @@ bool GameServer::SpawnPlayer(PlayerId player_id, std::optional<glm::vec3> positi
   packet.head_model = player.head_model;
   packet.head_texture = player.head_texture;
   packet.walk_style = player.walkstyle;
+  PopulatePlayerSpawnSnapshot(packet, player);
 
   SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, player.connection);
-  SendPlayerAttributeSnapshot(player_manager_, player, player.connection);
-  if (!player.body_model.empty() || !player.head_model.empty()) {
-    PlayerVisualUpdatePacket visual_packet{};
-    visual_packet.packet_type = PT_PLAYER_VISUAL_UPDATE;
-    visual_packet.player_id = player.player_id;
-    visual_packet.body_model = player.body_model;
-    visual_packet.body_texture = player.body_texture;
-    visual_packet.head_model = player.head_model;
-    visual_packet.head_texture = player.head_texture;
-    SerializeAndSend(visual_packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, player.connection);
-  }
-
-  SendPlayerInstanceUpdate(player_manager_, player, player.connection);
-  SendPlayerColorUpdate(player_manager_, player, player.connection);
-  SendPlayerFatnessUpdate(player_manager_, player, player.connection);
-  SendPlayerScaleUpdate(player_manager_, player, player.connection);
-
-  for (const auto& [skill_id, percentage] : player.weapon_skills) {
-    SendPlayerSkillWeaponUpdate(player_manager_, player, skill_id, percentage, player.connection);
-  }
-
-  for (const auto& [talent_id, value] : player.talents) {
-    SendPlayerTalentUpdate(player_manager_, player, talent_id, value, player.connection);
-  }
-
-  for (const auto& overlay : player.overlays) {
-    SendPlayerOverlayUpdate(player_manager_, player, overlay, true, player.connection);
-  }
 
   player_manager_.ForEachIngamePlayer([&](Player& existing_player) {
     if (existing_player.player_id == player.player_id) {
@@ -1492,34 +1510,6 @@ bool GameServer::SpawnPlayer(PlayerId player_id, std::optional<glm::vec3> positi
     player.streamed_by_players.insert(existing_player.player_id);
 
     SerializeAndSend(packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, existing_player.connection);
-    SendPlayerAttributeSnapshot(player_manager_, player, existing_player.connection);
-    if (!player.body_model.empty() || !player.head_model.empty()) {
-      PlayerVisualUpdatePacket visual_packet{};
-      visual_packet.packet_type = PT_PLAYER_VISUAL_UPDATE;
-      visual_packet.player_id = player.player_id;
-      visual_packet.body_model = player.body_model;
-      visual_packet.body_texture = player.body_texture;
-      visual_packet.head_model = player.head_model;
-      visual_packet.head_texture = player.head_texture;
-      SerializeAndSend(visual_packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, existing_player.connection);
-    }
-
-    SendPlayerInstanceUpdate(player_manager_, player, existing_player.connection);
-    SendPlayerColorUpdate(player_manager_, player, existing_player.connection);
-    SendPlayerFatnessUpdate(player_manager_, player, existing_player.connection);
-    SendPlayerScaleUpdate(player_manager_, player, existing_player.connection);
-
-    for (const auto& [skill_id, percentage] : player.weapon_skills) {
-      SendPlayerSkillWeaponUpdate(player_manager_, player, skill_id, percentage, existing_player.connection);
-    }
-
-    for (const auto& [talent_id, value] : player.talents) {
-      SendPlayerTalentUpdate(player_manager_, player, talent_id, value, existing_player.connection);
-    }
-
-    for (const auto& overlay : player.overlays) {
-      SendPlayerOverlayUpdate(player_manager_, player, overlay, true, existing_player.connection);
-    }
   });
 
   if (was_dead) {
@@ -1674,6 +1664,7 @@ bool GameServer::SetPlayerWorld(PlayerId player_id, const std::string& world, st
   spawn_packet.head_model = player.head_model;
   spawn_packet.head_texture = player.head_texture;
   spawn_packet.walk_style = player.walkstyle;
+  PopulatePlayerSpawnSnapshot(spawn_packet, player);
 
   player_manager_.ForEachIngamePlayer([&](Player& existing_player) {
     if (existing_player.player_id == player.player_id) {
@@ -1687,17 +1678,6 @@ bool GameServer::SetPlayerWorld(PlayerId player_id, const std::string& world, st
     player.streamed_by_players.insert(existing_player.player_id);
 
     SerializeAndSend(spawn_packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, existing_player.connection);
-    SendPlayerAttributeSnapshot(player_manager_, player, existing_player.connection);
-    if (!player.body_model.empty() || !player.head_model.empty()) {
-      PlayerVisualUpdatePacket visual_packet{};
-      visual_packet.packet_type = PT_PLAYER_VISUAL_UPDATE;
-      visual_packet.player_id = player.player_id;
-      visual_packet.body_model = player.body_model;
-      visual_packet.body_texture = player.body_texture;
-      visual_packet.head_model = player.head_model;
-      visual_packet.head_texture = player.head_texture;
-      SerializeAndSend(visual_packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, existing_player.connection);
-    }
   });
 
   return true;
@@ -1767,6 +1747,7 @@ bool GameServer::SetPlayerVirtualWorld(PlayerId player_id, std::int32_t virtual_
   spawn_packet.head_model = player.head_model;
   spawn_packet.head_texture = player.head_texture;
   spawn_packet.walk_style = player.walkstyle;
+  PopulatePlayerSpawnSnapshot(spawn_packet, player);
 
   player_manager_.ForEachIngamePlayer([&](Player& existing_player) {
     if (existing_player.player_id == player.player_id) {
@@ -1780,17 +1761,6 @@ bool GameServer::SetPlayerVirtualWorld(PlayerId player_id, std::int32_t virtual_
     player.streamed_by_players.insert(existing_player.player_id);
 
     SerializeAndSend(spawn_packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, existing_player.connection);
-    SendPlayerAttributeSnapshot(player_manager_, player, existing_player.connection);
-    if (!player.body_model.empty() || !player.head_model.empty()) {
-      PlayerVisualUpdatePacket visual_packet{};
-      visual_packet.packet_type = PT_PLAYER_VISUAL_UPDATE;
-      visual_packet.player_id = player.player_id;
-      visual_packet.body_model = player.body_model;
-      visual_packet.body_texture = player.body_texture;
-      visual_packet.head_model = player.head_model;
-      visual_packet.head_texture = player.head_texture;
-      SerializeAndSend(visual_packet, IMMEDIATE_PRIORITY, RELIABLE_ORDERED, existing_player.connection);
-    }
   });
 
   return true;

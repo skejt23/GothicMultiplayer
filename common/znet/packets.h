@@ -61,7 +61,51 @@ struct ExistingPlayerInfo {
   std::uint16_t head_texture{0};
   std::uint8_t walk_style{0};
   std::string player_name;
+  std::string instance;
+  std::uint8_t name_color_r{255};
+  std::uint8_t name_color_g{255};
+  std::uint8_t name_color_b{255};
+
+  std::int32_t strength{0};
+  std::int32_t dexterity{0};
+  std::int32_t level{0};
+  std::int32_t exp{0};
+  std::int32_t next_level_exp{0};
+  std::int32_t learn_points{0};
+  std::int32_t health{0};
+  std::int32_t max_health{0};
+  std::int32_t mana{0};
+  std::int32_t max_mana{0};
+
+  float fatness{1.0f};
+  glm::vec3 scale{1.0f, 1.0f, 1.0f};
+
+  struct SkillEntry {
+    std::int32_t skill_id{0};
+    std::int32_t percentage{0};
+  };
+  std::vector<SkillEntry> weapon_skills;
+
+  struct TalentEntry {
+    std::int32_t talent_id{0};
+    std::int32_t value{0};
+  };
+  std::vector<TalentEntry> talents;
+
+  std::vector<std::string> overlays;
 };
+
+template <typename S>
+void serialize(S& s, ExistingPlayerInfo::SkillEntry& entry) {
+  s.value4b(entry.skill_id);
+  s.value4b(entry.percentage);
+}
+
+template <typename S>
+void serialize(S& s, ExistingPlayerInfo::TalentEntry& entry) {
+  s.value4b(entry.talent_id);
+  s.value4b(entry.value);
+}
 
 template <typename S>
 void serialize(S& s, ExistingPlayerInfo& info) {
@@ -76,6 +120,29 @@ void serialize(S& s, ExistingPlayerInfo& info) {
   s.value2b(info.head_texture);
   s.value1b(info.walk_style);
   s.text1b(info.player_name, 255);
+
+  s.text1b(info.instance, 255);
+  s.value1b(info.name_color_r);
+  s.value1b(info.name_color_g);
+  s.value1b(info.name_color_b);
+
+  s.value4b(info.strength);
+  s.value4b(info.dexterity);
+  s.value4b(info.level);
+  s.value4b(info.exp);
+  s.value4b(info.next_level_exp);
+  s.value4b(info.learn_points);
+  s.value4b(info.health);
+  s.value4b(info.max_health);
+  s.value4b(info.mana);
+  s.value4b(info.max_mana);
+
+  s.value4b(info.fatness);
+  s.object(info.scale);
+
+  s.container(info.weapon_skills, 128);
+  s.container(info.talents, 128);
+  s.container(info.overlays, 64, [](S& s, std::string& overlay) { s.text1b(overlay, 255); });
 }
 
 inline std::ostream& operator<<(std::ostream& os, const ExistingPlayerInfo& packet) {
@@ -86,7 +153,17 @@ inline std::ostream& operator<<(std::ostream& os, const ExistingPlayerInfo& pack
      << ", equipped_armor_instance: " << packet.equipped_armor_instance 
      << ", body_model: " << packet.body_model << ", body_texture: " << static_cast<int>(packet.body_texture)
      << ", head_model: " << packet.head_model << ", head_texture: " << static_cast<int>(packet.head_texture)
-     << ", walk_style: " << static_cast<int>(packet.walk_style) << ", player_name: " << packet.player_name << " }";
+     << ", walk_style: " << static_cast<int>(packet.walk_style) << ", player_name: " << packet.player_name
+     << ", instance: " << packet.instance
+     << ", name_color: (" << static_cast<int>(packet.name_color_r) << ", " << static_cast<int>(packet.name_color_g) << ", "
+     << static_cast<int>(packet.name_color_b) << ")"
+     << ", strength: " << packet.strength << ", dexterity: " << packet.dexterity << ", level: " << packet.level
+     << ", exp: " << packet.exp << ", next_level_exp: " << packet.next_level_exp << ", learn_points: " << packet.learn_points
+     << ", health: " << packet.health << ", max_health: " << packet.max_health << ", mana: " << packet.mana
+     << ", max_mana: " << packet.max_mana << ", fatness: " << packet.fatness
+     << ", scale: (" << packet.scale.x << ", " << packet.scale.y << ", " << packet.scale.z << ")"
+     << ", weapon_skills: " << packet.weapon_skills.size() << ", talents: " << packet.talents.size() << ", overlays: "
+     << packet.overlays.size() << " }";
   return os;
 }
 
@@ -495,7 +572,53 @@ struct PlayerSpawnPacket {
   std::uint16_t head_texture{0};
   std::uint8_t walk_style{0};
   std::string player_name;
+
+  // Additional player state snapshot (previously sent as multiple packets)
+  std::string instance;
+  std::uint8_t name_color_r{255};
+  std::uint8_t name_color_g{255};
+  std::uint8_t name_color_b{255};
+
+  std::int32_t strength{0};
+  std::int32_t dexterity{0};
+  std::int32_t level{0};
+  std::int32_t exp{0};
+  std::int32_t next_level_exp{0};
+  std::int32_t learn_points{0};
+  std::int32_t health{0};
+  std::int32_t max_health{0};
+  std::int32_t mana{0};
+  std::int32_t max_mana{0};
+
+  float fatness{1.0f};
+  glm::vec3 scale{1.0f, 1.0f, 1.0f};
+
+  struct SkillEntry {
+    std::int32_t skill_id{0};
+    std::int32_t percentage{0};
+  };
+  std::vector<SkillEntry> weapon_skills;
+
+  struct TalentEntry {
+    std::int32_t talent_id{0};
+    std::int32_t value{0};
+  };
+  std::vector<TalentEntry> talents;
+
+  std::vector<std::string> overlays;
 };
+
+template <typename S>
+void serialize(S& s, PlayerSpawnPacket::SkillEntry& entry) {
+  s.value4b(entry.skill_id);
+  s.value4b(entry.percentage);
+}
+
+template <typename S>
+void serialize(S& s, PlayerSpawnPacket::TalentEntry& entry) {
+  s.value4b(entry.talent_id);
+  s.value4b(entry.value);
+}
 
 template <typename S>
 void serialize(S& s, PlayerSpawnPacket& packet) {
@@ -513,6 +636,29 @@ void serialize(S& s, PlayerSpawnPacket& packet) {
   s.value2b(packet.head_texture);
   s.value1b(packet.walk_style);
   s.text1b(packet.player_name, 255);
+
+  s.text1b(packet.instance, 255);
+  s.value1b(packet.name_color_r);
+  s.value1b(packet.name_color_g);
+  s.value1b(packet.name_color_b);
+
+  s.value4b(packet.strength);
+  s.value4b(packet.dexterity);
+  s.value4b(packet.level);
+  s.value4b(packet.exp);
+  s.value4b(packet.next_level_exp);
+  s.value4b(packet.learn_points);
+  s.value4b(packet.health);
+  s.value4b(packet.max_health);
+  s.value4b(packet.mana);
+  s.value4b(packet.max_mana);
+
+  s.value4b(packet.fatness);
+  s.object(packet.scale);
+
+  s.container(packet.weapon_skills, 128);
+  s.container(packet.talents, 128);
+  s.container(packet.overlays, 64, [](S& s, std::string& overlay) { s.text1b(overlay, 255); });
 }
 
 inline std::ostream& operator<<(std::ostream& os, const PlayerSpawnPacket& packet) {
@@ -525,7 +671,17 @@ inline std::ostream& operator<<(std::ostream& os, const PlayerSpawnPacket& packe
      << ", body_model: " << packet.body_model << ", body_texture: " << static_cast<int>(packet.body_texture)
      << ", head_model: " << packet.head_model << ", head_texture: " << static_cast<int>(packet.head_texture) 
      << ", walk_style: " << static_cast<int>(packet.walk_style)
-     << ", player_name: " << packet.player_name << " }";
+     << ", player_name: " << packet.player_name
+     << ", instance: " << packet.instance
+     << ", name_color: (" << static_cast<int>(packet.name_color_r) << ", " << static_cast<int>(packet.name_color_g) << ", "
+     << static_cast<int>(packet.name_color_b) << ")"
+     << ", strength: " << packet.strength << ", dexterity: " << packet.dexterity << ", level: " << packet.level
+     << ", exp: " << packet.exp << ", next_level_exp: " << packet.next_level_exp << ", learn_points: " << packet.learn_points
+     << ", health: " << packet.health << ", max_health: " << packet.max_health << ", mana: " << packet.mana
+     << ", max_mana: " << packet.max_mana << ", fatness: " << packet.fatness
+     << ", scale: (" << packet.scale.x << ", " << packet.scale.y << ", " << packet.scale.z << ")"
+     << ", weapon_skills: " << packet.weapon_skills.size() << ", talents: " << packet.talents.size() << ", overlays: "
+     << packet.overlays.size() << " }";
   return os;
 }
 

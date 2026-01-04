@@ -537,6 +537,8 @@ void GameClient::OnExistingPlayers(Packet p) {
     // Create Player object and populate it
     Player* player = player_manager_.CreatePlayer(existing_player.player_id);
     player->set_name(existing_player.player_name);
+    player->set_instance(existing_player.instance);
+    player->set_name_color(existing_player.name_color_r, existing_player.name_color_g, existing_player.name_color_b);
     player->set_position(existing_player.position.x, existing_player.position.y, existing_player.position.z);
     player->set_left_hand_item(existing_player.left_hand_item_instance);
     player->set_right_hand_item(existing_player.right_hand_item_instance);
@@ -546,11 +548,67 @@ void GameClient::OnExistingPlayers(Packet p) {
     player->set_head_model(existing_player.head_model);
     player->set_head_texture(existing_player.head_texture);
     player->set_walk_style(existing_player.walk_style);
+
+    player->set_strength(existing_player.strength);
+    player->set_dexterity(existing_player.dexterity);
+    player->set_level(existing_player.level);
+    player->set_exp(existing_player.exp);
+    player->set_next_level_exp(existing_player.next_level_exp);
+    player->set_learn_points(existing_player.learn_points);
+    player->set_max_health(static_cast<std::int16_t>(existing_player.max_health));
+    player->set_max_mana(static_cast<std::int16_t>(existing_player.max_mana));
+    player->set_health(static_cast<std::int16_t>(existing_player.health));
+    player->set_mana(static_cast<std::int16_t>(existing_player.mana));
+
+    player->set_fatness(existing_player.fatness);
+    player->set_scale(existing_player.scale);
+
+    for (const auto& entry : existing_player.weapon_skills) {
+      player->set_weapon_skill(entry.skill_id, entry.percentage);
+    }
+    for (const auto& entry : existing_player.talents) {
+      player->set_talent(entry.talent_id, entry.value);
+    }
+    for (const auto& overlay : existing_player.overlays) {
+      player->add_overlay(overlay);
+    }
+
     player->set_has_joined(true);
     player->set_has_spawned(true);
 
     event_observer_.OnPlayerJoined(*player);
     event_observer_.OnPlayerSpawned(*player);
+
+    // Mirror the update callbacks that used to arrive as separate packets.
+    event_observer_.OnPlayerInstanceUpdate(existing_player.player_id, existing_player.instance);
+    event_observer_.OnPlayerColorUpdate(existing_player.player_id, existing_player.name_color_r, existing_player.name_color_g, existing_player.name_color_b);
+    if (!existing_player.body_model.empty() || !existing_player.head_model.empty()) {
+      event_observer_.OnPlayerVisualUpdate(existing_player.player_id, existing_player.body_model, existing_player.body_texture, existing_player.head_model,
+                                           existing_player.head_texture);
+    }
+    event_observer_.OnPlayerFatnessUpdate(existing_player.player_id, existing_player.fatness);
+    event_observer_.OnPlayerScaleUpdate(existing_player.player_id, existing_player.scale);
+
+    event_observer_.OnPlayerAttributeUpdate(existing_player.player_id, ATTR_STRENGTH, existing_player.strength);
+    event_observer_.OnPlayerAttributeUpdate(existing_player.player_id, ATTR_DEXTERITY, existing_player.dexterity);
+    event_observer_.OnPlayerAttributeUpdate(existing_player.player_id, ATTR_LEVEL, existing_player.level);
+    event_observer_.OnPlayerAttributeUpdate(existing_player.player_id, ATTR_EXP, existing_player.exp);
+    event_observer_.OnPlayerAttributeUpdate(existing_player.player_id, ATTR_NEXT_LEVEL_EXP, existing_player.next_level_exp);
+    event_observer_.OnPlayerAttributeUpdate(existing_player.player_id, ATTR_LEARN_POINTS, existing_player.learn_points);
+    event_observer_.OnPlayerAttributeUpdate(existing_player.player_id, ATTR_MAX_HEALTH, existing_player.max_health);
+    event_observer_.OnPlayerAttributeUpdate(existing_player.player_id, ATTR_MAX_MANA, existing_player.max_mana);
+    event_observer_.OnPlayerAttributeUpdate(existing_player.player_id, ATTR_HEALTH, existing_player.health);
+    event_observer_.OnPlayerAttributeUpdate(existing_player.player_id, ATTR_MANA, existing_player.mana);
+
+    for (const auto& entry : existing_player.weapon_skills) {
+      event_observer_.OnPlayerSkillWeaponUpdate(existing_player.player_id, entry.skill_id, entry.percentage);
+    }
+    for (const auto& entry : existing_player.talents) {
+      event_observer_.OnPlayerTalentUpdate(existing_player.player_id, entry.talent_id, entry.value);
+    }
+    for (const auto& overlay : existing_player.overlays) {
+      event_observer_.OnPlayerOverlayUpdate(existing_player.player_id, overlay, true);
+    }
   }
 }
 
@@ -563,6 +621,37 @@ void GameClient::OnPlayerSpawn(Packet p) {
 
   const bool has_local_player = player_manager_.HasLocalPlayer();
   const bool is_local_spawn = has_local_player && (player_manager_.GetLocalPlayer().id() == static_cast<std::uint64_t>(packet.player_id));
+
+  const auto emit_snapshot_callbacks = [&](std::uint32_t player_id) {
+    event_observer_.OnPlayerInstanceUpdate(player_id, packet.instance);
+    event_observer_.OnPlayerColorUpdate(player_id, packet.name_color_r, packet.name_color_g, packet.name_color_b);
+    if (!packet.body_model.empty() || !packet.head_model.empty()) {
+      event_observer_.OnPlayerVisualUpdate(player_id, packet.body_model, packet.body_texture, packet.head_model, packet.head_texture);
+    }
+    event_observer_.OnPlayerFatnessUpdate(player_id, packet.fatness);
+    event_observer_.OnPlayerScaleUpdate(player_id, packet.scale);
+
+    event_observer_.OnPlayerAttributeUpdate(player_id, ATTR_STRENGTH, packet.strength);
+    event_observer_.OnPlayerAttributeUpdate(player_id, ATTR_DEXTERITY, packet.dexterity);
+    event_observer_.OnPlayerAttributeUpdate(player_id, ATTR_LEVEL, packet.level);
+    event_observer_.OnPlayerAttributeUpdate(player_id, ATTR_EXP, packet.exp);
+    event_observer_.OnPlayerAttributeUpdate(player_id, ATTR_NEXT_LEVEL_EXP, packet.next_level_exp);
+    event_observer_.OnPlayerAttributeUpdate(player_id, ATTR_LEARN_POINTS, packet.learn_points);
+    event_observer_.OnPlayerAttributeUpdate(player_id, ATTR_MAX_HEALTH, packet.max_health);
+    event_observer_.OnPlayerAttributeUpdate(player_id, ATTR_MAX_MANA, packet.max_mana);
+    event_observer_.OnPlayerAttributeUpdate(player_id, ATTR_HEALTH, packet.health);
+    event_observer_.OnPlayerAttributeUpdate(player_id, ATTR_MANA, packet.mana);
+
+    for (const auto& entry : packet.weapon_skills) {
+      event_observer_.OnPlayerSkillWeaponUpdate(player_id, entry.skill_id, entry.percentage);
+    }
+    for (const auto& entry : packet.talents) {
+      event_observer_.OnPlayerTalentUpdate(player_id, entry.talent_id, entry.value);
+    }
+    for (const auto& overlay : packet.overlays) {
+      event_observer_.OnPlayerOverlayUpdate(player_id, overlay, true);
+    }
+  };
 
   if (is_local_spawn) {
     auto& local_player = player_manager_.GetLocalPlayer();
@@ -578,10 +667,36 @@ void GameClient::OnPlayerSpawn(Packet p) {
     local_player.set_head_model(packet.head_model);
     local_player.set_head_texture(packet.head_texture);
     local_player.set_walk_style(packet.walk_style);
+
+    local_player.set_instance(packet.instance);
+    local_player.set_name_color(packet.name_color_r, packet.name_color_g, packet.name_color_b);
+    local_player.set_strength(packet.strength);
+    local_player.set_dexterity(packet.dexterity);
+    local_player.set_level(packet.level);
+    local_player.set_exp(packet.exp);
+    local_player.set_next_level_exp(packet.next_level_exp);
+    local_player.set_learn_points(packet.learn_points);
+    local_player.set_max_health(packet.max_health);
+    local_player.set_max_mana(packet.max_mana);
+    local_player.set_health(static_cast<std::int16_t>(packet.health));
+    local_player.set_mana(static_cast<std::int16_t>(packet.mana));
+    local_player.set_fatness(packet.fatness);
+    local_player.set_scale(packet.scale);
+    for (const auto& entry : packet.weapon_skills) {
+      local_player.set_weapon_skill(entry.skill_id, entry.percentage);
+    }
+    for (const auto& entry : packet.talents) {
+      local_player.set_talent(entry.talent_id, entry.value);
+    }
+    for (const auto& overlay : packet.overlays) {
+      local_player.add_overlay(overlay);
+    }
+
     local_player.set_has_spawned(true);
     is_in_game_ = true;
 
     event_observer_.OnLocalPlayerSpawned(local_player);
+    emit_snapshot_callbacks(packet.player_id);
     return;
   }
 
@@ -604,11 +719,38 @@ void GameClient::OnPlayerSpawn(Packet p) {
   player->set_head_model(packet.head_model);
   player->set_head_texture(packet.head_texture);
   player->set_walk_style(packet.walk_style);
+
+  player->set_instance(packet.instance);
+  player->set_name_color(packet.name_color_r, packet.name_color_g, packet.name_color_b);
+  player->set_strength(packet.strength);
+  player->set_dexterity(packet.dexterity);
+  player->set_level(packet.level);
+  player->set_exp(packet.exp);
+  player->set_next_level_exp(packet.next_level_exp);
+  player->set_learn_points(packet.learn_points);
+  player->set_max_health(packet.max_health);
+  player->set_max_mana(packet.max_mana);
+  player->set_health(static_cast<std::int16_t>(packet.health));
+  player->set_mana(static_cast<std::int16_t>(packet.mana));
+  player->set_fatness(packet.fatness);
+  player->set_scale(packet.scale);
+  for (const auto& entry : packet.weapon_skills) {
+    player->set_weapon_skill(entry.skill_id, entry.percentage);
+  }
+  for (const auto& entry : packet.talents) {
+    player->set_talent(entry.talent_id, entry.value);
+  }
+  for (const auto& overlay : packet.overlays) {
+    player->add_overlay(overlay);
+  }
+
   player->set_has_spawned(true);
 
   if (!was_spawned) {
     event_observer_.OnPlayerSpawned(*player);
   }
+
+  emit_snapshot_callbacks(packet.player_id);
 }
 
 void GameClient::OnJoinGame(Packet p) {

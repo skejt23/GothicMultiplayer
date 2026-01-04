@@ -29,6 +29,7 @@ SOFTWARE.
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <future>
 #include <memory>
 #include <mutex>
@@ -71,6 +72,24 @@ void CopyFileIfExists(const fs::path& source, const fs::path& destination) {
   }
 }
 
+void WriteTestConfigToml(const fs::path& config_path) {
+  // Keep this minimal so tests are self-contained and avoid port conflicts.
+  // The server will generate and persist a server_identity_seed as needed.
+  std::ofstream cfg(config_path, std::ios::binary | std::ios::trunc);
+  cfg << "name = \"Gothic Multiplayer Server\"\n";
+  cfg << "port = 0\n";
+  cfg << "public = false\n";
+  cfg << "slots = 12\n";
+  cfg << "allow_modification = true\n";
+  cfg << "hide_map = false\n";
+  cfg << "respawn_time_seconds = 5\n";
+  cfg << "log_to_stdout = true\n";
+  cfg << "log_level = \"info\"\n";
+  cfg << "seconds_per_game_minute = 0\n";
+  cfg << "map = \"NEWWORLD\\\\NEWWORLD.ZEN\"\n";
+  cfg << "scripts = [\"main.lua\"]\n";
+}
+
 std::string GenerateWorkspaceName() {
   const auto now = std::chrono::steady_clock::now().time_since_epoch().count();
   std::ostringstream oss;
@@ -90,6 +109,9 @@ public:
 
     CopyFileIfExists(repo_resources / "config.toml", workspace_dir_ / "config.toml");
     CopyFileIfExists(repo_resources / "bans.json", workspace_dir_ / "bans.json");
+
+    // Use an ephemeral port to avoid conflicts in dev/CI.
+    WriteTestConfigToml(workspace_dir_ / "config.toml");
 
     fs::current_path(workspace_dir_);
   }
