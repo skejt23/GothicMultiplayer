@@ -1637,10 +1637,10 @@ void BindGothicSpecific(sol::state& lua) {
   lua["getLearnPoints"] = Function_GetLearnPoints;
   lua["setExp"] = Function_SetExp;
   lua["getExp"] = Function_GetExp;
-  lua["setPlayerFatness"] = Function_SetNextLevelExp;
-  lua["getNextLevelExp"] = Function_GetNextLevelExp;
+  lua["setPlayerFatness"] = Function_SetPlayerFatness;
+  lua["getPlayerFatness"] = Function_GetPlayerFatness;
   lua["setPlayerVisual"] = Function_SetPlayerVisual;
-  lua["getPlayerVisual"] = Function_SetPlayerVisual;
+  lua["getPlayerVisual"] = Function_GetPlayerVisual;
   lua["setPlayerScale"] = Function_SetPlayerScale;
   lua["getPlayerScale"] = Function_GetPlayerScale;
   lua["applyPlayerOverlay"] = Function_ApplyPlayerOverlay;
