@@ -3800,3 +3800,10 @@ ID3D11Device* zCRnd_D3D_DX11::GetDevice() const {
 ID3D11DeviceContext* zCRnd_D3D_DX11::GetContext() const {
   return impl_ ? impl_->context : nullptr;
 }
+
+void zCRnd_D3D_DX11::SetVSync(bool enable) {
+  if (impl_) {
+    impl_->vsync = enable;
+    SPDLOG_INFO("[D3D11] VSync {}", enable ? "enabled" : "disabled");
+  }
+}

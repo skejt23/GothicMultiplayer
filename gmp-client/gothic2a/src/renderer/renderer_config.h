@@ -24,29 +24,27 @@ SOFTWARE.
 
 #pragma once
 
-class ExternalConsoleWindow {
+/**
+ * @brief Renderer-specific configuration singleton.
+ *
+ * This is a lightweight config that renderers can access during initialization.
+ * It is populated early by the application before renderers are created.
+ * This avoids renderers having a direct dependency on the main application config.
+ */
+class RendererConfig {
 public:
-  /**
-   * @brief Initialize the external console window (call once at startup).
-   */
-  static void Init();
+  static RendererConfig& Instance() {
+    static RendererConfig instance;
+    return instance;
+  }
 
-  /**
-   * @brief Save the current console window position to config.
-   *
-   * Call this before exit to remember the console position.
-   * This is safe to call and won't throw exceptions.
-   */
-  static void SavePosition();
+  // VSync setting - renderers read this during Init
+  bool vsync_enabled = true;
 
-  ~ExternalConsoleWindow() = default;
+  // Prevent copying
+  RendererConfig(const RendererConfig&) = delete;
+  RendererConfig& operator=(const RendererConfig&) = delete;
 
 private:
-  ExternalConsoleWindow();
-
-  ExternalConsoleWindow(const ExternalConsoleWindow&) = delete;
-  ExternalConsoleWindow& operator=(const ExternalConsoleWindow&) = delete;
-
-  void RedirectStdStreamsToConsole();
-  bool EnsureConsoleAvailable();
+  RendererConfig() = default;
 };

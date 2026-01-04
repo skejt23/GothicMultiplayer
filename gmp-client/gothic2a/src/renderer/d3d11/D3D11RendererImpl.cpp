@@ -38,8 +38,10 @@ SOFTWARE.
 #include <cstdio>
 #include <cstring>
 
+#include "../renderer_config.h"
 #include "D3D11MapTracker.h"
 #include "D3D11VertexBuffer.h"
+
 
 #ifdef _WIN32
 #include <windows.h>
@@ -1931,6 +1933,7 @@ bool D3D11RendererImpl::Init(void* hwnd_ptr, int width, int height, bool is_full
   screen_width = width;
   screen_height = height;
   fullscreen = is_fullscreen;
+  vsync = RendererConfig::Instance().vsync_enabled;
 
   if (!CreateDeviceAndSwapChain(hwnd, width, height, is_fullscreen)) {
     SPDLOG_ERROR("Failed to create D3D11 device and swap chain");

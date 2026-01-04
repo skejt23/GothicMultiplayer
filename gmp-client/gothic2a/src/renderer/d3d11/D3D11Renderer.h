@@ -203,6 +203,9 @@ public:
   // Resets render state after alpha sort object rendering for subsequent alpha poly rendering.
   void ResetStateAfterAlphaSortObjects();
 
+  // Benchmark support: Enable or disable VSync.
+  void SetVSync(bool enable);
+
 private:
   // Constants.
   static constexpr size_t kMaxTextureStages = 4;
@@ -281,7 +284,7 @@ private:
   zMAT4 proj_matrix_{};
 
   // Z buffer scaling.
-  // 
+  //
   // RHW depth constants are computed ONLY from BeginFrame
   // near/far values and are NEVER updated from SetTransform(PROJECTION).
   //

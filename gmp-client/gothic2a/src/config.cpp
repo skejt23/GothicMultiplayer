@@ -35,6 +35,7 @@ SOFTWARE.
 #include <string_view>
 #include <unordered_map>
 
+#include "renderer/renderer_config.h"
 #include "shared/toml_wrapper.h"
 
 using namespace Gothic_II_Addon;
@@ -133,6 +134,13 @@ void Config::LoadConfigFromFile() {
   }
 
   window_always_on_top_ = toml.GetValue<bool>("window_always_on_top", window_always_on_top_);
+
+  if (auto vsync_opt = toml.GetValue<bool>("vsync_enabled"); vsync_opt) {
+    vsync_enabled = *vsync_opt;
+  }
+  // Propagate to renderer config (used by renderers during their init)
+  RendererConfig::Instance().vsync_enabled = vsync_enabled;
+
   // Load renderer type (default: D3D9)
   if (auto renderer_str = toml.GetValue<std::string>("renderer_type"); renderer_str) {
     if (*renderer_str == "D3D7") {
@@ -181,6 +189,7 @@ void Config::DefaultSettings() {
   renderer_type_ = RendererType::D3D9;
   test_mode_config_ = TestModeConfig{};  // Reset test mode to defaults
   mcp_pipe_enabled_ = false;
+  vsync_enabled = true;
   is_default_ = true;
 };
 
@@ -215,6 +224,7 @@ void Config::SaveConfigToFile() {
   }
 
   toml["window_always_on_top"] = toml::value(window_always_on_top_);
+  toml["vsync_enabled"] = toml::value(vsync_enabled);
   toml["mcp_pipe_enabled"] = toml::value(mcp_pipe_enabled_);
 
   // Save renderer type as string

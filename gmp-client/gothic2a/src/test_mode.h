@@ -24,6 +24,8 @@ SOFTWARE.
 
 #pragma once
 
+#include "benchmark.h"
+
 class GMPCore;
 
 /**
@@ -49,6 +51,12 @@ public:
    */
   void Initialize();
 
+  /**
+   * @brief Frame update for test mode (e.g., benchmark tick).
+   */
+  void OnFrame();
+
 private:
   GMPCore& core_;
+  Benchmark benchmark_;
 };

@@ -34,11 +34,13 @@ SOFTWARE.
 #include "CIngame.h"
 #include "CMenu.h"
 #include "HooksManager.h"
+#include "gmp_core.h"
 #include "keyboard.h"
 #include "language.h"
 #include "main_menu.h"
 #include "mod.h"
 #include "net_game.h"
+
 
 bool HelpOpen = false;
 CMenu* MainMenu;
@@ -73,14 +75,7 @@ void ExitToMainmenu() {
   MainMenu->Open();
 }
 void ExitGameFromMainMenu() {
-  if (HooksManager* hm = HooksManager::GetInstance()) {
-    hm->RemoveHook(HT_RENDER, (DWORD)InterfaceLoop);
-    hm->RemoveHook(HT_RENDER, (DWORD)CIngame::Loop);
-    hm->RemoveHook(HT_RENDER, (DWORD)NetGame::ProcessTaskScheduler);
-  }
-
-  NetGame::Instance().Disconnect();
-  ExitProcess(0);
+  GMPCore::ExitGame(0);
 }
 
 void CreateOptionsMenu() {

@@ -210,6 +210,7 @@ private:
   std::atomic<bool> running_{false};
   std::atomic<bool> stop_requested_{false};
   HANDLE pipe_handle_{INVALID_HANDLE_VALUE};
+  HANDLE stop_event_{NULL};  // Event signaled when Stop() is called
 
   std::mutex handlers_mutex_;
   std::unordered_map<std::string, CommandHandler> handlers_;

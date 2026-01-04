@@ -2650,3 +2650,14 @@ void __fastcall ConstructDX9Renderer(void* mem) {
 IDirect3DDevice9* zCRnd_D3D_DX9::GetDevice() const {
   return impl_ ? impl_->GetDevice() : nullptr;
 }
+
+void zCRnd_D3D_DX9::SetVSync(bool enable) {
+  // D3D9 vsync is controlled via D3DPRESENT_PARAMETERS.PresentationInterval
+  // Changing it requires device reset, which is disruptive during gameplay.
+  // For benchmark purposes, we log the intent but note the limitation.
+  // TODO: Implement device rest when vsync state changes.
+  if (impl_) {
+    impl_->SetVSync(enable);
+    SPDLOG_INFO("[D3D9] VSync {} (Note: Full effect requires device reset)", enable ? "enabled" : "disabled");
+  }
+}

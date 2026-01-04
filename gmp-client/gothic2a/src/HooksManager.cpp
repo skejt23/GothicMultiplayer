@@ -201,12 +201,12 @@ void HooksManager::RemoveHook(HOOK_TYPE type, DWORD callback) {
       break;
     case HT_CLOSELOADSCREEN:
       EnterCriticalSection(&this->CloseLoadScreenCs);
-      this->OnCloseLoadScreenHooks.erase(this->OnRenderHooks.find(callback));
+      this->OnCloseLoadScreenHooks.erase(callback);
       LeaveCriticalSection(&this->CloseLoadScreenCs);
       break;
     case HT_DONE:
       EnterCriticalSection(&this->DoneCs);
-      this->OnDoneHooks.erase(this->OnRenderHooks.find(callback));
+      this->OnDoneHooks.erase(callback);
       LeaveCriticalSection(&this->DoneCs);
       break;
     case HT_AIMOVING:

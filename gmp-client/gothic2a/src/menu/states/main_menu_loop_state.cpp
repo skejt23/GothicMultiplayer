@@ -30,15 +30,13 @@ SOFTWARE.
 
 #include <string>
 
-#include "HooksManager.h"
 #include "config.h"
-#include "external_console_window.hpp"
+#include "gmp_core.h"
 #include "keyboard.h"
 #include "language.h"
 #include "menu/states/online_options_state.hpp"
 #include "menu/states/options_menu_state.hpp"
 #include "menu/states/server_list_state.hpp"
-#include "net_game.h"
 #include "version.h"
 
 // External declarations from main_menu.cpp (global namespace)
@@ -202,20 +200,7 @@ void MainMenuLoopState::ExecuteMenuItem(MenuItem item) {
 
     case LEAVE_GAME:
       SPDLOG_INFO("Selected: Leave Game");
-      if (context_.game) {
-        if (HooksManager* hm = HooksManager::GetInstance()) {
-          hm->RemoveHook(HT_RENDER, (DWORD)NetGame::ProcessTaskScheduler);
-        }
-
-        NetGame::Instance().Disconnect();
-        NetGame::Instance().Shutdown();
-        ExternalConsoleWindow::Shutdown();
-        SDL_Quit();
-        spdlog::shutdown();
-
-        // This avoids running GMP.dll's CRT onexit table (MT) which is fragile in an injected DLL.
-        ExitProcess(0);
-      }
+      GMPCore::ExitGame(0);
       break;
   }
 }
