@@ -67,11 +67,11 @@ private:
   void EnsureView();
   void UpdateViewSize();
   void UpdateViewPosition();
-  void ApplyDelta(float dx, float dy);
+  void ApplyDelta(float delta_x, float delta_y);
   void ClampPosition();
   sol::table MakePosTable(sol::this_state s, bool pixels) const;
   sol::table MakeSizeTable(sol::this_state s, bool pixels) const;
-  bool PollDirectInput(float& dx, float& dy, float& wheel);
+  bool PollDirectInput(float& delta_x, float& delta_y, float& wheel);
 
   LuaCursorView* view_;
   zCTexture* texture_;
@@ -79,8 +79,8 @@ private:
   float sensitivity_;
   bool visible_;
   bool attached_to_screen_;
-  float posX_;
-  float posY_;
+  float pos_x_;
+  float pos_y_;
   int width_;
   int height_;
 
