@@ -68,6 +68,7 @@ public:
   enum KeyboardLayout { KEYBOARD_POLISH, KEYBOARD_GERMAN, KEYBOARD_CYRYLLIC };
   int keyboardlayout;
   enum class RendererType { D3D7, D3D9, D3D11 };
+  bool vsync_enabled = true;
   int WatchPosX;
   int WatchPosY;
   int ChatLines;

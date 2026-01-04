@@ -31,7 +31,9 @@ SOFTWARE.
 #include <cstring>
 #include <ranges>
 
+#include "../renderer_config.h"
 #include "DynamicVertexBuffer.h"
+
 
 // --- Global D3D9 State ---
 
@@ -174,7 +176,8 @@ bool D3D9RendererImpl::Init(void* hwnd, int width, int height, bool fullscreen) 
   present_params.BackBufferCount = 2;
   present_params.EnableAutoDepthStencil = TRUE;
   present_params.AutoDepthStencilFormat = SelectDepthStencilFormat(d3d, present_params.BackBufferFormat);
-  present_params.PresentationInterval = D3DPRESENT_INTERVAL_ONE;
+  vsync = RendererConfig::Instance().vsync_enabled;
+  present_params.PresentationInterval = vsync ? D3DPRESENT_INTERVAL_ONE : D3DPRESENT_INTERVAL_IMMEDIATE;
 
   if (fullscreen) {
     // Find matching fullscreen display mode
@@ -1545,5 +1548,18 @@ void D3D9RendererImpl::ApplyAlphaTestStateBlock() {
     render_state_cache_[D3DRS_ALPHAFUNC] = kStateCacheInvalid;
     render_state_cache_[D3DRS_ALPHAREF] = kStateCacheInvalid;
     render_state_cache_[D3DRS_CULLMODE] = kStateCacheInvalid;
+  }
+}
+
+void D3D9RendererImpl::SetVSync(bool enable) {
+  vsync = enable;
+  // Note: Actual D3D9 vsync change requires device reset (PresentInterval in D3DPRESENT_PARAMETERS).
+  // We store the intent here, so if a reset happens, it will be picked up.
+  // For benchmark purposes, the benchmark is started before level load/device reset might happen,
+  // or we accept that D3D9 won't switch dynamically without a reset.
+  if (enable) {
+    present_params.PresentationInterval = D3DPRESENT_INTERVAL_ONE;
+  } else {
+    present_params.PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;
   }
 }

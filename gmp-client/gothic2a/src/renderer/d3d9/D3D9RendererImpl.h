@@ -380,6 +380,11 @@ struct D3D9RendererImpl {
   // - depth_bias: constant offset in depth buffer units
   // - slope_bias: scales with polygon slope (handles angled surfaces)
   void SetZBias(float depth_bias, float slope_bias);
+
+  // --- VSync Control ---
+  // Note: Full vsync change requires device reset. This sets a flag used during reset.
+  void SetVSync(bool enable);
+  bool vsync = true;  // Current vsync state
 };
 
 // --- Global D3D9 State ---

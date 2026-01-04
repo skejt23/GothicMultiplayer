@@ -24,39 +24,27 @@ SOFTWARE.
 
 #pragma once
 
-#include "benchmark.h"
-
-class GMPCore;
-
 /**
- * @brief Handles the specialized "Test Mode" initialization logic.
+ * @brief Renderer-specific configuration singleton.
  *
- * This class encapsulates the logic for bypassing the main menu and
- * jumping directly into a specific level with a specific spawn point,
- * primarily for development and debugging purposes.
+ * This is a lightweight config that renderers can access during initialization.
+ * It is populated early by the application before renderers are created.
+ * This avoids renderers having a direct dependency on the main application config.
  */
-class TestMode {
+class RendererConfig {
 public:
-  /**
-   * @brief Construct a new Test Mode object
-   *
-   * @param core Reference to the GMPCore instance.
-   */
-  explicit TestMode(GMPCore& core);
+  static RendererConfig& Instance() {
+    static RendererConfig instance;
+    return instance;
+  }
 
-  ~TestMode() = default;
+  // VSync setting - renderers read this during Init
+  bool vsync_enabled = true;
 
-  /**
-   * @brief Initialize test mode: load level, setup player, etc.
-   */
-  void Initialize();
-
-  /**
-   * @brief Frame update for test mode (e.g., benchmark tick).
-   */
-  void OnFrame();
+  // Prevent copying
+  RendererConfig(const RendererConfig&) = delete;
+  RendererConfig& operator=(const RendererConfig&) = delete;
 
 private:
-  GMPCore& core_;
-  Benchmark benchmark_;
+  RendererConfig() = default;
 };

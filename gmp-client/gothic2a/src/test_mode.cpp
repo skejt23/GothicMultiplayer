@@ -29,18 +29,22 @@ SOFTWARE.
 #include "CIngame.h"
 #include "HooksManager.h"
 #include "Interface.h"
+#include "benchmark.h"
 #include "config.h"
 #include "gmp_core.h"
 #include "patch.h"
 #include "world_utils.hpp"
 
-TestMode::TestMode(GMPCore& core) : core_(core) {
+TestMode::TestMode(GMPCore& core) : core_(core), benchmark_(core) {
 }
 
 void TestMode::Initialize() {
   using namespace Gothic_II_Addon;
 
   const Config::TestModeConfig& testConfig = Config::Instance().GetTestModeConfig();
+
+  // Always initialize benchmark subsystem (available via toggles)
+  benchmark_.Initialize();
 
   SPDLOG_INFO("Initializing test mode: level='{}', spawn=({}, {}, {})", testConfig.level, testConfig.spawn_x, testConfig.spawn_y, testConfig.spawn_z);
 
@@ -134,4 +138,18 @@ void TestMode::Initialize() {
   });
 
   SPDLOG_INFO("Test mode initialization complete (spawn deferred)");
+}
+
+void TestMode::OnFrame() {
+  using namespace Gothic_II_Addon;
+
+  // Run benchmark frame logic
+  if (benchmark_.IsRunning()) {
+    benchmark_.OnFrame();
+  }
+
+  // F8 to toggle benchmark
+  if (zinput->KeyToggled(KEY_F8)) {
+    benchmark_.Toggle();
+  }
 }

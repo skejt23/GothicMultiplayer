@@ -114,6 +114,11 @@ void GMPCore::OnFrameStart() {
   if (Config::Instance().IsMCPPipeEnabled()) {
     gmp::mcp::MCPPipeHandler::Instance().ProcessPendingMessages();
   }
+
+  // Update TestMode (e.g. Benchmark)
+  if (testMode_) {
+    testMode_->OnFrame();
+  }
 }
 
 void GMPCore::DeferToNextFrame(std::function<void()> action) {
