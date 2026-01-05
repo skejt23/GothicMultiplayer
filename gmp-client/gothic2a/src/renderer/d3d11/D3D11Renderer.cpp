@@ -1707,14 +1707,8 @@ int zCRnd_D3D_DX11::Vid_SetMode(int modeNr, HWND__** hwnd) {
   SPDLOG_INFO("Vid_SetMode using HWND: {}", (void*)hWindow);
 
   if (hWindow) {
-    // Ensure window is visible, updated, and sized correctly
-    ShowWindow(hWindow, SW_SHOW);
-    UpdateWindow(hWindow);
-
-    // Resize window to match resolution (client area)
-    RECT rc = {0, 0, vid_xdim, vid_ydim};
-    AdjustWindowRect(&rc, GetWindowLong(hWindow, GWL_STYLE), FALSE);
-    SetWindowPos(hWindow, HWND_TOP, 0, 0, rc.right - rc.left, rc.bottom - rc.top, SWP_NOMOVE | SWP_SHOWWINDOW);
+    const bool want_fullscreen = (screen_mode_ == zRND_SCRMODE_FULLSCREEN);
+    ApplyWindowMode(hWindow, want_fullscreen, vid_xdim, vid_ydim);
   }
 
   // On first call, device doesn't exist yet - use Init().
@@ -1736,6 +1730,58 @@ int zCRnd_D3D_DX11::Vid_SetMode(int modeNr, HWND__** hwnd) {
   }
 
   return 0;
+}
+
+void zCRnd_D3D_DX11::ApplyWindowMode(HWND hWindow, bool fullscreen, int width, int height) {
+  // For D3D11 FLIP model we do borderless fullscreen and must explicitly change window styles/sizing.
+  static bool s_saved_window_style = false;
+  static LONG s_window_style = 0;
+  static LONG s_window_ex_style = 0;
+
+  if (!s_saved_window_style) {
+    s_window_style = GetWindowLong(hWindow, GWL_STYLE);
+    s_window_ex_style = GetWindowLong(hWindow, GWL_EXSTYLE);
+    s_saved_window_style = true;
+  }
+
+  if (fullscreen) {
+    // Borderless fullscreen: remove decoration and size to the current monitor.
+    HMONITOR mon = MonitorFromWindow(hWindow, MONITOR_DEFAULTTONEAREST);
+    MONITORINFO mi{};
+    mi.cbSize = sizeof(mi);
+    if (GetMonitorInfo(mon, &mi)) {
+      LONG style = s_window_style;
+      style &= ~WS_OVERLAPPEDWINDOW;
+      style |= WS_POPUP;
+      SetWindowLong(hWindow, GWL_STYLE, style);
+
+      LONG ex_style = s_window_ex_style;
+      ex_style &= ~(WS_EX_DLGMODALFRAME | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE | WS_EX_WINDOWEDGE);
+      SetWindowLong(hWindow, GWL_EXSTYLE, ex_style);
+
+      const int w = mi.rcMonitor.right - mi.rcMonitor.left;
+      const int h = mi.rcMonitor.bottom - mi.rcMonitor.top;
+      SetWindowPos(hWindow, HWND_TOP, mi.rcMonitor.left, mi.rcMonitor.top, w, h, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+    } else {
+      // Fallback: just move to (0,0) and size to requested resolution.
+      SetWindowPos(hWindow, HWND_TOP, 0, 0, width, height, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+    }
+  } else {
+    // Windowed: restore original styles and size client area to requested resolution.
+    if (s_saved_window_style) {
+      SetWindowLong(hWindow, GWL_STYLE, s_window_style);
+      SetWindowLong(hWindow, GWL_EXSTYLE, s_window_ex_style);
+    }
+
+    RECT rc = {0, 0, width, height};
+    AdjustWindowRect(&rc, GetWindowLong(hWindow, GWL_STYLE), FALSE);
+    SetWindowPos(hWindow, HWND_TOP, 0, 0, rc.right - rc.left, rc.bottom - rc.top, SWP_NOMOVE | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+  }
+
+  ShowWindow(hWindow, SW_SHOW);
+  UpdateWindow(hWindow);
+  SetForegroundWindow(hWindow);
+  SetFocus(hWindow);
 }
 
 void zCRnd_D3D_DX11::Vid_SetScreenMode(zTRnd_ScreenMode mode) {
@@ -1768,7 +1814,15 @@ void zCRnd_D3D_DX11::Vid_SetScreenMode(zTRnd_ScreenMode mode) {
 }
 
 zTRnd_ScreenMode zCRnd_D3D_DX11::Vid_GetScreenMode() {
-  return screen_mode_;
+  // For D3D11 FLIP model we implement borderless fullscreen, so we must NOT report FULLSCREEN
+  // to the engine (otherwise it will set surface_lost and force mode switches).
+  zTRnd_ScreenMode result = screen_mode_;
+  const bool flip = (impl_ && impl_->IsUsingFlipModel());
+  if (flip && screen_mode_ == zRND_SCRMODE_FULLSCREEN) {
+    result = zRND_SCRMODE_WINDOWED;
+  }
+
+  return result;
 }
 
 void zCRnd_D3D_DX11::Vid_SetGammaCorrection(float gamma, float contrast, float brightness) {

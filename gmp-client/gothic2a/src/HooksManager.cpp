@@ -56,6 +56,16 @@ VidIsResolutionValidFn g_vidIsResolutionValidOriginal = nullptr;
 using SetFOV2Fn = void(__thiscall*)(zCCamera*, float, float);
 SetFOV2Fn g_setFOV2Original = nullptr;
 
+// Check if D3D9 renderer is enabled via config (default: true)
+static bool UseDx9Renderer() {
+  return Config::Instance().GetRendererType() == Config::RendererType::D3D9;
+}
+
+// Check if D3D11 renderer is enabled via config
+static bool UseDx11Renderer() {
+  return Config::Instance().GetRendererType() == Config::RendererType::D3D11;
+}
+
 // Hook for VidIsResolutionValid - bypasses hardcoded 1600x1200 limit
 // The original function rejects resolutions above 1600x1200 and enforces aspect ratio limits.
 // We allow any reasonable resolution that the D3D9 adapter can handle.
@@ -215,16 +225,6 @@ void HooksManager::RemoveHook(HOOK_TYPE type, DWORD callback) {
       LeaveCriticalSection(&this->AiMovingCs);
       break;
   }
-}
-
-// Check if D3D9 renderer is enabled via config (default: true)
-static bool UseDx9Renderer() {
-  return Config::Instance().GetRendererType() == Config::RendererType::D3D9;
-}
-
-// Check if D3D11 renderer is enabled via config
-static bool UseDx11Renderer() {
-  return Config::Instance().GetRendererType() == Config::RendererType::D3D11;
 }
 
 // Address of the CALL instruction in zCCamera constructor that calls SetFOV(float)

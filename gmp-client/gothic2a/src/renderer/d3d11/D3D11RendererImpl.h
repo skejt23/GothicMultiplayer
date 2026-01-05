@@ -57,6 +57,7 @@ SOFTWARE.
 #include <d3d11.h>
 #include <d3d11_1.h>
 #include <dxgi.h>
+#include <dxgi1_4.h>
 
 #include <array>
 #include <cstddef>
@@ -267,6 +268,15 @@ struct D3D11RendererImpl {
   ID3D11DepthStencilView* dsv = nullptr;
   ID3D11Texture2D* depth_stencil_texture = nullptr;
 
+  // FLIP model backbuffer tracking:
+  // With DXGI flip-model swap effects (FLIP_DISCARD/FLIP_SEQUENTIAL), the swap chain
+  // rotates underlying backbuffers after each Present(). An RTV created from GetBuffer(0)
+  // becomes stale after Present because it points to a buffer that may now be displayed.
+  // We track when a refresh is needed and do it at BeginFrame() to keep rendering correct.
+  // Note: With FLIP models, only GetBuffer(0) is valid - other indices return DXGI_ERROR_INVALID_CALL.
+  bool flip_rtv_needs_refresh_ = false;  // Set after Present(), cleared after RTV refresh
+  int rtv_refresh_count_ = 0;            // Instrumentation: count of RTV refreshes per stats period
+
   // --- Shaders ---
   ID3D11VertexShader* vs_basic = nullptr;                // 3D transformed geometry with normals
   ID3D11VertexShader* vs_basic_color = nullptr;          // 3D transformed geometry with normals + vertex color (stride=36)
@@ -376,6 +386,8 @@ struct D3D11RendererImpl {
   };
   FrameStats frame_stats_;
   int stats_log_frame_counter_ = 0;
+  
+  bool RefreshBackBufferRTV();
 
   // Convenience pointers to current frame's resources
   ID3D11Buffer* dynamic_vb = nullptr;
@@ -518,6 +530,16 @@ struct D3D11RendererImpl {
   int screen_height = 0;
   bool fullscreen = false;
   bool vsync = true;
+
+  // --- FLIP Model / Tearing Support ---
+  // True if the system supports DXGI_PRESENT_ALLOW_TEARING (Windows 10+)
+  bool tearing_supported = false;
+  // True if we're using FLIP presentation model (modern, allows tearing)
+  bool using_flip_model = false;
+
+  [[nodiscard]] bool IsUsingFlipModel() const {
+    return using_flip_model;
+  }
 
   // --- Lifecycle ---
   bool Init(void* hwnd, int width, int height, bool fullscreen);

@@ -26,12 +26,18 @@ SOFTWARE.
 
 #include <d3dcommon.h>
 #include <d3dcompiler.h>
+#include <dxgi1_5.h>  // For IDXGIFactory5 and tearing support
 #ifndef NDEBUG
 #include <d3d11sdklayers.h>
 #include <dxgidebug.h>
 #endif
 #include <spdlog/spdlog.h>
 #include <wrl/client.h>
+
+// DXGI_FEATURE_PRESENT_ALLOW_TEARING may not be defined in older Windows SDK versions
+#ifndef DXGI_PRESENT_ALLOW_TEARING
+#define DXGI_PRESENT_ALLOW_TEARING 0x00000200UL
+#endif
 
 #include <algorithm>
 #include <cmath>
@@ -188,6 +194,43 @@ std::string GetDebugObjectName(ID3D11DeviceChild* obj) {
   return out;
 }
 #endif  // !NDEBUG
+
+// Check if the system supports DXGI tearing (variable refresh rate).
+// Requires Windows 10+ with IDXGIFactory5.
+bool CheckTearingSupport(IDXGIFactory* factory) {
+  ComPtr<IDXGIFactory5> factory5;
+  if (FAILED(factory->QueryInterface(__uuidof(IDXGIFactory5), &factory5))) {
+    return false;
+  }
+  BOOL allow_tearing = FALSE;
+  HRESULT hr = factory5->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allow_tearing, sizeof(allow_tearing));
+  return SUCCEEDED(hr) && allow_tearing;
+}
+
+// Configure swap chain description based on presentation model.
+void ConfigureSwapChainDesc(DXGI_SWAP_CHAIN_DESC& scd, HWND hwnd, int width, int height, bool use_flip_model) {
+  scd = {};
+  scd.BufferDesc.Width = width;
+  scd.BufferDesc.Height = height;
+  scd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+  scd.BufferDesc.RefreshRate.Numerator = 0;  // Let DXGI find the best rate
+  scd.BufferDesc.RefreshRate.Denominator = 0;
+  scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+  scd.OutputWindow = hwnd;
+  scd.SampleDesc.Count = 1;
+  scd.SampleDesc.Quality = 0;
+  scd.Windowed = TRUE;  // Always start windowed, switch to fullscreen after
+
+  if (use_flip_model) {
+    scd.BufferCount = 2;  // FLIP requires at least 2 buffers
+    scd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+    scd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
+  } else {
+    scd.BufferCount = 1;
+    scd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+    scd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+  }
+}
 
 }  // namespace
 
@@ -2052,7 +2095,7 @@ bool D3D11RendererImpl::CreateDeviceAndSwapChain(HWND target_hwnd, int width, in
     SPDLOG_WARN("Failed to enable D3D11 multithread protection");
   }
 
-  // Now create swap chain via DXGI factory
+  // Get DXGI interfaces from device
   ComPtr<IDXGIDevice> dxgi_device;
   hr = device->QueryInterface(__uuidof(IDXGIDevice), &dxgi_device);
   if (FAILED(hr)) {
@@ -2074,60 +2117,67 @@ bool D3D11RendererImpl::CreateDeviceAndSwapChain(HWND target_hwnd, int width, in
     return false;
   }
 
-  // Cache the primary output for fullscreen transitions.
+  // Cache the primary output for fullscreen transitions
   SafeRelease(dxgi_output);
   hr = dxgi_adapter->EnumOutputs(0, &dxgi_output);
   if (FAILED(hr)) {
-    dxgi_output = nullptr;  // Ensure clean state on failure
+    dxgi_output = nullptr;
     SPDLOG_WARN("Failed to get DXGI output (fullscreen may not work): 0x{:08X}", static_cast<unsigned int>(hr));
-    // Not fatal - we can still run in windowed mode
   }
 
-  // Create swap chain description
-  DXGI_SWAP_CHAIN_DESC scd = {};
-  scd.BufferCount = 1;  // Single back buffer for compatibility
-  scd.BufferDesc.Width = width;
-  scd.BufferDesc.Height = height;
-  scd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-  scd.BufferDesc.RefreshRate.Numerator = 0;  // Let DXGI find the best refresh rate
-  scd.BufferDesc.RefreshRate.Denominator = 0;
-  scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-  scd.OutputWindow = target_hwnd;
-  scd.SampleDesc.Count = 1;
-  scd.SampleDesc.Quality = 0;
-  scd.Windowed = TRUE;  // Always start windowed
-  scd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-  scd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+  // Determine presentation model based on system capabilities and user preference
+  tearing_supported = CheckTearingSupport(dxgi_factory.Get());
+  if (tearing_supported) {
+    SPDLOG_INFO("DXGI tearing support detected (variable refresh rate available)");
+  }
+
+  bool use_exclusive_fullscreen = RendererConfig::Instance().exclusive_fullscreen;
+  using_flip_model = tearing_supported && !use_exclusive_fullscreen;
+  SPDLOG_INFO("Presentation model: {} (exclusive_fullscreen={})", using_flip_model ? "FLIP_DISCARD" : "DISCARD", use_exclusive_fullscreen);
+
+  // Create swap chain with fallback
+  DXGI_SWAP_CHAIN_DESC scd;
+  ConfigureSwapChainDesc(scd, target_hwnd, width, height, using_flip_model);
 
   hr = dxgi_factory->CreateSwapChain(device, &scd, &swap_chain);
+  if (FAILED(hr) && using_flip_model) {
+    // FLIP model failed, fall back to DISCARD
+    SPDLOG_WARN("FLIP_DISCARD swap chain creation failed, falling back to DISCARD");
+    using_flip_model = false;
+    ConfigureSwapChainDesc(scd, target_hwnd, width, height, false);
+    hr = dxgi_factory->CreateSwapChain(device, &scd, &swap_chain);
+  }
   if (FAILED(hr)) {
     SPDLOG_ERROR("CreateSwapChain failed: 0x{:08X}", static_cast<unsigned int>(hr));
     return false;
   }
 
-  // Disable Alt+Enter and prevent DXGI from changing window styles
+  // Disable Alt+Enter (we handle fullscreen ourselves)
   dxgi_factory->MakeWindowAssociation(target_hwnd, DXGI_MWA_NO_ALT_ENTER | DXGI_MWA_NO_WINDOW_CHANGES);
 
   capabilities_.feature_level = obtained_feature_level;
   capabilities_.max_texture_size = D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION;
-
   SPDLOG_INFO("D3D11 device created with feature level 0x{:04X}", static_cast<unsigned int>(obtained_feature_level));
 
-  // Switch to fullscreen if requested.
-  // This is done after creating the swap chain because DXGI recommends creating
-  // windowed first and then calling SetFullscreenState for best compatibility.
-  if (is_fullscreen && dxgi_output) {
-    SPDLOG_INFO("Switching to fullscreen mode");
-    hr = swap_chain->SetFullscreenState(TRUE, dxgi_output);
-    if (FAILED(hr)) {
-      SPDLOG_WARN("Failed to set fullscreen state: 0x{:08X}. Continuing in windowed mode.", static_cast<unsigned int>(hr));
-      fullscreen = false;
-    } else {
+  // Apply initial fullscreen state
+  if (is_fullscreen) {
+    if (using_flip_model) {
+      // FLIP model: borderless fullscreen (window sizing handled by application)
       fullscreen = true;
-      // After entering fullscreen, we need to resize the buffers to match the display mode.
-      hr = swap_chain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH);
+      SPDLOG_INFO("Using borderless fullscreen (FLIP model with tearing)");
+    } else if (dxgi_output) {
+      // Legacy: exclusive fullscreen via DXGI
+      SPDLOG_INFO("Switching to exclusive fullscreen mode");
+      hr = swap_chain->SetFullscreenState(TRUE, dxgi_output);
       if (FAILED(hr)) {
-        SPDLOG_WARN("Failed to resize buffers after fullscreen switch: 0x{:08X}", static_cast<unsigned int>(hr));
+        SPDLOG_WARN("Failed to set fullscreen state: 0x{:08X}. Continuing in windowed mode.", static_cast<unsigned int>(hr));
+        fullscreen = false;
+      } else {
+        fullscreen = true;
+        hr = swap_chain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH);
+        if (FAILED(hr)) {
+          SPDLOG_WARN("Failed to resize buffers after fullscreen switch: 0x{:08X}", static_cast<unsigned int>(hr));
+        }
       }
     }
   }
@@ -2136,6 +2186,8 @@ bool D3D11RendererImpl::CreateDeviceAndSwapChain(HWND target_hwnd, int width, in
 }
 
 bool D3D11RendererImpl::CreateRenderTargetView() {
+  // With FLIP_DISCARD, GetBuffer(0) always returns the current back buffer.
+  // DXGI handles the buffer rotation internally after Present().
   ID3D11Texture2D* back_buffer = nullptr;
   HRESULT hr = swap_chain->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&back_buffer));
   if (FAILED(hr)) {
@@ -2150,6 +2202,55 @@ bool D3D11RendererImpl::CreateRenderTargetView() {
     SPDLOG_ERROR("Failed to create RTV: 0x{:08X}", static_cast<unsigned int>(hr));
     return false;
   }
+
+  return true;
+}
+
+bool D3D11RendererImpl::RefreshBackBufferRTV() {
+  // FLIP model backbuffer refresh:
+  // After Present() with FLIP_DISCARD/FLIP_SEQUENTIAL, the swap chain has rotated
+  // and GetBuffer(0) now returns a different underlying texture. Our old RTV points
+  // to a buffer that may be displayed or queued for display - we must not render to it.
+  //
+  // This function acquires the new current backbuffer and creates a fresh RTV for it.
+  // It's called from BeginFrame()/Clear() when flip_rtv_needs_refresh_ is set.
+  //
+  // Note: With FLIP models, only GetBuffer(0) is valid. Attempting GetBuffer(1), etc.
+  // returns DXGI_ERROR_INVALID_CALL (0x887A0001). The buffer index parameter does NOT
+  // let you access specific buffers - DXGI manages rotation internally.
+
+  if (!swap_chain || !device || !context) {
+    return false;
+  }
+
+  // Unbind current RTV before releasing it (required by D3D11)
+  context->OMSetRenderTargets(0, nullptr, nullptr);
+
+  // Release old RTV (it pointed to what is now a front/displayed buffer)
+  SafeRelease(rtv);
+
+  // Acquire the new current backbuffer and create RTV
+  ID3D11Texture2D* back_buffer = nullptr;
+  HRESULT hr = swap_chain->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&back_buffer));
+  if (FAILED(hr) || !back_buffer) {
+    SPDLOG_ERROR("RefreshBackBufferRTV: Failed to get backbuffer: 0x{:08X}", static_cast<unsigned int>(hr));
+    return false;
+  }
+
+  hr = device->CreateRenderTargetView(back_buffer, nullptr, &rtv);
+  back_buffer->Release();
+
+  if (FAILED(hr)) {
+    SPDLOG_ERROR("RefreshBackBufferRTV: Failed to create RTV: 0x{:08X}", static_cast<unsigned int>(hr));
+    return false;
+  }
+
+  // Re-bind the new RTV with existing DSV
+  context->OMSetRenderTargets(1, &rtv, dsv);
+
+  // Clear the refresh flag and bump instrumentation counter
+  flip_rtv_needs_refresh_ = false;
+  ++rtv_refresh_count_;
 
   return true;
 }
@@ -3102,10 +3203,11 @@ bool D3D11RendererImpl::Resize(int width, int height) {
 
   HRESULT hr;
 
-  // In fullscreen mode, we need to call ResizeTarget to change the display mode.
-  // This actually changes the monitor resolution. ResizeBuffers alone only changes
-  // the back buffer size, not the display mode.
-  if (fullscreen) {
+  // In exclusive fullscreen mode (not FLIP model), we need to call ResizeTarget
+  // to change the display mode. This actually changes the monitor resolution.
+  // ResizeBuffers alone only changes the back buffer size, not the display mode.
+  // With FLIP model, the window is borderless and we don't change display mode.
+  if (fullscreen && !using_flip_model) {
     DXGI_MODE_DESC target_mode = {};
     target_mode.Width = width;
     target_mode.Height = height;
@@ -3122,8 +3224,9 @@ bool D3D11RendererImpl::Resize(int width, int height) {
     }
   }
 
-  // Resize swap chain buffers
-  hr = swap_chain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH);
+  // Resize swap chain buffers with appropriate flags for the presentation model
+  UINT resize_flags = using_flip_model ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+  hr = swap_chain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, resize_flags);
   if (FAILED(hr)) {
     SPDLOG_ERROR("Failed to resize swap chain: 0x{:08X}", static_cast<unsigned int>(hr));
     return false;
@@ -3160,7 +3263,18 @@ bool D3D11RendererImpl::SetFullscreenState(bool want_fullscreen) {
     return true;
   }
 
-  SPDLOG_INFO("SetFullscreenState: Switching to {} mode", want_fullscreen ? "fullscreen" : "windowed");
+  SPDLOG_INFO("SetFullscreenState: Switching to {} mode (FLIP model={})", want_fullscreen ? "fullscreen" : "windowed", using_flip_model);
+
+  // With FLIP model, we don't use DXGI exclusive fullscreen.
+  // The window is sized/styled by the application (borderless fullscreen).
+  // We just update our tracking flag.
+  if (using_flip_model) {
+    fullscreen = want_fullscreen;
+    SPDLOG_INFO("SetFullscreenState: Using borderless {} (FLIP model)", want_fullscreen ? "fullscreen" : "windowed");
+    return true;
+  }
+
+  // Legacy DISCARD model: use actual DXGI exclusive fullscreen
 
   // Release views before mode switch (required by DXGI)
   context->OMSetRenderTargets(0, nullptr, nullptr);
@@ -3228,7 +3342,7 @@ bool D3D11RendererImpl::SetFullscreenState(bool want_fullscreen) {
   context->OMSetRenderTargets(1, &rtv, dsv);
   SetViewport(0, 0, screen_width, screen_height);
 
-  SPDLOG_INFO("SetFullscreenState: Successfully switched to {} mode", fullscreen ? "fullscreen" : "windowed");
+  SPDLOG_INFO("SetFullscreenState: Successfully switched to exclusive {} mode", fullscreen ? "fullscreen" : "windowed");
   return true;
 }
 
@@ -3237,8 +3351,9 @@ void D3D11RendererImpl::Cleanup() {
     logger->info("Cleaning up D3D11RendererImpl");
   }
 
-  // Exit fullscreen mode before cleanup (required by DXGI before releasing swap chain)
-  if (swap_chain && fullscreen) {
+  // Exit exclusive fullscreen mode before cleanup (required by DXGI before releasing swap chain).
+  // FLIP model doesn't use DXGI exclusive fullscreen, so no need to exit.
+  if (swap_chain && fullscreen && !using_flip_model) {
     swap_chain->SetFullscreenState(FALSE, nullptr);
     fullscreen = false;
   }
@@ -3384,11 +3499,19 @@ void D3D11RendererImpl::BeginFrame() {
   }
   frame_begun_ = true;
 
+  // FLIP model: refresh RTV if needed (after Present rotated the backbuffer).
+  // This must happen before any rendering to ensure we target the correct buffer.
+  if (using_flip_model && flip_rtv_needs_refresh_) {
+    RefreshBackBufferRTV();
+  }
+
   // Log stats from previous frame every ~60 frames (~1 second at 60fps)
   if (++stats_log_frame_counter_ >= 60) {
     stats_log_frame_counter_ = 0;
-    SPDLOG_INFO("[D3D11 Stats] draws={} alphaTestCB={} transformCB={} ibMaps={} texBinds={}", frame_stats_.draw_calls,
-                frame_stats_.alpha_test_cb_updates, frame_stats_.transform_cb_updates, frame_stats_.ib_maps, frame_stats_.texture_binds);
+    SPDLOG_INFO("[D3D11 Stats] draws={} alphaTestCB={} transformCB={} ibMaps={} texBinds={} rtvRefresh={}", frame_stats_.draw_calls,
+                frame_stats_.alpha_test_cb_updates, frame_stats_.transform_cb_updates, frame_stats_.ib_maps, frame_stats_.texture_binds,
+                rtv_refresh_count_);
+    rtv_refresh_count_ = 0;  // Reset instrumentation counter
   }
   frame_stats_ = {};  // Reset for this frame
 
@@ -3404,7 +3527,24 @@ void D3D11RendererImpl::EndFrame() {
 }
 
 void D3D11RendererImpl::Present() {
-  swap_chain->Present(vsync ? 1 : 0, 0);
+  // Determine present parameters based on vsync and presentation model
+  UINT sync_interval = vsync ? 1 : 0;
+  UINT present_flags = 0;
+
+  // When using FLIP model with tearing support and vsync off, use ALLOW_TEARING
+  // for uncapped FPS. Note: ALLOW_TEARING must NOT be used with SyncInterval > 0.
+  if (!vsync && using_flip_model && tearing_supported) {
+    present_flags = DXGI_PRESENT_ALLOW_TEARING;
+  }
+
+  HRESULT hr = swap_chain->Present(sync_interval, present_flags);
+
+  // FLIP model: Mark that RTV needs refresh before next frame's rendering.
+  // The actual refresh happens in BeginFrame() to keep Present() lightweight
+  // and place the binding logic where it conceptually belongs (frame start).
+  if (using_flip_model && SUCCEEDED(hr)) {
+    flip_rtv_needs_refresh_ = true;
+  }
 
   // Issue fence AFTER present - this ensures the GPU has received all commands
   // for this frame including the present before we signal completion
@@ -3423,6 +3563,12 @@ void D3D11RendererImpl::Clear(unsigned long color) {
 void D3D11RendererImpl::Clear(unsigned long color, bool clear_color, bool clear_depth) {
   if (context == nullptr) {
     return;
+  }
+
+  // FLIP model: ensure RTV is valid before clearing.
+  // Vid_Clear can be called before BeginFrame (e.g., loading screens, sky rendering).
+  if (using_flip_model && flip_rtv_needs_refresh_) {
+    RefreshBackBufferRTV();
   }
 
   float clear_rgba[4];

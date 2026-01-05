@@ -354,6 +354,9 @@ private:
   std::vector<uint16_t> batch_indices_;
   void FlushBatch();
   void AddToBatch(const std::vector<gmp::renderer::d3d11::VertexRHW>& verts);
+
+  // Configures the window style and position for borderless fullscreen or windowed mode.
+  void ApplyWindowMode(HWND hWindow, bool fullscreen, int width, int height);
 };
 
 // Factory functions for the hook.

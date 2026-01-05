@@ -41,6 +41,13 @@ public:
   // VSync setting - renderers read this during Init
   bool vsync_enabled = true;
 
+  // Fullscreen mode setting:
+  // - false (default): Use modern FLIP model with tearing support when available.
+  //   This provides smooth Alt+Tab and allows uncapped FPS in borderless fullscreen.
+  // - true: Force exclusive fullscreen mode. Takes over the monitor, bypasses DWM.
+  //   May provide lower input latency but Alt+Tab causes mode switch.
+  bool exclusive_fullscreen = false;
+
   // Prevent copying
   RendererConfig(const RendererConfig&) = delete;
   RendererConfig& operator=(const RendererConfig&) = delete;
