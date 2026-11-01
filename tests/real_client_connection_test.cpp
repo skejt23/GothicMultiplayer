@@ -24,359 +24,247 @@ SOFTWARE.
 
 #include <gtest/gtest.h>
 
-#include <atomic>
 #include <chrono>
-#include <cstddef>
 #include <cstdint>
-#include <filesystem>
-#include <fstream>
-#include <future>
+#include <deque>
 #include <memory>
 #include <mutex>
-#include <sstream>
-#include <stdexcept>
+#include <optional>
 #include <string>
-#include <system_error>
 #include <thread>
 #include <utility>
+#include <vector>
 
+#include "connection_test_workspace.h"
+#include "fake_client.h"
 #include "game_client.hpp"
 #include "game_server.h"
 #include "task_scheduler.h"
 
 namespace {
 
-namespace fs = std::filesystem;
-
-void CopyDirectoryRecursive(const fs::path& source, const fs::path& destination) {
-  if (!fs::exists(source) || !fs::is_directory(source)) {
-    throw std::runtime_error("Source directory does not exist: " + source.string());
-  }
-
-  fs::create_directories(destination);
-  for (const auto& entry : fs::recursive_directory_iterator(source)) {
-    const auto relative = fs::relative(entry.path(), source);
-    const fs::path target = destination / relative;
-    if (entry.is_directory()) {
-      fs::create_directories(target);
-    } else if (entry.is_regular_file()) {
-      fs::create_directories(target.parent_path());
-      fs::copy_file(entry.path(), target, fs::copy_options::overwrite_existing);
-    }
-  }
-}
-
-void CopyFileIfExists(const fs::path& source, const fs::path& destination) {
-  if (fs::exists(source)) {
-    fs::copy_file(source, destination, fs::copy_options::overwrite_existing);
-  }
-}
-
-void WriteTestConfigToml(const fs::path& config_path) {
-  // Keep this minimal so tests are self-contained and avoid port conflicts.
-  // The server will generate and persist a server_identity_seed as needed.
-  std::ofstream cfg(config_path, std::ios::binary | std::ios::trunc);
-  cfg << "name = \"Gothic Multiplayer Server\"\n";
-  cfg << "port = 0\n";
-  cfg << "public = false\n";
-  cfg << "slots = 12\n";
-  cfg << "allow_modification = true\n";
-  cfg << "hide_map = false\n";
-  cfg << "respawn_time_seconds = 5\n";
-  cfg << "log_to_stdout = true\n";
-  cfg << "log_level = \"info\"\n";
-  cfg << "seconds_per_game_minute = 0\n";
-  cfg << "map = \"NEWWORLD\\\\NEWWORLD.ZEN\"\n";
-  cfg << "scripts = [\"main.lua\"]\n";
-}
-
-std::string GenerateWorkspaceName() {
-  const auto now = std::chrono::steady_clock::now().time_since_epoch().count();
-  std::ostringstream oss;
-  oss << "gmp_test_env_" << now;
-  return oss.str();
-}
-
-class TestServerWorkspace {
+// Match the client scheduler contract: resource-worker callbacks execute on
+// the same thread as network polling and observer assertions.
+class TestTaskScheduler : public gmp::TaskScheduler {
 public:
-  TestServerWorkspace() {
-    original_cwd_ = fs::current_path();
-    workspace_dir_ = fs::temp_directory_path() / GenerateWorkspaceName();
-    fs::create_directories(workspace_dir_);
-
-    const fs::path repo_resources = original_cwd_ / "gmp-server" / "resources";
-    CopyDirectoryRecursive(repo_resources, workspace_dir_ / "resources");
-
-    CopyFileIfExists(repo_resources / "config.toml", workspace_dir_ / "config.toml");
-    CopyFileIfExists(repo_resources / "bans.json", workspace_dir_ / "bans.json");
-
-    // Use an ephemeral port to avoid conflicts in dev/CI.
-    WriteTestConfigToml(workspace_dir_ / "config.toml");
-
-    fs::current_path(workspace_dir_);
+  void ScheduleOnMainThread(Task task) override {
+    std::lock_guard lock(mutex_);
+    pending_.push_back(std::move(task));
   }
 
-  ~TestServerWorkspace() {
-    std::error_code ec;
-    fs::current_path(original_cwd_, ec);
-    fs::remove_all(workspace_dir_, ec);
-  }
-
-  const fs::path& root() const {
-    return workspace_dir_;
+  void Dispatch() {
+    std::deque<Task> tasks;
+    {
+      std::lock_guard lock(mutex_);
+      tasks.swap(pending_);
+    }
+    for (auto& task : tasks) task();
   }
 
 private:
-  fs::path original_cwd_;
-  fs::path workspace_dir_;
-};
-
-void EnsureClientNetworkLoaded() {
-  static std::once_flag once;
-  std::call_once(once, []() { gmp::client::LoadNetworkLibrary(); });
-}
-
-class ImmediateTaskScheduler : public gmp::TaskScheduler {
-public:
-  void ScheduleOnMainThread(Task task) override {
-    task();
-  }
+  std::mutex mutex_;
+  std::deque<Task> pending_;
 };
 
 class RecordingEventObserver : public gmp::client::EventObserver {
 public:
-  RecordingEventObserver()
-      : connected_future_(connected_promise_.get_future()),
-        resources_ready_future_(resources_ready_promise_.get_future()),
-        local_join_future_(local_join_promise_.get_future()),
-        local_spawn_future_(local_spawn_promise_.get_future()),
-        failure_future_(failure_promise_.get_future()),
-        disconnected_future_(disconnected_promise_.get_future()) {
-  }
-
-  std::future<void>& ConnectedFuture() {
-    return connected_future_;
-  }
-
-  std::future<void>& DisconnectedFuture() {
-    return disconnected_future_;
-  }
-
-  std::future<void>& ResourcesReadyFuture() {
-    return resources_ready_future_;
-  }
-
-  std::future<std::uint64_t>& LocalJoinedFuture() {
-    return local_join_future_;
-  }
-
-  std::future<std::uint64_t>& LocalSpawnedFuture() {
-    return local_spawn_future_;
-  }
-
-  std::future<std::string>& FailureFuture() {
-    return failure_future_;
-  }
-
-  std::size_t LastResourceCount() const {
-    return last_resource_count_.load(std::memory_order_relaxed);
-  }
-
-  std::uint64_t LastResourceBytes() const {
-    return last_resource_bytes_.load(std::memory_order_relaxed);
-  }
-
-  void OnConnected() override {
-    Fulfill(connected_promise_, connected_flag_);
-  }
-
-  void OnDisconnected() override {
-    Fulfill(disconnected_promise_, disconnected_flag_);
-  }
-
-  void OnConnectionFailed(const std::string& error) override {
-    FulfillValue(failure_promise_, failure_flag_, error);
-  }
-
-  bool RequestResourceDownloadConsent(std::size_t resource_count, std::uint64_t total_bytes) override {
-    last_resource_count_.store(resource_count, std::memory_order_relaxed);
-    last_resource_bytes_.store(total_bytes, std::memory_order_relaxed);
-    return true;
-  }
-
-  void OnResourcesReady() override {
-    Fulfill(resources_ready_promise_, resources_flag_);
-  }
-
-  void OnLocalPlayerJoined(gmp::client::Player& player) override {
-    FulfillValue(local_join_promise_, local_join_flag_, player.id());
-  }
-
+  void OnConnected() override { ++connected; }
+  void OnDisconnected() override { ++disconnected; }
+  void OnConnectionFailed(const std::string& reason) override { ++failed; error = reason; }
+  void OnConnectionLost() override { error = "Connection lost"; }
+  void OnConnectionClosed(const std::string& reason) override { error = reason; }
+  void OnResourceDownloadFailed(const std::string& reason) override { error = reason; }
+  void OnResourcesReady() override { ++resources_ready; }
+  void OnLocalPlayerJoined(gmp::client::Player& player) override { local_id = player.id(); }
   void OnLocalPlayerSpawned(gmp::client::Player& player) override {
-    FulfillValue(local_spawn_promise_, local_spawn_flag_, player.id());
+    spawned_id = player.id();
+    ++spawned;
   }
 
-private:
-  static void Fulfill(std::promise<void>& promise, std::once_flag& flag) {
-    std::call_once(flag, [&promise]() { promise.set_value(); });
-  }
-
-  template <typename T>
-  static void FulfillValue(std::promise<T>& promise, std::once_flag& flag, T value) {
-    std::call_once(flag, [&promise, value = std::move(value)]() mutable { promise.set_value(std::move(value)); });
-  }
-
-  std::promise<void> connected_promise_;
-  std::promise<void> resources_ready_promise_;
-  std::promise<std::uint64_t> local_join_promise_;
-  std::promise<std::uint64_t> local_spawn_promise_;
-  std::promise<std::string> failure_promise_;
-  std::promise<void> disconnected_promise_;
-
-  std::future<void> connected_future_;
-  std::future<void> resources_ready_future_;
-  std::future<std::uint64_t> local_join_future_;
-  std::future<std::uint64_t> local_spawn_future_;
-  std::future<std::string> failure_future_;
-  std::future<void> disconnected_future_;
-
-  std::once_flag connected_flag_;
-  std::once_flag resources_flag_;
-  std::once_flag local_join_flag_;
-  std::once_flag local_spawn_flag_;
-  std::once_flag failure_flag_;
-  std::once_flag disconnected_flag_;
-
-  std::atomic<std::size_t> last_resource_count_{0};
-  std::atomic<std::uint64_t> last_resource_bytes_{0};
+  int connected = 0;
+  int disconnected = 0;
+  int failed = 0;
+  int resources_ready = 0;
+  int spawned = 0;
+  std::optional<std::uint64_t> local_id;
+  std::optional<std::uint64_t> spawned_id;
+  std::string error;
 };
-
-std::string BuildFailureMessage(const char* phase, std::future<std::string>& failure_future) {
-  if (failure_future.valid() && failure_future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
-    return std::string("Client reported failure while waiting for ") + phase + ": " + failure_future.get();
-  }
-  return std::string("Timed out while waiting for ") + phase;
-}
-
-template <typename Future>
-bool WaitForFutureWithPump(Future& future, gmp::client::GameClient& client, std::chrono::milliseconds timeout,
-                           std::future<std::string>* failure_future) {
-  const auto deadline = std::chrono::steady_clock::now() + timeout;
-  while (std::chrono::steady_clock::now() < deadline) {
-    if (future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
-      return true;
-    }
-
-    if (failure_future && failure_future->valid() && failure_future->wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
-      return false;
-    }
-
-    client.HandleNetwork();
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  }
-
-  return future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready;
-}
-
-}  // namespace
 
 class RealClientConnectionTest : public ::testing::Test {
 protected:
+  explicit RealClientConnectionTest(std::uint32_t slots = 12, bool ban_loopback = false) : workspace_(slots, ban_loopback) {}
+
   void SetUp() override {
-    EnsureClientNetworkLoaded();
     ASSERT_TRUE(server_.Init());
+    client_ = std::make_unique<gmp::client::GameClient>(observer_, scheduler_);
+    endpoint_ = "127.0.0.1:" + std::to_string(server_.GetPort());
   }
 
   void TearDown() override {
     if (client_) {
       client_->Disconnect();
+      // Disconnect joins the downloader. Drain its remaining callbacks while
+      // both the client and observer still exist.
+      scheduler_.Dispatch();
       client_.reset();
     }
   }
 
-  TestServerWorkspace workspace_;
+  template <typename Predicate>
+  bool PumpUntil(Predicate ready, std::chrono::seconds timeout = std::chrono::seconds(5)) {
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    do {
+      client_->HandleNetwork();
+      scheduler_.Dispatch();
+      if (!observer_.error.empty()) return false;
+      if (ready()) return true;
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    } while (std::chrono::steady_clock::now() < deadline);
+    return false;
+  }
+
+  void ExpectConnectionRejected(Net::CloseReason reason) {
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (observer_.failed == 0 && std::chrono::steady_clock::now() < deadline) {
+      client_->HandleNetwork();
+      scheduler_.Dispatch();
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+    ASSERT_EQ(observer_.failed, 1) << "No connection rejection callback: " << observer_.error;
+    EXPECT_EQ(observer_.connected, 0);
+    EXPECT_EQ(observer_.resources_ready, 0);
+    EXPECT_FALSE(observer_.local_id.has_value());
+    EXPECT_FALSE(client_->IsConnected());
+    EXPECT_EQ(client_->GetConnectionState(), gmp::client::GameClient::ConnectionState::Failed);
+    EXPECT_EQ(client_->GetConnectionCloseReason(), reason);
+    EXPECT_FALSE(client_->GetConnectionError().empty());
+  }
+  ConnectionTestWorkspace workspace_;
   GameServer server_;
-  ImmediateTaskScheduler scheduler_;
+  TestTaskScheduler scheduler_;
   RecordingEventObserver observer_;
   std::unique_ptr<gmp::client::GameClient> client_;
+  std::string endpoint_;
 };
 
 TEST_F(RealClientConnectionTest, GameClientDownloadsResourcesAndJoinsServer) {
-  client_ = std::make_unique<gmp::client::GameClient>(observer_, scheduler_);
+  client_->ConnectAsync(endpoint_);
+  ASSERT_TRUE(PumpUntil([&] { return observer_.connected == 1; })) << observer_.error;
+  EXPECT_TRUE(client_->IsConnected());
+  ASSERT_TRUE(PumpUntil([&] { return observer_.resources_ready == 1; }, std::chrono::seconds(15))) << observer_.error;
 
-  std::ostringstream endpoint;
-  endpoint << "127.0.0.1:" << server_.GetPort();
-
-  auto& failure_future = observer_.FailureFuture();
-  auto& connected_future = observer_.ConnectedFuture();
-  auto& resources_future = observer_.ResourcesReadyFuture();
-  auto& joined_future = observer_.LocalJoinedFuture();
-  auto& spawned_future = observer_.LocalSpawnedFuture();
-
-  client_->ConnectAsync(endpoint.str());
-
-  ASSERT_TRUE(WaitForFutureWithPump(connected_future, *client_, std::chrono::seconds(5), &failure_future))
-      << BuildFailureMessage("connection", failure_future);
-  connected_future.get();
-
-  ASSERT_TRUE(WaitForFutureWithPump(resources_future, *client_, std::chrono::seconds(15), &failure_future))
-      << BuildFailureMessage("resource preparation", failure_future);
-  resources_future.get();
-  EXPECT_GT(observer_.LastResourceCount(), 0u);
-  EXPECT_GT(observer_.LastResourceBytes(), 0u);
+  // This must transfer a real archive over the resource HTTP endpoint, not
+  // pass merely because the server advertised an empty resource list.
+  const auto resources = client_->ConsumeDownloadedResources();
+  ASSERT_EQ(resources.size(), 1u);
+  EXPECT_EQ(resources.front().descriptor.name, "connection_test");
+  EXPECT_FALSE(resources.front().manifest_json.empty());
+  EXPECT_FALSE(resources.front().archive_bytes.empty());
+  ASSERT_TRUE(observer_.local_id.has_value());
+  EXPECT_NE(*observer_.local_id, 0u);
+  EXPECT_EQ(client_->GetServerName(), "Connection test server");
+  EXPECT_EQ(client_->GetMaxSlots(), 12u);
 
   client_->JoinGame("RealClientUser", "RealClientUser", "", 0, "", 0, 0);
-
-  ASSERT_TRUE(WaitForFutureWithPump(joined_future, *client_, std::chrono::seconds(5), &failure_future))
-      << BuildFailureMessage("join acknowledgment", failure_future);
-  auto local_player_id = joined_future.get();
-
-  ASSERT_TRUE(WaitForFutureWithPump(spawned_future, *client_, std::chrono::seconds(10), &failure_future))
-      << BuildFailureMessage("spawn event", failure_future);
-  auto spawned_player_id = spawned_future.get();
-
-  EXPECT_EQ(local_player_id, spawned_player_id);
-  EXPECT_EQ(server_.GetPlayerManager().GetPlayerCount(), 1u);
+  ASSERT_TRUE(PumpUntil([&] { return observer_.spawned == 1; })) << observer_.error;
+  EXPECT_EQ(observer_.local_id, observer_.spawned_id);
+  EXPECT_TRUE(client_->player_manager().GetLocalPlayer().has_spawned());
 }
 
-TEST_F(RealClientConnectionTest, GameClientDisconnectsCorrectly) {
-  client_ = std::make_unique<gmp::client::GameClient>(observer_, scheduler_);
-
-  std::ostringstream endpoint;
-  endpoint << "127.0.0.1:" << server_.GetPort();
-
-  auto& failure_future = observer_.FailureFuture();
-  auto& connected_future = observer_.ConnectedFuture();
-  auto& disconnected_future = observer_.DisconnectedFuture();
-
-  client_->ConnectAsync(endpoint.str());
-
-  ASSERT_TRUE(WaitForFutureWithPump(connected_future, *client_, std::chrono::seconds(5), &failure_future))
-      << BuildFailureMessage("connection", failure_future);
-  connected_future.get();
-
-  // Wait a bit to ensure server sees the connection
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
-  EXPECT_EQ(server_.GetPlayerManager().GetPlayerCount(), 1u);
+TEST_F(RealClientConnectionTest, GameClientDisconnectsAndReconnects) {
+  client_->ConnectAsync(endpoint_);
+  ASSERT_TRUE(PumpUntil([&] { return observer_.resources_ready == 1 && observer_.connected == 1; }, std::chrono::seconds(15)))
+      << observer_.error;
+  client_->JoinGame("ReturningClient", "ReturningClient", "", 0, "", 0, 0);
+  ASSERT_TRUE(PumpUntil([&] { return observer_.spawned == 1; })) << observer_.error;
 
   client_->Disconnect();
-
-  ASSERT_TRUE(WaitForFutureWithPump(disconnected_future, *client_, std::chrono::seconds(5), &failure_future))
-      << BuildFailureMessage("disconnection", failure_future);
-  disconnected_future.get();
-
+  EXPECT_EQ(observer_.disconnected, 1);
   EXPECT_FALSE(client_->IsConnected());
+  EXPECT_EQ(client_->GetConnectionState(), gmp::client::GameClient::ConnectionState::Disconnected);
+  EXPECT_EQ(client_->GetConnectionCloseReason(), Net::CloseReason::Normal);
+  EXPECT_FALSE(client_->player_manager().HasLocalPlayer());
 
-  // Wait for server to process disconnection
-  auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
-  bool server_saw_disconnect = false;
-  while (std::chrono::steady_clock::now() < deadline) {
-    if (server_.GetPlayerManager().GetPlayerCount() == 0) {
-      server_saw_disconnect = true;
-      break;
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  }
-
-  EXPECT_TRUE(server_saw_disconnect) << "Server did not register disconnection";
+  client_->ConnectAsync(endpoint_);
+  ASSERT_TRUE(PumpUntil([&] { return observer_.resources_ready == 2 && observer_.connected == 2; }, std::chrono::seconds(15)))
+      << observer_.error;
+  ASSERT_EQ(client_->ConsumeDownloadedResources().size(), 1u);
+  client_->JoinGame("ReturningClient", "ReturningClient", "", 0, "", 0, 0);
+  ASSERT_TRUE(PumpUntil([&] { return observer_.spawned == 2; })) << observer_.error;
+  EXPECT_EQ(observer_.local_id, observer_.spawned_id);
+  EXPECT_TRUE(client_->IsConnected());
 }
+
+TEST_F(RealClientConnectionTest, JoinAppearanceIsUsedByTheFirstSpawnAndStreamedToOtherPlayers) {
+  FakeClient viewer("AppearanceViewer");
+  ASSERT_TRUE(viewer.Connect("127.0.0.1", server_.GetPort()));
+  client_->ConnectAsync(endpoint_);
+  ASSERT_TRUE(PumpUntil([&] {
+    viewer.Pulse();
+    return observer_.resources_ready == 1 && viewer.InitialInfo().has_value();
+  }, std::chrono::seconds(15))) << observer_.error;
+  client_->JoinGame("AppearanceProbe", "AppearanceProbe", "HUM_BODY_BABE0", 12, "HUM_HEAD_THIEF", 162, 1, 0, 0, "HUMANS_BABE.MDS");
+  ASSERT_TRUE(PumpUntil([&] { return observer_.spawned == 1; })) << observer_.error;
+  const auto& local = client_->player_manager().GetLocalPlayer();
+  EXPECT_EQ(local.body_model(), "HUM_BODY_BABE0");
+  EXPECT_EQ(local.body_texture(), 12);
+  EXPECT_EQ(local.head_model(), "HUM_HEAD_THIEF");
+  EXPECT_EQ(local.head_texture(), 162);
+  EXPECT_EQ(local.walk_style(), 1);
+  EXPECT_EQ(local.overlays(), std::vector<std::string>{"HUMANS_BABE.MDS"});
+  client_->SendPlayerWorldEnter("NEWWORLD\\NEWWORLD.ZEN");
+  ASSERT_TRUE(PumpUntil([&] {
+    viewer.Pulse();
+    return viewer.FindSpawn(static_cast<std::uint32_t>(local.id())) != nullptr;
+  })) << viewer.Error();
+  const auto& remote = *viewer.FindSpawn(static_cast<std::uint32_t>(local.id()));
+  EXPECT_EQ(remote.body_model, local.body_model());
+  EXPECT_EQ(remote.head_model, local.head_model());
+  EXPECT_EQ(remote.overlays, local.overlays());
+}
+
+TEST_F(RealClientConnectionTest, ServerCreatorCanOverrideJoinAppearanceBeforeTheFirstSpawn) {
+  client_->ConnectAsync(endpoint_);
+  ASSERT_TRUE(PumpUntil([&] { return observer_.resources_ready == 1; }, std::chrono::seconds(15))) << observer_.error;
+  client_->JoinGame("AppearanceOverrideProbe", "AppearanceOverrideProbe", "HUM_BODY_BABE0", 12, "HUM_HEAD_THIEF", 162, 0, 0, 0,
+                    "HUMANS_BABE.MDS");
+  ASSERT_TRUE(PumpUntil([&] { return observer_.spawned == 1; })) << observer_.error;
+  const auto& local = client_->player_manager().GetLocalPlayer();
+  EXPECT_EQ(local.body_model(), "HUM_BODY_NAKED0");
+  EXPECT_EQ(local.body_texture(), 2);
+  EXPECT_EQ(local.head_model(), "HUM_HEAD_BALD");
+  EXPECT_EQ(local.head_texture(), 7);
+  EXPECT_TRUE(local.overlays().empty());
+}
+
+class FullServerConnectionTest : public RealClientConnectionTest {
+protected:
+  FullServerConnectionTest() : RealClientConnectionTest(1) {}
+};
+
+TEST_F(FullServerConnectionTest, GameClientReceivesServerFullBeforeAcceptance) {
+  FakeClient occupying_client("OccupyingUser");
+  ASSERT_TRUE(occupying_client.Connect("127.0.0.1", server_.GetPort()));
+  ASSERT_TRUE(PumpUntil([&] {
+    occupying_client.Pulse();
+    return occupying_client.InitialInfo().has_value();
+  })) << occupying_client.Error();
+  ASSERT_TRUE(occupying_client.IsConnected());
+  EXPECT_EQ(occupying_client.InitialInfo()->max_slots, 1u);
+
+  client_->ConnectAsync(endpoint_);
+  ExpectConnectionRejected(Net::CloseReason::ServerFull);
+  EXPECT_TRUE(occupying_client.IsConnected());
+}
+
+class BannedClientConnectionTest : public RealClientConnectionTest {
+protected:
+  BannedClientConnectionTest() : RealClientConnectionTest(12, true) {}
+};
+
+TEST_F(BannedClientConnectionTest, GameServerBanManagerRejectsLoopbackBeforeAcceptance) {
+  client_->ConnectAsync(endpoint_);
+  ExpectConnectionRejected(Net::CloseReason::Banned);
+}
+}  // namespace

@@ -37,6 +37,8 @@ SOFTWARE.
 
 #include "Button.h"
 
+#include "language.h"
+
 using namespace G2W;
 
 Button::Button(int x, int y, int width, int height){
@@ -68,11 +70,13 @@ void Button::render(){
 	surface = new Gothic_II_Addon::zCView(x,y,x+width,y+height);
 	if(highlight){
 		surface->InsertBack(Gothic_II_Addon::zSTRING(highlightTexture));
-		surface->SetFont(Gothic_II_Addon::zSTRING(highlightFont->texture));
+		const auto fontName = Language::Instance().ApplyFontPrefix(highlightFont->texture);
+		surface->SetFont(Gothic_II_Addon::zSTRING(fontName.c_str()));
 		surface->SetFontColor(Gothic_II_Addon::zCOLOR(highlightFont->r,highlightFont->g,highlightFont->b)); 
 	}else{
 		surface->InsertBack(Gothic_II_Addon::zSTRING(texture));
-		surface->SetFont(Gothic_II_Addon::zSTRING(font->texture));
+		const auto fontName = Language::Instance().ApplyFontPrefix(font->texture);
+		surface->SetFont(Gothic_II_Addon::zSTRING(fontName.c_str()));
 		surface->SetFontColor(Gothic_II_Addon::zCOLOR(font->r,font->g,font->b)); 
 	}
 	

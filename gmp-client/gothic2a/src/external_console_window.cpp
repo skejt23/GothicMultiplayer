@@ -26,10 +26,16 @@ SOFTWARE.
 
 #include <windows.h>
 
+#include <algorithm>
+#include <cctype>
+#include <iostream>
 #include <memory>
 #include <mutex>
+#include <string>
 
 #include "config.h"
+#include "external_console_commands.hpp"
+#include "spdlog/spdlog.h"
 
 namespace {
 static std::unique_ptr<ExternalConsoleWindow> g_instance;
@@ -56,6 +62,7 @@ void ExternalConsoleWindow::SavePosition() {
 ExternalConsoleWindow::ExternalConsoleWindow() {
   if (EnsureConsoleAvailable()) {
     RedirectStdStreamsToConsole();
+    StartInputThread();
 
     if (auto& opt_pos = Config::Instance().GetConsolePosition(); opt_pos) {
       ::SetWindowPos(hwnd, nullptr, opt_pos->x, opt_pos->y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
@@ -84,4 +91,23 @@ void ExternalConsoleWindow::RedirectStdStreamsToConsole() {
   // stdin (optional, but useful for interactive cases)
   freopen_s(&fp, "CONIN$", "r", stdin);
   setvbuf(stdin, nullptr, _IONBF, 0);
+}
+
+void ExternalConsoleWindow::StartInputThread() {
+  input_thread_ = std::thread([this]() { ProcessConsoleInput(); });
+  input_thread_.detach();
+}
+
+void ExternalConsoleWindow::ProcessConsoleInput() {
+  SPDLOG_INFO("Debug console command input ready. Type 'help' for commands.");
+  std::string command;
+  while (std::getline(std::cin, command)) {
+    command.erase(command.begin(),
+                  std::find_if(command.begin(), command.end(), [](unsigned char ch) { return !std::isspace(ch); }));
+    command.erase(std::find_if(command.rbegin(), command.rend(), [](unsigned char ch) { return !std::isspace(ch); }).base(), command.end());
+    if (command.empty()) {
+      continue;
+    }
+    ExecuteExternalConsoleCommand(command.c_str());
+  }
 }

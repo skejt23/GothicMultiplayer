@@ -24,6 +24,8 @@ SOFTWARE.
 
 #pragma once
 
+#include <thread>
+
 class ExternalConsoleWindow {
 public:
   /**
@@ -47,6 +49,10 @@ private:
   ExternalConsoleWindow(const ExternalConsoleWindow&) = delete;
   ExternalConsoleWindow& operator=(const ExternalConsoleWindow&) = delete;
 
+  void StartInputThread();
+  void ProcessConsoleInput();
   void RedirectStdStreamsToConsole();
   bool EnsureConsoleAvailable();
+
+  std::thread input_thread_;
 };

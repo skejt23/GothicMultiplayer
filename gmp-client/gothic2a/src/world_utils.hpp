@@ -36,3 +36,10 @@ void CleanupWorldObjects(oCWorld* world);
  * Deletes all NPCs from the world and disables NPC spawning. Excludes the player character.
  */
 void DeleteAllNpcsAndDisableSpawning();
+
+// Clear native focus references before removing an actor (null clears all).
+void ClearNpcFocusReferences(oCNpc* target = nullptr);
+
+// Drop borrowed rendering/world pointers while the old world is still alive.
+void PrepareWorldChange();
+void ResetWorldRenderState();

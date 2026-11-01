@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 # Default paths - can be configured
 DEFAULT_GOTHIC_PATH = r"D:\SteamLibrary\steamapps\common\Gothic II\system\Gothic.exe"
-DEFAULT_GMP_LAUNCHER_PATH = r"D:\SteamLibrary\steamapps\common\Gothic II\system\GMPLauncher.exe"
+DEFAULT_GMP_LAUNCHER_PATH = r"D:\SteamLibrary\steamapps\common\Gothic II\Multiplayer\GMPLauncher.exe"
 SCREENSHOT_DIR = Path(__file__).parent / "screenshots"
 
 
@@ -143,9 +143,9 @@ class GothicGameManager:
         # if use_launcher:
         #     exe_path = self.launcher_path
         #     if not os.path.exists(exe_path):
-        #         # Fallback to looking in the same dir as gothic
+        #         # Fallback to the Multiplayer directory beside System
         #         gothic_dir = os.path.dirname(self.gothic_path)
-        #         exe_path = os.path.join(gothic_dir, "GMPLauncher.exe")
+        #         exe_path = os.path.join(os.path.dirname(gothic_dir), "Multiplayer", "GMPLauncher.exe")
         # else:
         #     exe_path = self.gothic_path
         

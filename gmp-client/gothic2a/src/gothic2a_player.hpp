@@ -33,9 +33,12 @@ SOFTWARE.
 #pragma once
 
 #include <cstdint>
+#include <string>
+#include <functional>
 
 #include "ZenGin/zGothicAPI.h"
 #include "players.hpp"
+#include "animation_sync.h"
 
 class CInterpolatePos;
 
@@ -66,6 +69,11 @@ public:
   ~Gothic2APlayer();
 
   void AnalyzePosition(zVEC3& Pos);
+  void AnalyzePose(const zVEC3& position, const zVEC3& heading, std::uint64_t source_time_ms, bool teleport = false);
+  void QueuePresentation(std::uint64_t source_time_ms, std::function<void()> apply);
+  const gmp::ActorPresentationEpochs& presentation_epochs() const { return presentation_epochs_; }
+  void InvalidatePresentation(std::uint16_t components) { presentation_epochs_.Invalidate(components); }
+  double PresentationTime(double local_time_ms) const;
   static void DeleteAllPlayers();
   void DisablePlayer();
   int GetHealth();
@@ -84,9 +92,19 @@ public:
   void SetName(const char* Name);
   void SetNameColor(const zCOLOR& color);
   const zCOLOR& GetNameColor() const { return name_color_; }
+  void StopPositionInterpolation();
+  bool MarkAnimationHandled(const std::string& animation_name);
+  void ClearHandledAnimation();
+  void SetRemoteLightEffect(oCVisualFX* effect);
+  void ClearRemoteLightEffect();
+  void UpdateMagicPresentation();
   void SetNpc(oCNpc* npc);
+  void RememberTransformationInstance(oCNpc* original);
+  std::string GetTransformationReturnInstance() const;
+  bool ReplaceNpcInstance(int instance_id);
+  std::uint32_t initialized_instance_revision{0};
   void SetNpcType(NpcType Type);
-  void SetPosition(zVEC3& pos);
+  void SetPosition(const zVEC3& pos);
   void SetPosition(float x, float y, float z);
   gmp::client::Player& base_player() {
     return base_player_;
@@ -98,4 +116,10 @@ private:
   CInterpolatePos* InterPos;
   int ScriptInstance;
   zCOLOR name_color_{255, 255, 255, 255};
+  std::string last_handled_animation_name_;
+  gmp::ActorPresentationEpochs presentation_epochs_;
+  std::string transformation_return_instance_;
+  std::uint64_t transformation_return_generation_{0};
+  // Owns the transferred effect reference, independently of selected runes.
+  oCVisualFX* remote_light_effect_{nullptr};
 };

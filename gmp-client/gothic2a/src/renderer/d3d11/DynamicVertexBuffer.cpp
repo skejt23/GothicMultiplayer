@@ -62,7 +62,6 @@ bool DynamicVertexBuffer::Init(ID3D11Device* device, uint32_t sizeInBytes, uint3
   stride_ = vertexStride;
   writeOffset_ = 0;
 
-  SPDLOG_DEBUG("DynamicVertexBuffer created: {} bytes, stride {}", sizeInBytes, vertexStride);
   return true;
 }
 
@@ -184,7 +183,6 @@ bool DynamicIndexBuffer::Init(ID3D11Device* device, uint32_t sizeInBytes, bool u
   format_ = use16Bit ? DXGI_FORMAT_R16_UINT : DXGI_FORMAT_R32_UINT;
   writeOffset_ = 0;
 
-  SPDLOG_DEBUG("DynamicIndexBuffer created: {} bytes, {} bit indices", sizeInBytes, use16Bit ? 16 : 32);
   return true;
 }
 

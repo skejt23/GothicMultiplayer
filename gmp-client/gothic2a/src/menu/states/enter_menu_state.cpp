@@ -90,21 +90,9 @@ void EnterMenuState::CreateTitleLogo() {
 }
 
 void EnterMenuState::SetupMenuScene() {
-  // Increase spawn manager range for menu world
-  oCSpawnManager::SetRemoveRange(2097152.0f);
-
-  // Create camera weapon placeholder
-  context_.cameraWeapon = zfactory->CreateItem(zCParser::GetParser()->GetIndex("ItMw_1h_Mil_Sword"));
-  context_.cameraWeapon->name.Clear();
-  context_.cameraWeapon->SetPositionWorld(zVEC3(13354.502930f, 2040.0f, -1141.678467f));
-  context_.cameraWeapon->RotateWorldY(-150);
-  context_.game->CamInit(context_.cameraWeapon, zCCamera::activeCam);
-
-  // Create title weapon
-  context_.titleWeapon = zfactory->CreateItem(zCParser::GetParser()->GetIndex("ItMw_1H_Blessed_03"));
-  context_.titleWeapon->SetPositionWorld(zVEC3(13346.502930f, 2006.0f, -1240.678467f));
-
-  SPDLOG_INFO("Created menu scene with camera and title weapon");
+  // Bootstrap only schedules creation; the common menu update waits for the
+  // world, current hero and render camera before invoking a scene factory.
+  context_.sceneManager.Configure(context_.config.extended_menu_scenes);
 }
 
 void EnterMenuState::PrepareMenuEnvironment() {
@@ -125,7 +113,7 @@ void EnterMenuState::StartMenuMusic() {
   }
 
   // Load and play the menu theme
-  const char* kMenuMusicPath = ".\\Multiplayer\\Music\\main_menu_theme_1.mp3";
+  const char* kMenuMusicPath = "main_menu_theme_1.mp3";
   if (context_.menuMusicPlayer->Load(kMenuMusicPath)) {
     context_.menuMusicPlayer->SetMuteGothicMusic(true);  // Mute Gothic's music while playing.
     context_.menuMusicPlayer->Play(true);  // Loop the music.

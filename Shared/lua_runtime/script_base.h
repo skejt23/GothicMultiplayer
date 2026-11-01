@@ -29,8 +29,10 @@ SOFTWARE.
 #include "spdlog_bind.h"
 #include "shared_bind.h"
 #include "timer_manager.h"
-#include "math_bind.h"
-#include "utility_bind.h"
+#include "lua_constants.h"
+#include "lua_diagnostics.h"
+#include "lua_math.h"
+#include "lua_utility.h"
 
 namespace lua {
 
@@ -83,14 +85,9 @@ struct TrustedPolicy {
 // Exception/panic handlers (shared)
 namespace detail {
 inline int script_exception_handler(lua_State* L, sol::optional<const std::exception&> maybe_exception, sol::string_view description) {
-  SPDLOG_ERROR("An exception occurred in a function, here's what it says ");
   if (maybe_exception) {
-    SPDLOG_ERROR("(straight from the exception): ");
     const std::exception& ex = *maybe_exception;
-    SPDLOG_ERROR(ex.what());
-  } else {
-    SPDLOG_ERROR("(from the description parameter): ");
-    SPDLOG_ERROR("{}", description.data());
+    return sol::stack::push(L, ex.what());
   }
   return sol::stack::push(L, description);
 }
@@ -143,6 +140,7 @@ protected:
 
     lua_.set_exception_handler(&detail::script_exception_handler);
     lua_.set_panic(sol::c_call<decltype(&detail::script_panic), &detail::script_panic>);
+    diagnostics::InstallErrorHandler(lua_);
 
     // Bind shared functionality
     bindings::Bind_spdlog(lua_);

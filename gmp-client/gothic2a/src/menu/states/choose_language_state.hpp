@@ -24,6 +24,8 @@ SOFTWARE.
 
 #pragma once
 
+#include "Button.h"
+#include "Table.h"
 #include "menu/menu_context.hpp"
 #include "menu/states/menu_state.hpp"
 
@@ -31,22 +33,30 @@ namespace menu {
 namespace states {
 
 /**
- * @brief State for choosing the game language on first launch
+ * @brief State for first-launch setup (language + nickname)
  *
- * This state allows the player to select their preferred language
- * when they run the game for the first time (or when no language is configured).
- * Uses LanguageManager to access available languages.
+ * This state allows the player to configure language and nickname
+ * in a single screen, then confirm via the Accept button.
  */
 class ChooseLanguageState : public MenuState {
 private:
   MenuContext& context_;
 
+  enum class SetupItem {
+    NICKNAME = 0,
+    LANGUAGE = 1,
+    ACCEPT = 2,
+  };
+
   int selectedLanguage_;
-  bool shouldTransitionToNickname_;
+  SetupItem selectedItem_;
+  bool isEditingNickname_;
+  bool shouldTransitionToMainMenu_;
+  zSTRING currentNickname_;
 
 public:
   explicit ChooseLanguageState(MenuContext& context);
-  ~ChooseLanguageState() override = default;
+  ~ChooseLanguageState() override;
 
   // MenuState interface
   void OnEnter() override;
@@ -58,9 +68,13 @@ public:
   }
 
 private:
+  void InitializeControls();
   void ApplySelectedLanguage();
-  void RenderLanguageSelection();
+  void RenderSetup();
   void HandleInput();
+
+  G2W::Table* setupTable_;
+  G2W::Button* acceptButton_;
 };
 
 }  // namespace states

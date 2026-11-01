@@ -25,114 +25,113 @@ SOFTWARE.
 
 #include <gtest/gtest.h>
 
-#include <cstdint>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <string>
 #include <system_error>
-#include <vector>
-
-#include <gmock/gmock.h>
 
 #include "ban_manager.h"
-#include "znet_server.h"
 
 namespace {
 
-class MockNetServer : public Net::NetServer {
-public:
-  MOCK_METHOD(void, Pulse, (), (override));
-  MOCK_METHOD(bool, Start, (std::uint32_t, std::uint32_t), (override));
-  MOCK_METHOD(bool, Send, (unsigned char*, std::uint32_t, Net::PacketPriority, Net::PacketReliability, std::uint32_t, Net::ConnectionHandle), (override));
-  MOCK_METHOD(bool, Send, (const char*, std::uint32_t, Net::PacketPriority, Net::PacketReliability, std::uint32_t, Net::ConnectionHandle), (override));
-  MOCK_METHOD(void, AddToBanList, (const char*, std::uint32_t), (override));
-  MOCK_METHOD(void, AddToBanList, (Net::ConnectionHandle, std::uint32_t), (override));
-  MOCK_METHOD(void, RemoveFromBanList, (const char*), (override));
-  MOCK_METHOD(bool, IsBanned, (const char*), (override));
-  MOCK_METHOD(const char*, GetPlayerIp, (Net::ConnectionHandle), (override));
-  MOCK_METHOD(void, AddPacketHandler, (Net::PacketHandler&), (override));
-  MOCK_METHOD(void, RemovePacketHandler, (Net::PacketHandler&), (override));
-  MOCK_METHOD(std::uint32_t, GetPort, (), (const override));
-  MOCK_METHOD(std::string, GetAddress, (), (const override));
-};
-
 class BanListTest : public ::testing::Test {
 protected:
+  const std::filesystem::path storage_path = std::filesystem::current_path() /
+      ("bans-test-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".json");
+  BanManager manager{storage_path};
+
   void WriteBanFile(const std::string& content) {
-    std::ofstream ofs(std::filesystem::current_path() / "bans.json", std::ios::binary);
-    ASSERT_TRUE(ofs.good()) << "Unable to open bans.json for writing";
+    std::ofstream ofs(storage_path, std::ios::binary);
+    ASSERT_TRUE(ofs.good());
     ofs << content;
   }
 
   void TearDown() override {
     std::error_code ec;
-    std::filesystem::remove(std::filesystem::current_path() / "bans.json", ec);
+    std::filesystem::remove(storage_path, ec);
   }
-
-public:
-  MockNetServer net_server;
-  BanManager manager{net_server};
 };
 
-TEST_F(BanListTest, LoadsValidBanEntries) {
-  constexpr char kJson[] = R"([
-    {
-      "Nickname": "ExamplePlayer",
-      "IP": "198.51.100.10",
-      "Date": "2025-08-30",
-      "Reason": "Testing"
-    }
-  ])";
-
-  WriteBanFile(kJson);
-
-  EXPECT_CALL(net_server, AddToBanList(testing::Matcher<const char*>(testing::StrEq("198.51.100.10")), 0)).Times(1);
-
-  EXPECT_TRUE(manager.Load());
-
-  ASSERT_EQ(1u, manager.GetBanList().size());
-  EXPECT_EQ("ExamplePlayer", manager.GetBanList().front().nickname);
-  EXPECT_EQ("198.51.100.10", manager.GetBanList().front().ip);
-  EXPECT_EQ("2025-08-30", manager.GetBanList().front().date);
-  EXPECT_EQ("Testing", manager.GetBanList().front().reason);
+TEST_F(BanListTest, LoadsAndEnforcesValidBanEntries) {
+  WriteBanFile(R"([{"Nickname":"ExamplePlayer","IP":"198.51.100.10","Date":"2025-08-30","Reason":"Testing"}])");
+  ASSERT_TRUE(manager.Load());
+  ASSERT_EQ(manager.GetBanList().size(), 1u);
+  EXPECT_EQ(manager.GetBanList().front().nickname, "ExamplePlayer");
+  EXPECT_EQ(manager.GetBanList().front().date, "2025-08-30");
+  EXPECT_EQ(manager.GetBanList().front().reason, "Testing");
+  EXPECT_TRUE(manager.IsBanned("198.51.100.10"));
+  EXPECT_FALSE(manager.IsBanned("198.51.100.11"));
+  EXPECT_FALSE(manager.IsBanned(""));
 }
 
-TEST_F(BanListTest, ReturnsEarlyWhenJsonIsNotArray) {
-  constexpr char kJson[] = R"({
-    "IP": "203.0.113.1"
-  })";
-
-  WriteBanFile(kJson);
-
-  EXPECT_CALL(net_server, AddToBanList(testing::Matcher<const char*>(testing::_), testing::_)).Times(0);
-
+TEST_F(BanListTest, RejectsNonArrayAndMalformedJsonWithoutRemovingActiveBans) {
+  manager.AddBan({"player", "203.0.113.1", "", "existing"});
+  WriteBanFile(R"({"IP":"203.0.113.1"})");
   EXPECT_FALSE(manager.Load());
-  EXPECT_TRUE(manager.GetBanList().empty());
+  EXPECT_TRUE(manager.IsBanned("203.0.113.1"));
+  WriteBanFile("not json");
+  EXPECT_FALSE(manager.Load());
+  EXPECT_TRUE(manager.IsBanned("203.0.113.1"));
 }
 
-TEST_F(BanListTest, SkipsEntriesWithoutValidIp) {
-  constexpr char kJson[] = R"([
-    {
-      "Nickname": "NoIP",
-      "Reason": "missing ip"
-    },
-    {
-      "Nickname": "Valid",
-      "IP": "192.0.2.55",
-      "Reason": "ok"
-    }
-  ])";
-
-  WriteBanFile(kJson);
-
-  EXPECT_CALL(net_server, AddToBanList(testing::Matcher<const char*>(testing::StrEq("192.0.2.55")), 0)).Times(1);
-
-  EXPECT_TRUE(manager.Load());
-
-  ASSERT_EQ(1u, manager.GetBanList().size());
-  EXPECT_EQ("Valid", manager.GetBanList().front().nickname);
-  EXPECT_EQ("192.0.2.55", manager.GetBanList().front().ip);
+TEST_F(BanListTest, SkipsMalformedAndEmptyIpEntries) {
+  WriteBanFile(R"([{"Nickname":"NoIP"},{"IP":""},{"IP":123},false,{"Nickname":"Valid","IP":"192.0.2.55"}])");
+  ASSERT_TRUE(manager.Load());
+  ASSERT_EQ(manager.GetBanList().size(), 1u);
+  EXPECT_EQ(manager.GetBanList().front().nickname, "Valid");
+  EXPECT_TRUE(manager.IsBanned("192.0.2.55"));
 }
+
+TEST_F(BanListTest, PersistsUpdatesAndUnbansWithoutTransportState) {
+  manager.AddBan({"first", "192.0.2.55", "", "first reason"});
+  manager.AddBan({"second", "192.0.2.55", "", "updated reason"});
+  ASSERT_EQ(manager.GetBanList().size(), 1u);
+  ASSERT_TRUE(manager.Save());
+
+  BanManager restored(storage_path);
+  ASSERT_TRUE(restored.Load());
+  EXPECT_TRUE(restored.IsBanned("192.0.2.55"));
+  ASSERT_EQ(restored.GetBanList().size(), 1u);
+  EXPECT_EQ(restored.GetBanList().front().nickname, "second");
+  EXPECT_EQ(restored.GetBanList().front().reason, "updated reason");
+  EXPECT_TRUE(restored.RemoveBan("192.0.2.55"));
+  EXPECT_FALSE(restored.IsBanned("192.0.2.55"));
+  EXPECT_FALSE(restored.RemoveBan("192.0.2.55"));
+  ASSERT_TRUE(restored.Save());
+  ASSERT_TRUE(manager.Load());
+  EXPECT_FALSE(manager.IsBanned("192.0.2.55"));
+}
+
+TEST_F(BanListTest, TemporaryIntegrityBanExpiresAndIsNotPersisted) {
+  const BanManager::Clock::time_point now{std::chrono::seconds(10)};
+  manager.AddTemporaryBan("192.0.2.55", std::chrono::hours(1), now);
+  EXPECT_TRUE(manager.IsBanned("192.0.2.55", now));
+  EXPECT_TRUE(manager.IsBanned("192.0.2.55", now + std::chrono::minutes(59)));
+  EXPECT_FALSE(manager.IsBanned("192.0.2.55", now + std::chrono::hours(1)));
+  ASSERT_TRUE(manager.Save());
+  BanManager restored(storage_path);
+  ASSERT_TRUE(restored.Load());
+  EXPECT_FALSE(restored.IsBanned("192.0.2.55", now));
+}
+
+TEST_F(BanListTest, RemovesBothPermanentAndTemporaryBans) {
+  const auto now = BanManager::Clock::now();
+  manager.AddBan({"player", "192.0.2.55", "", "reason"});
+  manager.AddTemporaryBan("192.0.2.55", std::chrono::hours(1), now);
+  EXPECT_TRUE(manager.RemoveBan("192.0.2.55"));
+  EXPECT_FALSE(manager.IsBanned("192.0.2.55", now));
+}
+
+TEST_F(BanListTest, ShorterTemporaryBanDoesNotReduceExistingDuration) {
+  const BanManager::Clock::time_point now{std::chrono::seconds(10)};
+  manager.AddTemporaryBan("192.0.2.55", std::chrono::hours(1), now);
+  manager.AddTemporaryBan("192.0.2.55", std::chrono::minutes(1), now);
+  EXPECT_TRUE(manager.IsBanned("192.0.2.55", now + std::chrono::minutes(30)));
+  manager.AddTemporaryBan("", std::chrono::hours(1), now);
+  EXPECT_FALSE(manager.IsBanned("", now));
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {

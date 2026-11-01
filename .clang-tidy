@@ -1,0 +1,11 @@
+Checks: >
+  -*,
+  bugprone-*,
+  modernize-use-nullptr,
+  modernize-use-override,
+  modernize-use-using,
+  performance-*,
+  readability-braces-around-statements
+WarningsAsErrors: ''
+HeaderFilterRegex: '^(gmp-server|gmp-client|common|Shared)[/\\]'
+FormatStyle: file

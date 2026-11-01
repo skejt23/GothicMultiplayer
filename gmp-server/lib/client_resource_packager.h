@@ -15,6 +15,7 @@ struct ClientResourceDescriptor {
   std::string archive_path;
   std::string archive_sha256;
   std::uint64_t archive_size{0};
+  std::uint64_t manifest_size{0};
   std::optional<std::string> author;
   std::optional<std::string> description;
 };
@@ -24,5 +25,5 @@ public:
   // Builds client resource packages from discovered resources.
   // Returns descriptors for resources that were successfully packed.
   static std::vector<ClientResourceDescriptor> Build(const std::vector<ResourceManager::DiscoveredResource>& resources,
-                                                     const std::string& output_dir = "public");
+                                                     const std::string& output_dir = "data/public");
 };

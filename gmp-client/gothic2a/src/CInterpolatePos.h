@@ -35,22 +35,28 @@ SOFTWARE.
 
 #pragma once
 
+#include <chrono>
+#include <cstdint>
+#include <deque>
+#include <functional>
+
 #include "ZenGin/zGothicAPI.h"
 #include "gothic2a_player.hpp"
+#include "pose_interpolator.h"
 
-// U nas animacja służy za przewidywanie pozycji gracza, więc mamy tu takie gładkie przesuwanie gracza w kierunku prawdziwej pozycji(przesyłanej przez server). 
-// Ewentualnie inne smieci dodamy w przyszłości.
 class CInterpolatePos {
 private:
+  using Clock = std::chrono::steady_clock;
+  struct Presentation {
+    std::uint64_t source_time_ms;
+    std::function<void()> apply;
+  };
   Gothic2APlayer* InterpolatingPlayer;
-  zVEC3 InterpolatingTo;
-  int InterCount;
+  gmp::PoseInterpolator PoseBuffer;
+  std::deque<Presentation> Presentations;
 
 public:
   bool IsInterpolating;
-
-private:
-  void Interpolate(float x, float y, float z, float value, bool NoCollideMode = false);
 
 public:
   CInterpolatePos(Gothic2APlayer* Player);
@@ -58,5 +64,10 @@ public:
   void DoInterpolate();
   bool IsDistanceSmallerThanRadius(float radius, float bX, float bY, float bZ, float rX, float rY, float rZ);
   bool IsDistanceSmallerThanRadius(float radius, const zVEC3& Pos, const zVEC3& Pos1);
+  void StopInterpolation();
   void UpdateInterpolation(float x, float y, float z);
+  void UpdatePoseInterpolation(float x, float y, float z, float nx, float ny, float nz,
+                               std::uint64_t source_time_ms, bool teleport = false);
+  void QueuePresentation(std::uint64_t source_time_ms, std::function<void()> apply);
+  double PresentationTime(double local_time_ms) const { return PoseBuffer.RenderTime(local_time_ms); }
 };

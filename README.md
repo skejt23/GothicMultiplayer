@@ -85,7 +85,13 @@ xmake install -o "C:\Program Files (x86)\Gothic II"
 ### 2. Verify Installation
 After installation, you should find:
 - **Server**: `[Gothic2Directory]\GMP_Server\` - Contains server executable and config files
-- **Client Launcher**: `[Gothic2Directory]\system\GMPLauncher.exe` - Main launcher for the client
+- **Client Launcher**: `[Gothic2Directory]\Multiplayer\GMPLauncher.exe`
+- **Client Runtime**: `[Gothic2Directory]\Multiplayer\Runtime\` - `GMP.dll`, `SDL3.dll`, `BugTrap.dll`, and `discord_game_sdk.dll` (all required)
+- **Client Configuration**: `[Gothic2Directory]\Multiplayer\GMP_Config.toml` - Created on first launch
+
+The launcher locates these paths from its executable location and starts `System\Gothic2.exe` with `System` as the working directory. Shortcuts should point to `Multiplayer\GMPLauncher.exe`; their "Start in" directory does not affect the default game or runtime paths. Gothic's own files, including `Shw32.dll`, stay in `System`.
+
+The runtime updater downloads `GMP.dll` into `Multiplayer\Runtime`. Other runtime DLLs are supplied by the installer. Installing `ClientMain` also installs the launcher.
 
 ## 🎮 Usage
 
@@ -96,9 +102,11 @@ After installation, you should find:
 4. Run the server executable
 
 ### Starting the Client
-1. Navigate to `[Gothic2Directory]\system\`
+1. Navigate to `[Gothic2Directory]\Multiplayer\`
 2. Launch `GMPLauncher.exe`
 3. Connect to a server that you previously started.
+
+For development layouts, pass `--gothic` and `--dll` to select the game executable and `GMP.dll`. Each relative argument is resolved against the invoking directory; `--workdir` only changes the child's working directory. The default child directory is the selected game executable's directory. All GMP runtime dependencies must be alongside the selected DLL.
 
 ## 🧪 Testing
 

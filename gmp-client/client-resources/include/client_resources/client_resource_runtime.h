@@ -63,11 +63,17 @@ private:
     sol::table env;
     sol::table exports;
     std::optional<gmp::resource::ResourcePack> pack;
+    std::vector<sol::protected_function> start_hooks;
+    std::vector<sol::protected_function> stop_hooks;
+    std::vector<const void*> start_hook_ids;
+    std::vector<const void*> stop_hook_ids;
     bool started = false;
   };
 
   void SetupRequire(ResourceInstance& instance);
   bool ExecuteEntryPoints(ResourceInstance& instance, std::string& error_message);
+  void CaptureLifecycleHooks(ResourceInstance& instance);
+  void CaptureLifecycleHook(ResourceInstance& instance, const char* hook);
   bool InvokeLifecycle(ResourceInstance& instance, const char* hook, std::string& error_message);
 
   ClientScript script_;

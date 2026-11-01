@@ -25,6 +25,56 @@ SOFTWARE.
 
 #include "world_utils.hpp"
 
+#include <vector>
+
+#include "CChat.h"
+#include "net_game.h"
+#include "renderer/d3d11/D3D11Renderer.h"
+#include "renderer/d3d9/D3D9Renderer.h"
+
+void ClearNpcFocusReferences(oCNpc* target) {
+  if (!ogame || !ogame->GetGameWorld())
+    return;
+  // Releasing a focus can release another NPC. Retain the complete traversal.
+  std::vector<oCNpc*> npcs;
+  for (auto* entry = ogame->GetGameWorld()->voblist_npcs; entry; entry = entry->next) {
+    if (auto* npc = entry->GetData()) {
+      npc->AddRef();
+      npcs.push_back(npc);
+    }
+  }
+  for (auto* npc : npcs) {
+    if (!target || npc == target || npc->GetFocusVob() == target)
+      npc->ClearFocusVob();
+  }
+  for (auto* npc : npcs) npc->Release();
+}
+
+void PrepareWorldChange() {
+  NetGame::Instance().ClearNativeTransformation();
+  CChat::GetInstance()->CloseInput(true);
+  ClearNpcFocusReferences();
+  ResetWorldRenderState();
+}
+
+void ResetWorldRenderState() {
+  // Loading can change the world's indoor/outdoor controller. Gothic runs AI
+  // during precaching before zCWorld::Render normally activates that controller.
+  if (ogame && ogame->GetGameWorld()) {
+    zCSkyControler::s_activeSkyControler = ogame->GetGameWorld()->GetActiveSkyControler();
+  }
+  if (!zrenderer)
+    return;
+  // Complete queued geometry before releasing the textures it borrows. Unbind
+  // every stage and use the public reset to clear the cached material pointer.
+  zrenderer->FlushPolys();
+  for (unsigned long stage = 0; stage < 4; ++stage) zrenderer->SetTexture(stage, nullptr);
+  if (auto* renderer = dynamic_cast<zCRnd_D3D_DX11*>(zrenderer))
+    renderer->RestoreOpaqueRenderState();
+  if (auto* renderer = dynamic_cast<zCRnd_D3D_DX9*>(zrenderer))
+    renderer->RestoreOpaqueRenderState();
+}
+
 namespace {
 void UnlockLockable(oCMobLockable& lockable) {
   lockable.SetLocked(false);
@@ -34,10 +84,12 @@ void UnlockLockable(oCMobLockable& lockable) {
 }
 
 void EmptyAndUnlockContainer(oCMobContainer& container) {
-  for (zCListSort<oCItem>* entry = &container.containList; entry; entry = entry->next) {
+  for (zCListSort<oCItem>* entry = container.containList.next; entry;) {
+    zCListSort<oCItem>* next = entry->next;
     if (auto* item = entry->data) {
       item->RemoveVobFromWorld();
     }
+    entry = next;
   }
 
   container.containList.DeleteListDatas();
@@ -58,35 +110,52 @@ void CleanupWorldObjects(oCWorld* world) {
     return;
   }
 
-  for (zCTree<zCVob>* node = world->globalVobTree.firstChild; node; node = node->next) {
+  for (zCTree<zCVob>* node = world->globalVobTree.firstChild; node;) {
+    zCTree<zCVob>* next = node->next;
     if (!node->data) {
+      node = next;
       continue;
     }
 
     if (auto* item = zDYNAMIC_CAST<oCItem>(node->data)) {
       item->RemoveVobFromWorld();
+      node = next;
       continue;
     }
 
     if (auto* container = zDYNAMIC_CAST<oCMobContainer>(node->data)) {
       EmptyAndUnlockContainer(*container);
+      node = next;
       continue;
     }
 
     if (auto* door = zDYNAMIC_CAST<oCMobDoor>(node->data)) {
       UnlockLockable(*door);
     }
+    node = next;
   }
 }
 
 void DeleteAllNpcsAndDisableSpawning() {
-  zCListSort<oCNpc>* NpcList = ogame->GetGameWorld()->voblist_npcs;
-  int size = NpcList->GetNumInList();
-  for (int i = 0; i < size; i++) {
-    NpcList = NpcList->next;
-    oCNpc* NpcOnList = NpcList->GetData();
-    if (NpcOnList->GetInstance() != 11471)
-      NpcOnList->Disable();
+  if (!ogame || !ogame->GetGameWorld()) {
+    return;
   }
-  ogame->GetSpawnManager()->SetSpawningEnabled(0);
+
+  auto* npc_list = ogame->GetGameWorld()->voblist_npcs;
+  const int size = npc_list ? npc_list->GetNumInList() : 0;
+  for (int i = 0; npc_list && i < size; ++i) {
+    npc_list = npc_list->next;
+    if (!npc_list || !npc_list->GetData()) {
+      continue;
+    }
+
+    // The parser index of PC_HERO is not stable after an addon GOTHIC.DAT is
+    // loaded. Exclude the actual current hero rather than a magic instance id.
+    if (npc_list->GetData() != Gothic_II_Addon::player) {
+      npc_list->GetData()->Disable();
+    }
+  }
+  if (ogame->GetSpawnManager()) {
+    ogame->GetSpawnManager()->SetSpawningEnabled(0);
+  }
 }

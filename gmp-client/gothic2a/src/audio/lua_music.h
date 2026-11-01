@@ -38,7 +38,7 @@ namespace gmp::lua {
  * @brief Lua wrapper for MusicPlayer that provides a script-friendly API.
  *
  * Example Lua usage:
- *   local music = Music.new("music/theme.mp3")
+ *   local music = Music.new("theme.mp3")
  *   music.volume = 0.8
  *   music.looping = true
  *   music:play()

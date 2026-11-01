@@ -26,110 +26,134 @@ SOFTWARE.
 
 #include <bitsery/adapter/buffer.h>
 #include <bitsery/bitsery.h>
-#include <spdlog/spdlog.h>
 
-#include <dylib.hpp>
-#include <functional>
-#include <mutex>
+#include <algorithm>
+#include <utility>
 
 #include "net_enums.h"
-#include "znet_client.h"
-
-using namespace Net;
-
-static std::function<NetClient*()> create_net_client_func;
-static std::mutex create_net_client_mutex;
 
 namespace {
-void LoadNetworkLibrary() {
-  try {
-    static dylib lib("znet");
-    create_net_client_func = lib.get_function<NetClient*()>("CreateNetClient");
-  } catch (std::exception& ex) {
-    SPDLOG_ERROR("LoadNetworkLibrary error: {}", ex.what());
-    throw;
-  }
+template <typename Packet>
+bool ReadPacket(unsigned char* data, std::uint32_t size, Packet& packet) {
+  const auto state = bitsery::quickDeserialization<bitsery::InputBufferAdapter<unsigned char*>>({data, size}, packet);
+  return state.first == bitsery::ReaderError::NoError && state.second;
 }
 
-void InitClientNetworkLayer() {
-  std::scoped_lock lock(create_net_client_mutex);
-  if (!create_net_client_func) {
-    LoadNetworkLibrary();
-  }
+template <typename Packet>
+bool SendPacket(Net::ClientTransport& client, Packet& packet) {
+  std::vector<std::uint8_t> buffer;
+  const auto size = bitsery::quickSerialization<bitsery::OutputBufferAdapter<std::vector<std::uint8_t>>>(buffer, packet);
+  return client.Send(buffer.data(), static_cast<std::uint32_t>(size), Net::TrafficClass::Control);
 }
-
-template <typename TContainer = std::vector<std::uint8_t>, typename Packet>
-void SerializeAndSend(NetClient* client, const Packet& packet, Net::PacketPriority priority, Net::PacketReliability reliable) {
-  TContainer buffer;
-  auto written_size = bitsery::quickSerialization<bitsery::OutputBufferAdapter<TContainer>>(buffer, packet);
-  client->SendPacket(buffer.data(), written_size, reliable, priority);
-}
-
 }  // namespace
 
-FakeClient::FakeClient(const std::string& username, FakeClientObserver* observer) : username_(username), observer_(observer) {
-  InitClientNetworkLayer();
-  client_ = create_net_client_func();
-  client_->AddPacketHandler(*this);
-  client_thread_ = std::thread([this]() {
-    running_ = true;
-    while (running_) {
-      if (client_->IsConnected()) {
-        client_->Pulse();
-      }
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
-  });
-}
-
-FakeClient::~FakeClient() {
-  running_ = false;
-  client_thread_.join();
-  client_->RemovePacketHandler(*this);
-  delete client_;
+FakeClient::FakeClient(const std::string& username) : username_(username) {
+  client_.SetCallbacks([this](unsigned char* data, std::uint32_t size) { HandlePacket(data, size); },
+                       [this](const Net::ConnectionEvent& event) {
+                         if (event.kind == Net::ConnectionEvent::Kind::Failure ||
+                             (event.kind == Net::ConnectionEvent::Kind::Closed && event.reason != Net::CloseReason::Normal)) {
+                           error_ = event.detail.empty() ? "Transport connection failed" : event.detail;
+                         }
+                       });
 }
 
 bool FakeClient::Connect(const std::string& host, uint16_t port) {
-  return client_->Connect(host.c_str(), port);
+  initial_info_.reset();
+  joins_.clear();
+  spawns_.clear();
+  departures_.clear();
+  messages_.clear();
+  error_.clear();
+  return client_.Connect(host.c_str(), port);
 }
 
-bool FakeClient::HandlePacket(unsigned char* data, std::uint32_t size) {
-  Net::PacketID packet_id = static_cast<Net::PacketID>(data[0]);
-  if (packet_id == Net::PacketID::PT_INITIAL_INFO) {
-    InitialInfoPacket packet;
-    using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
-    auto state = bitsery::quickDeserialization<InputAdapter>({data, size}, packet);
-    SPDLOG_DEBUG("[{}] received: {}", username_, packet);
-    SentJoinGamePacket();
-    return true;
-  } else if (packet_id == Net::PacketID::PT_JOIN_GAME) {
-    JoinGamePacket packet;
-    using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
-    auto state = bitsery::quickDeserialization<InputAdapter>({data, size}, packet);
-    SPDLOG_DEBUG("[{}] received: {}", username_, packet);
-    if (observer_) {
-      observer_->OnJoinGamePacket(packet);
-    }
-    return true;
-  }
-  else if (packet_id == Net::PacketID::PT_EXISTING_PLAYERS) {
-    ExistingPlayersPacket packet;
-    using InputAdapter = bitsery::InputBufferAdapter<unsigned char*>;
-    auto state = bitsery::quickDeserialization<InputAdapter>({data, size}, packet);
-    if (observer_) {
-      observer_->OnExistingPlayersPacket(packet);
-    }
-    return true;
-  }
-  SPDLOG_INFO("[{}] Unhandled packet: {}", username_, PacketIDToString(packet_id));
-  return true;
+void FakeClient::Pulse() {
+  client_.Pulse();
 }
 
-void FakeClient::SentJoinGamePacket() {
-  JoinGamePacket packet;
-  packet.packet_type = PT_JOIN_GAME;
+void FakeClient::Disconnect() {
+  client_.Disconnect();
+}
+
+bool FakeClient::IsConnected() const {
+  return client_.IsConnected();
+}
+
+const PlayerSpawnPacket* FakeClient::FindSpawn(std::uint32_t player_id) const {
+  const auto found = std::find_if(spawns_.begin(), spawns_.end(), [player_id](const auto& packet) {
+    return packet.player_id == player_id;
+  });
+  return found == spawns_.end() ? nullptr : &*found;
+}
+
+bool FakeClient::SendActorAction(ActorActionPacket action) {
+  if (!initial_info_) return false;
+  const auto* actor = FindSpawn(initial_info_->player_id);
+  if (!actor) return false;
+  action.actor_id = actor->player_id;
+  action.actor_generation = actor->actor_generation;
+  action.source_time_ms = ActorClockMilliseconds();
+  return SendPacket(client_, action);
+}
+
+void FakeClient::HandlePacket(unsigned char* data, std::uint32_t size) {
+  if (size == 0) {
+    error_ = "Received an empty gameplay message";
+    return;
+  }
+  switch (static_cast<Net::PacketID>(data[0])) {
+    case Net::PT_INITIAL_INFO: {
+      InitialInfoPacket packet{};
+      if (!ReadPacket(data, size, packet)) break;
+      initial_info_ = std::move(packet);
+      SendJoinGame();
+      return;
+    }
+    case Net::PT_JOIN_GAME: {
+      JoinGamePacket packet{};
+      if (!ReadPacket(data, size, packet)) break;
+      joins_.push_back(std::move(packet));
+      return;
+    }
+    case Net::PT_PLAYER_SPAWN: {
+      PlayerSpawnPacket packet{};
+      if (!ReadPacket(data, size, packet)) break;
+      const bool local = initial_info_ && initial_info_->player_id == packet.player_id;
+      spawns_.push_back(std::move(packet));
+      if (local) {
+        PlayerWorldEnterPacket ready{};
+        ready.packet_type = Net::PT_PLAYER_WORLD_ENTER;
+        ready.actor_generation = spawns_.back().actor_generation;
+        ready.world_name = initial_info_->map_name;
+        if (!SendPacket(client_, ready)) error_ = "Could not send world readiness";
+      }
+      return;
+    }
+    case Net::PT_LEFT_GAME: {
+      DisconnectionInfoPacket packet{};
+      if (!ReadPacket(data, size, packet)) break;
+      departures_.push_back(std::move(packet));
+      return;
+    }
+    case Net::PT_MSG: {
+      MessagePacket packet{};
+      if (!ReadPacket(data, size, packet)) break;
+      messages_.push_back(std::move(packet));
+      return;
+    }
+    default:
+      return;
+  }
+  error_ = "Could not deserialize gameplay message " + std::to_string(data[0]);
+}
+
+void FakeClient::SendJoinGame() {
+  JoinGamePacket packet{};
+  packet.packet_type = Net::PT_JOIN_GAME;
+  packet.actor_generation = initial_info_->actor_generation;
+  packet.normal = glm::vec3(0.0f, 0.0f, 1.0f);
+  packet.body_model = "Hum_Body_Naked0";
+  packet.head_model = "Hum_Head_Pony";
   packet.player_name = username_;
-  packet.position = position_;
-  packet.normal = rotation_;
-  SerializeAndSend(client_, packet, IMMEDIATE_PRIORITY, RELIABLE);
+  if (!SendPacket(client_, packet)) error_ = "Could not send join message";
 }

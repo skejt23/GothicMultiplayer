@@ -24,8 +24,6 @@ SOFTWARE.
 
 #include "D3D9FogManager.h"
 
-#include <spdlog/spdlog.h>
-
 namespace gmp::renderer::d3d9 {
 
 namespace {
@@ -36,7 +34,6 @@ constexpr DWORD kFalse32 = 0;
 
 void D3D9FogManager::Init(IDirect3DDevice9* device) {
   device_ = device;
-  SPDLOG_TRACE("D3D9FogManager initialized");
 }
 
 void D3D9FogManager::SetEnabled(bool enable) {

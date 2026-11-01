@@ -30,6 +30,7 @@ SOFTWARE.
 #include <csignal>
 #include <cstdlib>
 #include <ctime>
+#include <iostream>
 #include <sstream>
 #include <thread>
 
@@ -75,6 +76,12 @@ void RegisterSignalHandlers() {
 }
 #endif
 
+void WaitForExitAfterStartupFailure() {
+  SPDLOG_INFO("Press Enter to exit.");
+  std::string line;
+  std::getline(std::cin, line);
+}
+
 }  // namespace
 
 
@@ -84,6 +91,7 @@ int main(int argc, char **argv) {
   GameServer serv;
   if (!serv.Init()) {
     SPDLOG_ERROR("Server initialization failed!");
+    WaitForExitAfterStartupFailure();
     return 1;
   }
 

@@ -24,8 +24,6 @@ SOFTWARE.
 
 #include "D3D11FogManager.h"
 
-#include <spdlog/spdlog.h>
-
 namespace gmp::renderer::d3d11 {
 
 void D3D11FogManager::SetEnabled(bool enable) {
@@ -35,8 +33,6 @@ void D3D11FogManager::SetEnabled(bool enable) {
 
   disabled_ = !enable;
   dirty_ = true;
-
-  SPDLOG_TRACE("D3D11FogManager: Fog {}", enable ? "enabled" : "disabled");
 }
 
 void D3D11FogManager::SetRadialEnabled(bool enable) {

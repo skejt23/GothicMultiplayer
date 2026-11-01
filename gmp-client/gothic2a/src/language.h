@@ -28,29 +28,28 @@ SOFTWARE.
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
-#include "ZenGin/zGothicAPI.h"
+#include "localization_utils.h"
 
-// Forward declarations
-namespace localization {
-enum class LanguageEncoding;
-}
+#include "ZenGin/zGothicAPI.h"
 
 // Manages available languages and their metadata
 class LanguageManager {
 public:
   struct LanguageInfo {
-    std::string filename;  // e.g., "English.json"
+    std::string filename;  // e.g., "EN.json"
     zSTRING displayName;   // Localized display name from JSON
     localization::LanguageEncoding encoding;
+    int displayOrder;      // JSON ORDER controls presentation only; config stores the filename stem
   };
 
   LanguageManager() = default;
 
   // Load all available languages from the specified directory
-  // Also loads the active language based on languageIndex (or defaults to English if invalid)
-  void LoadLanguages(const char* languageDir = ".\\Multiplayer\\Localization\\", int languageIndex = -1);
+  // Also loads the active language by JSON filename stem, e.g. "EN".
+  void LoadLanguages(const char* languageDir = ".\\Multiplayer\\Localization\\", std::string_view languageCode = "EN");
 
   // Check if languages have been loaded
   bool IsLoaded() const {
@@ -65,6 +64,16 @@ public:
   // Get a specific language by index
   const LanguageInfo* GetLanguage(int index) const;
 
+  // Find a discovered language by its JSON filename stem, e.g. "EN"
+  int GetLanguageIndex(std::string_view languageCode) const;
+
+  // Load one of the discovered languages and make it active
+  bool LoadLanguage(int index);
+
+  int GetActiveLanguageIndex() const {
+    return activeLanguageIndex_;
+  }
+
   // Get the number of available languages
   size_t GetLanguageCount() const {
     return availableLanguages_.size();
@@ -78,6 +87,7 @@ public:
   // Clear all loaded data to prevent zSTRING destructor issues during shutdown
   void Clear() {
     availableLanguages_.clear();
+    activeLanguageIndex_ = -1;
   }
 
   // Singleton instance for convenience
@@ -86,6 +96,7 @@ public:
 private:
   std::vector<LanguageInfo> availableLanguages_;
   std::string languageDir_;
+  int activeLanguageIndex_{-1};
 };
 
 class Language {
@@ -93,85 +104,72 @@ public:
   enum STRING_ID {
     LANGUAGE = 0,
     WRITE_NICKNAME,
-    CHOOSE_APPERANCE,
-    FACE_APPERANCE,
-    HEAD_MODEL,
-    SKIN_TEXTURE,
-    CHOOSE_SERVER,
-    WRITE_SERVER_ADDR,
-    CHOOSE_SERVER_TIP,
-    MANUAL_IP_TIP,
     MMENU_CHSERVER,
     MMENU_OPTIONS,
-    MMENU_APPEARANCE,
     MMENU_LEAVEGAME,
-    EMPTY_SERVER_LIST,
-    APP_INFO1,
-    ERR_CONN_NO_ERROR,
-    ERR_CONN_FAIL,
-    ERR_CONN_ALREADY_CONNECTED,
-    ERR_CONN_SRV_FULL,
-    ERR_CONN_BANNED,
-    ERR_CONN_INCOMP_TECHNIC,
-    MMENU_ONLINEOPTIONS,
     MMENU_BACK,
-    SELECT_CONTROLS,
-    MMENU_LOGCHATYES,
-    MMENU_LOGCHATNO,
-    MMENU_WATCHON,
-    MMENU_WATCHOFF,
-    MMENU_SETWATCHPOS,
-    CWATCH_REALTIME,
-    CWATCH_GAMETIME,
     MMENU_NICKNAME,
-    MMENU_ANTIALIASINGYES,
-    MMENU_ANTIAlIASINGNO,
-    MMENU_JOYSTICKYES,
-    MMENU_JOYSTICKNO,
-    MMENU_POTIONKEYSYES,
-    MMENU_POTIONKEYSNO,
-    MMENU_CHATLINES,
-    INGAMEM_HELP,
+    MMENU_ANTIALIASING,
+    MMENU_JOYSTICK,
+    MMENU_LANGUAGE,
+    MMENU_INTROVIDEOS,
+    MMENU_ON,
+    MMENU_OFF,
+    MMENU_YES,
+    MMENU_NO,
     INGAMEM_BACKTOGAME,
-    HCONTROLS,
-    HCHAT,
-    HCHATMAIN,
-    SOMEONEDISCONNECT_FROM_SERVER,
-    NOPLAYERS,
     EXITTOMAINMENU,
-    SRV_IP,
-    SRV_NAME,
-    SRV_MAP,
-    SRV_PLAYERS,
     DISCONNECTED,
-    SOMEONE_JOIN_GAME,
-    ANIMS_MENU,
-    HPLAYERLIST,
-    HMAP,
-    HANIMSMENU,
-    SHOWHOW,
-    WALK_STYLE,
-    UNMUTE_TIME,
-    KILLEDSOMEONE_MSG,
-    WB_NEWMAP,
-    WB_LOADMAP,
-    WB_SAVEMAP,
     ITEM_TOOFAR,
-    KEYBOARD_POLISH,
-    KEYBOARD_GERMAN,
-    KEYBOARD_RUSSIAN,
-    INTRO_YES,
-    INTRO_NO,
-    MERRY_CHRISTMAS,
-    INV_HOWMUCH,
-    CLASS_DESCRIPTION,
-    START_OBSERVATION,
-    END_OBSERVATION,
     SRVLIST_ALL,
     SRVLIST_FAVOURITES,
     SRVLIST_NAME,
     SRVLIST_MAP,
-    SRVLIST_PLAYERNUMBER
+    SRVLIST_PLAYERNUMBER,
+    SRVLIST_HINT_NAVIGATION,
+    SRVLIST_HINT_FAVOURITES,
+    SRVLIST_HINT_OTHER,
+    SRVLIST_DIRECT_TITLE,
+    SRVLIST_ADD_FAVOURITE_TITLE,
+    SRVLIST_ENTRY_HINT,
+    SRVLIST_INVALID_ENDPOINT,
+    SRVLIST_FAVOURITE_ADDED,
+    SRVLIST_FAVOURITE_EXISTS,
+    SRVLIST_FAVOURITE_SAVE_FAILED,
+    MMENU_GMP_OPTIONS,
+    MMENU_GMP_CATEGORY,
+    MMENU_DISPLAY_CATEGORY,
+    MMENU_VOICE_ENABLED,
+    MMENU_VOICE_PTT_KEY,
+    MMENU_VOICE_VOLUME,
+    MMENU_EXTENDED_MENU_SCENES,
+    MMENU_WINDOW_ALWAYS_ON_TOP,
+    MMENU_VSYNC,
+    MMENU_RENDERER,
+    MMENU_RESTART_REQUIRED,
+    MMENU_APPEARANCE,
+    APP_CONTROLS,
+    APP_SAVE_HINT,
+    APP_BODY,
+    HEAD_MODEL,
+    FACE_APPEARANCE,
+    SKIN_TEXTURE,
+    WALK_STYLE,
+    APP_MALE,
+    APP_FEMALE,
+    APP_FIGHTER,
+    APP_BALD,
+    APP_FAT_BALD,
+    APP_PONY,
+    APP_PSIONIC,
+    APP_THIEF,
+    APP_DEFAULT,
+    APP_GUARD,
+    APP_MAGE,
+    APP_RELAXED,
+    APP_ARROGANT,
+    APP_TIRED,
+    APP_WOMAN
   };
 
   bool LoadFromJsonFile(const std::filesystem::path& file);
@@ -179,9 +177,22 @@ public:
     return !data.empty();
   }
 
+  localization::LanguageEncoding GetEncoding() const {
+    return encoding_;
+  }
+
+  const std::string& GetFontPrefix() const {
+    return fontPrefix_;
+  }
+
+  std::string ApplyFontPrefix(std::string_view fontName) const;
+
+
   // Clear all loaded data to prevent zSTRING destructor issues during shutdown
   void Clear() {
     data.clear();
+    encoding_ = localization::LanguageEncoding::kNone;
+    fontPrefix_.clear();
   }
 
   const zSTRING& operator[](unsigned long) const;
@@ -196,4 +207,6 @@ private:
   Language() = default;
 
   std::vector<zSTRING> data;
+  localization::LanguageEncoding encoding_{localization::LanguageEncoding::kNone};
+  std::string fontPrefix_;
 };

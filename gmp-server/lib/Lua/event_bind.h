@@ -23,10 +23,19 @@ SOFTWARE.
 
 #pragma once
 
+#include <optional>
+#include <string>
+#include <vector>
+
+#include "Shared/lua_runtime/lua_event_contract.h"
 #include "sol/sol.hpp"
 
 namespace lua {
 namespace bindings {
+
 void BindEvents(sol::state&);
-}
+void RemoveHandlersForResource(const std::string& owner_name);
+bool TriggerRemoteEvent(sol::state_view lua, const std::string& event_name, std::uint32_t sender_player_id, std::uint32_t source_element,
+                        const std::vector<sol::object>& args);
+}  // namespace bindings
 }  // namespace lua

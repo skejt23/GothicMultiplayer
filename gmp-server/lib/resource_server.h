@@ -25,6 +25,7 @@ SOFTWARE.
 #pragma once
 
 #include <atomic>
+#include <chrono>
 #include <filesystem>
 #include <memory>
 #include <mutex>
@@ -35,7 +36,7 @@ SOFTWARE.
 #include <unordered_map>
 
 #include "common_structs.h"
-#include "znet_server.h"
+#include "transport/transport.h"
 
 namespace httplib {
 class Server;
@@ -45,7 +46,8 @@ struct Response;
 
 class ResourceServer {
 public:
-  ResourceServer(std::uint16_t port, std::filesystem::path public_dir);
+  ResourceServer(std::uint16_t port, std::filesystem::path public_dir, std::size_t file_max_chunk,
+                 std::uint32_t rate_limit_per_minute, std::uint32_t download_timeout_seconds);
   ~ResourceServer();
 
   bool Start();
@@ -53,10 +55,12 @@ public:
 
   std::string IssueToken(Net::ConnectionHandle connection);
   void RevokeToken(Net::ConnectionHandle connection);
+  bool RegisterAllowedAsset(std::string logical_path, std::filesystem::path source_path);
 
 private:
   void HandleDownloadRequest(const httplib::Request& req, httplib::Response& res);
   bool IsTokenValid(const std::string& token) const;
+  bool AcceptRequestFrom(std::string_view address);
   std::optional<std::filesystem::path> ResolvePublicAssetPath(std::string_view requested_path) const;
 
   std::uint16_t port_;
@@ -64,8 +68,21 @@ private:
   std::unique_ptr<httplib::Server> http_server_;
   std::thread http_thread_;
   std::atomic<bool> running_{false};
+  std::size_t file_max_chunk_;
+  std::uint32_t rate_limit_per_minute_;
+  std::uint32_t download_timeout_seconds_;
+
+  struct RequestWindow {
+    std::chrono::steady_clock::time_point started;
+    std::uint32_t count{0};
+  };
+  std::mutex rate_limit_mutex_;
+  std::unordered_map<std::string, RequestWindow> request_windows_;
+  std::uint64_t request_counter_{0};
 
   mutable std::mutex token_mutex_;
   std::unordered_map<std::string, Net::ConnectionHandle> token_to_connection_;
   std::unordered_map<Net::ConnectionHandle, std::string> connection_to_token_;
+  mutable std::mutex asset_mutex_;
+  std::unordered_map<std::string, std::filesystem::path> allowed_assets_;
 };

@@ -198,7 +198,7 @@ public:
   // Resets render state after alpha sort object rendering for subsequent alpha poly rendering.
   void ResetStateAfterAlphaSortObjects();
 
-  // Benchmark support: Enable or disable VSync. Note: D3D9 vsync changes require device reset.
+  // Enable or disable VSync. Note: D3D9 vsync changes require device reset.
   void SetVSync(bool enable);
 
 private:

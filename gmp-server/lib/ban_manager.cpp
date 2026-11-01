@@ -24,28 +24,24 @@ SOFTWARE.
 
 #include "ban_manager.h"
 
+#include <algorithm>
 #include <fstream>
 #include <utility>
 
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
-#include "znet_server.h"
-
 namespace {
 constexpr const char* kDefaultBanListFileName = "bans.json";
 }
 
-BanManager::BanManager(Net::NetServer& net_server, std::filesystem::path storage_path)
-    : net_server_(net_server), storage_path_(std::move(storage_path)) {
+BanManager::BanManager(std::filesystem::path storage_path) : storage_path_(std::move(storage_path)) {
   if (storage_path_.empty()) {
     storage_path_ = std::filesystem::path(kDefaultBanListFileName);
   }
 }
 
 bool BanManager::Load() {
-  ban_list_.clear();
-
   std::ifstream ifs(storage_path_, std::ios::binary);
   if (!ifs.is_open()) {
     SPDLOG_WARN("{} which contains active IP bans does not exist", storage_path_.string());
@@ -65,6 +61,7 @@ bool BanManager::Load() {
     return false;
   }
 
+  std::vector<BanEntry> loaded_bans;
   for (const auto& node : json_data) {
     if (!node.is_object()) {
       SPDLOG_WARN("Ignoring malformed ban entry that is not a JSON object");
@@ -79,6 +76,10 @@ bool BanManager::Load() {
 
     BanEntry entry;
     entry.ip = ip_it->get<std::string>();
+    if (entry.ip.empty()) {
+      SPDLOG_WARN("Ignoring ban entry with an empty IP");
+      continue;
+    }
 
     if (auto nickname_it = node.find("Nickname"); nickname_it != node.end() && nickname_it->is_string()) {
       entry.nickname = nickname_it->get<std::string>();
@@ -90,15 +91,15 @@ bool BanManager::Load() {
       entry.reason = reason_it->get<std::string>();
     }
 
-    ban_list_.emplace_back(std::move(entry));
+    loaded_bans.emplace_back(std::move(entry));
   }
+
+  ban_list_ = std::move(loaded_bans);
 
   if (ban_list_.empty()) {
     SPDLOG_INFO("No active bans found in {}", storage_path_.string());
     return true;
   }
-
-  SyncWithNetwork();
 
   SPDLOG_INFO("Loaded {} active ban{} from {}.", ban_list_.size(), ban_list_.size() == 1 ? "" : "s",
               storage_path_.string());
@@ -119,13 +120,52 @@ bool BanManager::Save() const {
   }
 
   ofs << json_data.dump(2) << '\n';
+  ofs.close();
+  if (!ofs) {
+    SPDLOG_ERROR("Failed to write active bans to {}", storage_path_.string());
+    return false;
+  }
 
   SPDLOG_INFO("Bans written to {}.", storage_path_.string());
   return true;
 }
 
-void BanManager::SyncWithNetwork() {
-  for (const auto& entry : ban_list_) {
-    net_server_.AddToBanList(entry.ip.c_str(), 0);
+bool BanManager::IsBanned(std::string_view ip, Clock::time_point now) const {
+  if (ip.empty()) {
+    return false;
   }
+  if (std::any_of(ban_list_.begin(), ban_list_.end(), [&](const BanEntry& entry) { return entry.ip == ip; })) {
+    return true;
+  }
+  const auto temporary = temporary_bans_.find(std::string(ip));
+  return temporary != temporary_bans_.end() && now < temporary->second;
+}
+
+void BanManager::AddBan(BanEntry entry) {
+  if (entry.ip.empty()) {
+    return;
+  }
+  auto existing = std::find_if(ban_list_.begin(), ban_list_.end(), [&](const BanEntry& ban) { return ban.ip == entry.ip; });
+  if (existing == ban_list_.end()) {
+    ban_list_.push_back(std::move(entry));
+  } else {
+    *existing = std::move(entry);
+  }
+}
+
+void BanManager::AddTemporaryBan(std::string ip, Clock::duration duration, Clock::time_point now) {
+  std::erase_if(temporary_bans_, [&](const auto& ban) { return ban.second <= now; });
+  if (ip.empty() || duration <= Clock::duration::zero()) {
+    return;
+  }
+  auto [ban, inserted] = temporary_bans_.try_emplace(std::move(ip), now + duration);
+  if (!inserted) {
+    ban->second = std::max(ban->second, now + duration);
+  }
+}
+
+bool BanManager::RemoveBan(std::string_view ip) {
+  const auto removed = std::erase_if(ban_list_, [&](const BanEntry& entry) { return entry.ip == ip; });
+  const auto temporary_removed = temporary_bans_.erase(std::string(ip));
+  return removed != 0 || temporary_removed != 0;
 }

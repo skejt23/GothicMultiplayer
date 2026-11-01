@@ -3,6 +3,8 @@
 #include <sodium.h>
 
 #include <cctype>
+#include <array>
+#include <fstream>
 #include <stdexcept>
 #include <vector>
 
@@ -34,6 +36,32 @@ std::string ComputeSHA256(const std::uint8_t* data, std::size_t size) {
   EnsureSodiumInitialized();
   unsigned char hash[crypto_hash_sha256_BYTES];
   crypto_hash_sha256(hash, data, size);
+  return BytesToHex(hash, crypto_hash_sha256_BYTES);
+}
+
+std::string ComputeFileSHA256(const std::filesystem::path& path) {
+  EnsureSodiumInitialized();
+  std::ifstream input(path, std::ios::binary);
+  if (!input.is_open()) {
+    throw std::runtime_error("Failed to open file for SHA-256: " + path.string());
+  }
+
+  crypto_hash_sha256_state state;
+  crypto_hash_sha256_init(&state);
+  std::vector<unsigned char> buffer(1024 * 1024);
+  while (input) {
+    input.read(reinterpret_cast<char*>(buffer.data()), static_cast<std::streamsize>(buffer.size()));
+    const auto count = input.gcount();
+    if (count > 0) {
+      crypto_hash_sha256_update(&state, buffer.data(), static_cast<unsigned long long>(count));
+    }
+  }
+  if (!input.eof()) {
+    throw std::runtime_error("Failed while hashing file: " + path.string());
+  }
+
+  unsigned char hash[crypto_hash_sha256_BYTES];
+  crypto_hash_sha256_final(&state, hash);
   return BytesToHex(hash, crypto_hash_sha256_BYTES);
 }
 

@@ -24,19 +24,27 @@ SOFTWARE.
 
 #include "resource.h"
 
+#include <spdlog/spdlog.h>
+
 #include <algorithm>
 #include <filesystem>
-#include <spdlog/spdlog.h>
+#include <string_view>
 #include <vector>
 
+#include "Lua/event_bind.h"
 #include "Script.h"
-#include "shared/lua_runtime/timer_manager.h"
+#include "Shared/lua_runtime/bind_helpers.h"
+#include "Shared/lua_runtime/lua_diagnostics.h"
+#include "Shared/lua_runtime/timer_manager.h"
+#include "game_server.h"
 
 namespace fs = std::filesystem;
 
-Resource::Resource(std::string name) : name_(std::move(name)) {}
+Resource::Resource(std::string name) : name_(std::move(name)) {
+}
 
-bool Resource::Load(LuaScript& lua_script, TimerManager& timer_manager) {
+bool Resource::Load(LuaScript& lua_script, TimerManager& timer_manager, const std::filesystem::path& root_path,
+                    const std::vector<std::string>& scripts) {
   if (loaded_) {
     SPDLOG_WARN("Resource '{}' is already loaded", name_);
     return false;
@@ -47,33 +55,14 @@ bool Resource::Load(LuaScript& lua_script, TimerManager& timer_manager) {
   // Create isolated environment that inherits from lua.globals()
   auto& lua = lua_script.GetLuaState();
   env_ = sol::environment(lua, sol::create, lua.globals());
+  start_hooks_.clear();
+  stop_hooks_.clear();
+  start_hook_ids_.clear();
+  stop_hook_ids_.clear();
 
-  const std::string base_path = "resources/" + name_;
-
-  auto load_directory = [&](const std::string& path, const char* label) {
-    if (!fs::exists(path) || !fs::is_directory(path)) {
-      return true;
-    }
-
-    SPDLOG_DEBUG("  Loading {} scripts from '{}'", label, path);
-    return LoadScriptsFromDirectory(lua, path);
-  };
-
-  // Load shared scripts first (shared between client and server)
-  if (!load_directory(base_path + "/shared", "shared")) {
-    SPDLOG_ERROR("Resource '{}' failed to load: shared script error", name_);
-    timer_manager.KillTimersForResource(name_);
-    env_ = sol::environment();
-    exports_ = sol::nil;
-    return false;
-  }
-
-  // Then load server-only scripts
-  if (!load_directory(base_path + "/server", "server")) {
-    SPDLOG_ERROR("Resource '{}' failed to load: server script error", name_);
-    timer_manager.KillTimersForResource(name_);
-    env_ = sol::environment();
-    exports_ = sol::nil;
+  if (!LoadScripts(lua, root_path, scripts)) {
+    SPDLOG_ERROR("Resource '{}' failed to load: script error", name_);
+    ResetRuntimeState(timer_manager);
     return false;
   }
 
@@ -87,10 +76,16 @@ bool Resource::Load(LuaScript& lua_script, TimerManager& timer_manager) {
   }
 
   loaded_ = true;
-  generation_++;
 
   // Call onResourceStart lifecycle hook if present
-  CallOnResourceStart();
+  if (!CallOnResourceStart()) {
+    SPDLOG_ERROR("Resource '{}' failed to start", name_);
+    CallOnResourceStop();
+    ResetRuntimeState(timer_manager);
+    return false;
+  }
+
+  generation_++;
 
   SPDLOG_INFO("Resource '{}' loaded successfully (generation {})", name_, generation_);
   return true;
@@ -106,42 +101,43 @@ void Resource::Unload(TimerManager& timer_manager) {
   // Call onResourceStop lifecycle hook if present
   CallOnResourceStop();
 
-  // Kill all timers owned by this resource
-  timer_manager.KillTimersForResource(name_);
-
-  // Clear environment and exports
-  env_ = sol::environment();
-  exports_ = sol::nil;
-  loaded_ = false;
+  ResetRuntimeState(timer_manager);
 
   SPDLOG_INFO("Resource '{}' unloaded", name_);
 }
 
-bool Resource::Reload(LuaScript& lua_script, TimerManager& timer_manager) {
-  SPDLOG_INFO("Reloading resource '{}'...", name_);
-  Unload(timer_manager);
-  return Load(lua_script, timer_manager);
+void Resource::ResetRuntimeState(TimerManager& timer_manager) {
+  timer_manager.KillTimersForResource(name_);
+  lua::bindings::RemoveHandlersForResource(name_);
+  if (g_server) {
+    g_server->DestroyNpcsForResource(name_);
+  }
+  env_ = sol::environment();
+  exports_ = sol::nil;
+  start_hooks_.clear();
+  stop_hooks_.clear();
+  start_hook_ids_.clear();
+  stop_hook_ids_.clear();
+  loaded_ = false;
 }
 
-bool Resource::LoadScriptsFromDirectory(sol::state& lua, const std::string& directory) {
-  if (!fs::exists(directory) || !fs::is_directory(directory)) {
-    return true;
-  }
+bool Resource::Reload(LuaScript& lua_script, TimerManager& timer_manager, const std::filesystem::path& root_path,
+                      const std::vector<std::string>& scripts) {
+  SPDLOG_INFO("Reloading resource '{}'...", name_);
+  Unload(timer_manager);
+  return Load(lua_script, timer_manager, root_path, scripts);
+}
 
-  // Collect all .lua files
-  std::vector<std::string> script_files;
-  for (const auto& entry : fs::directory_iterator(directory)) {
-    if (entry.is_regular_file() && entry.path().extension() == ".lua") {
-      script_files.push_back(entry.path().string());
+bool Resource::LoadScripts(sol::state& lua, const std::filesystem::path& root_path, const std::vector<std::string>& scripts) {
+  for (const auto& script : scripts) {
+    const auto script_path = root_path / fs::path(script);
+    if (!fs::exists(script_path) || !fs::is_regular_file(script_path)) {
+      SPDLOG_ERROR("  Resource '{}' script '{}' does not exist or is not a file", name_, script);
+      return false;
     }
-  }
 
-  // Sort for consistent load order
-  std::sort(script_files.begin(), script_files.end());
-
-  // Execute each script in the resource environment
-  for (const auto& script_path : script_files) {
-    if (!ExecuteScript(lua, script_path)) {
+    SPDLOG_DEBUG("  Loading script '{}'", script);
+    if (!ExecuteScript(lua, script_path.generic_string())) {
       return false;
     }
   }
@@ -155,7 +151,7 @@ bool Resource::ExecuteScript(sol::state& lua, const std::string& scriptPath) {
     sol::load_result chunk = lua.load_file(scriptPath);
     if (!chunk.valid()) {
       sol::error err = chunk;
-      SPDLOG_ERROR("  Failed to load script '{}': {}", scriptPath, err.what());
+      ::lua::diagnostics::LogSyntaxError(err.what(), {name_, "loading script", scriptPath});
       return false;
     }
 
@@ -166,22 +162,46 @@ bool Resource::ExecuteScript(sol::state& lua, const std::string& scriptPath) {
 
     if (!result.valid()) {
       sol::error err = result;
-      SPDLOG_ERROR("  Failed to execute script '{}': {}", scriptPath, err.what());
+      ::lua::diagnostics::LogRuntimeError(err.what(), {name_, "executing script", scriptPath});
       return false;
     }
 
+    CaptureLifecycleHooks();
     SPDLOG_DEBUG("  Loaded script '{}'", fs::path(scriptPath).filename().string());
     return true;
 
   } catch (const sol::error& e) {
-    SPDLOG_ERROR("  Exception loading script '{}': {}", scriptPath, e.what());
+    ::lua::diagnostics::LogRuntimeError(e.what(), {name_, "loading script", scriptPath});
     return false;
   }
 }
 
-void Resource::CallOnResourceStart() {
-  sol::object on_start = env_["onResourceStart"];
-  if (on_start.valid() && on_start.get_type() == sol::type::function) {
+void Resource::CaptureLifecycleHooks() {
+  CaptureLifecycleHook("onResourceStart");
+  CaptureLifecycleHook("onResourceStop");
+}
+
+void Resource::CaptureLifecycleHook(const char* hook) {
+  sol::object fn = env_[hook];
+  if (!fn.valid() || fn.get_type() != sol::type::function) {
+    return;
+  }
+
+  sol::protected_function pf = fn;
+  const void* identity = ::lua::bind_helpers::GetLuaIdentity(pf);
+
+  auto& hooks = std::string_view(hook) == "onResourceStart" ? start_hooks_ : stop_hooks_;
+  auto& hook_ids = std::string_view(hook) == "onResourceStart" ? start_hook_ids_ : stop_hook_ids_;
+  if (std::find(hook_ids.begin(), hook_ids.end(), identity) != hook_ids.end()) {
+    return;
+  }
+
+  hooks.emplace_back(std::move(pf));
+  hook_ids.push_back(identity);
+}
+
+bool Resource::CallOnResourceStart() {
+  for (auto& on_start : start_hooks_) {
     try {
       sol::protected_function pf = on_start;
       sol::set_environment(env_, pf);
@@ -189,28 +209,30 @@ void Resource::CallOnResourceStart() {
 
       if (!result.valid()) {
         sol::error err = result;
-        SPDLOG_ERROR("  Error in onResourceStart for '{}': {}", name_, err.what());
+        ::lua::diagnostics::LogRuntimeError(err.what(), {name_, "lifecycle hook", "onResourceStart"});
+        return false;
       }
     } catch (const sol::error& e) {
-      SPDLOG_ERROR("  Exception in onResourceStart for '{}': {}", name_, e.what());
+      ::lua::diagnostics::LogRuntimeError(e.what(), {name_, "lifecycle hook", "onResourceStart"});
+      return false;
     }
   }
+  return true;
 }
 
 void Resource::CallOnResourceStop() {
-  sol::object on_stop = env_["onResourceStop"];
-  if (on_stop.valid() && on_stop.get_type() == sol::type::function) {
+  for (auto it = stop_hooks_.rbegin(); it != stop_hooks_.rend(); ++it) {
     try {
-      sol::protected_function pf = on_stop;
+      sol::protected_function pf = *it;
       sol::set_environment(env_, pf);
       sol::protected_function_result result = pf();
 
       if (!result.valid()) {
         sol::error err = result;
-        SPDLOG_ERROR("  Error in onResourceStop for '{}': {}", name_, err.what());
+        ::lua::diagnostics::LogRuntimeError(err.what(), {name_, "lifecycle hook", "onResourceStop"});
       }
     } catch (const sol::error& e) {
-      SPDLOG_ERROR("  Exception in onResourceStop for '{}': {}", name_, e.what());
+      ::lua::diagnostics::LogRuntimeError(e.what(), {name_, "lifecycle hook", "onResourceStop"});
     }
   }
 }

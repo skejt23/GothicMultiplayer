@@ -250,7 +250,6 @@ private:
 }  // namespace
 
 zCRnd_D3D_DX9::zCRnd_D3D_DX9() {
-  SPDLOG_TRACE("zCRnd_D3D_DX9::zCRnd_D3D_DX9() - Initializing DX9 Renderer");
   impl_ = std::make_unique<D3D9RendererImpl>();
 
   // Initialize matrices to identity
@@ -272,12 +271,9 @@ zCRnd_D3D_DX9::zCRnd_D3D_DX9() {
 }
 
 zCRnd_D3D_DX9::~zCRnd_D3D_DX9() {
-  SPDLOG_TRACE("zCRnd_D3D_DX9::~zCRnd_D3D_DX9()");
 }
 
 void zCRnd_D3D_DX9::BeginFrame() {
-  SPDLOG_TRACE("BeginFrame");
-
   alpha_sort_bucket_.fill(nullptr);
 
   auto* activeCam = zCCamera::activeCam;
@@ -345,8 +341,6 @@ void zCRnd_D3D_DX9::BeginFrame() {
 }
 
 void zCRnd_D3D_DX9::EndFrame() {
-  SPDLOG_TRACE("EndFrame");
-
   // Call backend EndFrame to draw test triangle on top of everything
   if (impl_) {
     impl_->EndFrame();
@@ -1224,7 +1218,6 @@ void zCRnd_D3D_DX9::SetRenderMode(zTRnd_RenderMode mode) {
     return;
 
   render_mode_ = static_cast<int>(mode);
-  SPDLOG_TRACE("SetRenderMode: {}", render_mode_);
 
   // Set up standard render states for geometry rendering.
   // With T&L hardware enforced, we don't need special 2-pass lightmap mode handling.
@@ -1348,7 +1341,6 @@ void zCRnd_D3D_DX9::ResetStatistics() {
 }
 
 void zCRnd_D3D_DX9::Vid_Blit(int complete, tagRECT* src, tagRECT* dst) {
-  SPDLOG_TRACE("Vid_Blit called");
   // This is called every frame by GameManager::Render() after game->Render()
 
   if (impl_) {
@@ -1359,7 +1351,6 @@ void zCRnd_D3D_DX9::Vid_Blit(int complete, tagRECT* src, tagRECT* dst) {
 void zCRnd_D3D_DX9::Vid_Clear(zCOLOR& color, int flags) {
   // Convert zCOLOR to D3DCOLOR (ARGB)
   unsigned long d3dColor = (color.alpha << 24) | (color.r << 16) | (color.g << 8) | color.b;
-  SPDLOG_TRACE("Vid_Clear called with flags={}, color=R:{} G:{} B:{} A:{} -> 0x{:08X}", flags, color.r, color.g, color.b, color.alpha, d3dColor);
   if (impl_) {
     unsigned long clearFlags = 0;
     switch (flags) {
@@ -1381,12 +1372,10 @@ void zCRnd_D3D_DX9::Vid_Clear(zCOLOR& color, int flags) {
 }
 
 int zCRnd_D3D_DX9::Vid_Lock(zTRndSurfaceDesc& desc) {
-  SPDLOG_TRACE("Vid_Lock called");
   return 0;
 }
 
 int zCRnd_D3D_DX9::Vid_Unlock() {
-  SPDLOG_TRACE("Vid_Unlock called");
   return 0;
 }
 
@@ -1399,7 +1388,6 @@ int zCRnd_D3D_DX9::Vid_GetFrontBufferCopy(zCTextureConvert& texConv) {
 }
 
 int zCRnd_D3D_DX9::Vid_GetNumDevices() {
-  SPDLOG_TRACE("Vid_GetNumDevices called");
   return 1;
 }
 
@@ -1408,18 +1396,15 @@ int zCRnd_D3D_DX9::Vid_GetActiveDeviceNr() {
 }
 
 int zCRnd_D3D_DX9::Vid_SetDevice(int deviceNr) {
-  SPDLOG_TRACE("Vid_SetDevice called with {}", deviceNr);
   return 1;
 }
 
 int zCRnd_D3D_DX9::Vid_GetDeviceInfo(zTRnd_DeviceInfo& info, int deviceNr) {
-  SPDLOG_TRACE("Vid_GetDeviceInfo called for device {}", deviceNr);
   return 1;
 }
 
 int zCRnd_D3D_DX9::Vid_GetNumModes() {
   int count = display_modes_.GetNumModes();
-  SPDLOG_INFO("Vid_GetNumModes called, returning {}", count);
   return count;
 }
 
@@ -1435,7 +1420,6 @@ int zCRnd_D3D_DX9::Vid_GetModeInfo(zTRnd_VidModeInfo& info, int modeNr) {
   info.bpp = mode->bpp;
   info.fullscreenOnly = 0;
 
-  SPDLOG_INFO("Vid_GetModeInfo[{}]: {}x{} {}bpp", modeNr, info.xdim, info.ydim, info.bpp);
   return 1;
 }
 
@@ -1444,7 +1428,6 @@ int zCRnd_D3D_DX9::Vid_GetActiveModeNr() {
 }
 
 int zCRnd_D3D_DX9::Vid_SetMode(int modeNr, HWND__** hwnd) {
-  SPDLOG_INFO("Vid_SetMode: mode={}", modeNr);
   if (!impl_)
     return 0;
 
@@ -1477,10 +1460,7 @@ int zCRnd_D3D_DX9::Vid_SetMode(int modeNr, HWND__** hwnd) {
   vid_ydim = mode->height;
   vid_bpp = mode->bpp;
 
-  SPDLOG_INFO("Setting video mode: {}x{} {}bpp", vid_xdim, vid_ydim, vid_bpp);
-
   HWND hWindow = (hwnd && *hwnd) ? *hwnd : GetActiveWindow();
-  SPDLOG_INFO("Vid_SetMode using HWND: {}", (void*)hWindow);
 
   if (hWindow) {
     // Ensure window is visible, updated, and sized correctly
@@ -1536,8 +1516,6 @@ int zCRnd_D3D_DX9::Vid_SetMode(int modeNr, HWND__** hwnd) {
 }
 
 void zCRnd_D3D_DX9::Vid_SetScreenMode(zTRnd_ScreenMode mode) {
-  SPDLOG_INFO("Vid_SetScreenMode called: {}", (int)mode);
-
   // HIDE mode is treated as WINDOWED
   if (mode == zRND_SCRMODE_HIDE) {
     mode = zRND_SCRMODE_WINDOWED;
@@ -1548,14 +1526,12 @@ void zCRnd_D3D_DX9::Vid_SetScreenMode(zTRnd_ScreenMode mode) {
 
   if (!impl_ || !impl_->GetDevice()) {
     // Device not initialized yet - just store the mode for later use in Init()
-    SPDLOG_DEBUG("Vid_SetScreenMode: Device not ready, mode {} stored for Init()", (int)mode);
     return;
   }
 
   // Check if device was already created in the correct mode
   // The device mode is determined at Init() time based on screen_mode_
   // Runtime switching is complex and not currently supported
-  SPDLOG_DEBUG("Vid_SetScreenMode: Device already created, mode set to {}", (int)mode);
 }
 
 zTRnd_ScreenMode zCRnd_D3D_DX9::Vid_GetScreenMode() {
@@ -1563,7 +1539,6 @@ zTRnd_ScreenMode zCRnd_D3D_DX9::Vid_GetScreenMode() {
 }
 
 void zCRnd_D3D_DX9::Vid_SetGammaCorrection(float gamma, float contrast, float brightness) {
-  SPDLOG_INFO("Vid_SetGammaCorrection: gamma={:.2f}, contrast={:.2f}, brightness={:.2f}", gamma, contrast, brightness);
   gamma_ = gamma;
   if (impl_) {
     impl_->SetGammaCorrection(gamma, contrast, brightness);
@@ -2115,13 +2090,10 @@ void zCRnd_D3D_DX9::AddAlphaSortObject(zCRndAlphaSortObject* obj) {
   if (bucket < 0)
     bucket = 0;
 
-  SPDLOG_TRACE("AddAlphaSortObject: z={:.2f} bucketSize={:.4f} bucket={} type={}", zvalue, bucket_size_, bucket, (void*)obj);
-
   // If bucket is empty, just insert
   if (alpha_sort_bucket_[bucket] == nullptr) {
     obj->nextSortObject = nullptr;  // Direct member access
     alpha_sort_bucket_[bucket] = obj;
-    SPDLOG_TRACE("  -> Inserted as first entry in empty bucket {}", bucket);
     return;
   }
 
@@ -2132,7 +2104,6 @@ void zCRnd_D3D_DX9::AddAlphaSortObject(zCRndAlphaSortObject* obj) {
   if (alpha_sort_bucket_[bucket]->zvalue <= zvalue) {
     obj->nextSortObject = alpha_sort_bucket_[bucket];  // Direct member access
     alpha_sort_bucket_[bucket] = obj;
-    SPDLOG_TRACE("  -> Inserted at head of bucket {} (farther than {:.2f})", bucket, alpha_sort_bucket_[bucket]->nextSortObject->zvalue);
     return;
   }
 
@@ -2140,7 +2111,6 @@ void zCRnd_D3D_DX9::AddAlphaSortObject(zCRndAlphaSortObject* obj) {
   // Sort order within bucket: far to near (descending Z)
   zCRndAlphaSortObject* entry = alpha_sort_bucket_[bucket];
   zCRndAlphaSortObject* nextEntry = entry->nextSortObject;  // Direct member access
-  int traverseCount = 1;
 
   while (true) {
     if (nextEntry == nullptr)
@@ -2150,14 +2120,11 @@ void zCRnd_D3D_DX9::AddAlphaSortObject(zCRndAlphaSortObject* obj) {
 
     entry = nextEntry;
     nextEntry = entry->nextSortObject;  // Direct member access
-    traverseCount++;
   }
 
   // Insert between entry and nextEntry
   entry->nextSortObject = obj;      // Direct member access
   obj->nextSortObject = nextEntry;  // Direct member access
-  SPDLOG_TRACE("  -> Inserted in bucket {} after {} traversals (between {:.2f} and {:.2f})", bucket, traverseCount, entry->zvalue,
-               nextEntry ? nextEntry->zvalue : -1.0f);
 }
 
 // ApplyAlphaBlendState - Configures texture stage and blend state for alpha rendering.
@@ -2335,12 +2302,7 @@ void zCRnd_D3D_DX9::RenderAlphaPolyBatched(const gmp::renderer::d3d9::QueuedAlph
 void zCRnd_D3D_DX9::DrawQueuedAlphaPoly(const gmp::renderer::d3d9::QueuedAlphaPoly* ap) {
   using namespace gmp::renderer::d3d9;
 
-  SPDLOG_DEBUG("DrawQueuedAlphaPoly: ENTRY ap={} impl_={} surface_lost_={}", static_cast<const void*>(ap), static_cast<void*>(impl_.get()),
-               GetSurfaceLost());
-
   if (!ap || ap->vert_count < 3 || !impl_ || GetSurfaceLost()) {
-    SPDLOG_DEBUG("DrawQueuedAlphaPoly: EARLY EXIT ap={} vert_count={} impl_={} surface_lost_={}", static_cast<const void*>(ap),
-                 ap ? ap->vert_count : -1, static_cast<void*>(impl_.get()), GetSurfaceLost());
     return;
   }
 
@@ -2445,18 +2407,8 @@ void zCRnd_D3D_DX9::RenderAlphaSortList() {
   // Flush any remaining batched geometry
   FlushAlphaBatch();
 
-  // Finalize batching and log stats (End returns bool for final batch, which we already flushed)
+  // Finalize batching (End returns bool for final batch, which we already flushed)
   (void)alpha_batcher_.End();
-  const auto& stats = alpha_batcher_.GetStats();
-  if (stats.polys_submitted > 0) {
-    // Log every 60 frames to avoid spam (roughly once per second at 60fps)
-    static int frame_counter = 0;
-    if (++frame_counter >= 60) {
-      SPDLOG_DEBUG("Alpha batch: {} polys -> {} batches ({} draw calls saved, {:.1f}% reduction)", stats.polys_submitted, stats.batches_flushed,
-                   stats.draw_calls_saved, stats.GetBatchEfficiency() * 100.0f);
-      frame_counter = 0;
-    }
-  }
   alpha_batcher_.ResetStats();
 
   // Clear the alpha poly queue (buckets are already cleared in the loop above)
@@ -2525,7 +2477,6 @@ int zCRnd_D3D_DX9::DrawVertexBuffer(zCVertexBuffer* vertex_buffer, int first_ver
 
   // Block rendering during device reset.
   if (GetSurfaceLost()) {
-    SPDLOG_DEBUG("DrawVertexBuffer: Skipping due to surface lost");
     return 0;
   }
 
@@ -2636,12 +2587,10 @@ zCVertexBuffer* zCRnd_D3D_DX9::CreateVertexBuffer() {
 }
 
 zCRenderer* __stdcall CreateDX9Renderer() {
-  SPDLOG_TRACE("CreateDX9Renderer called - Injecting DX9 Renderer");
   return new zCRnd_D3D_DX9();
 }
 
 void __fastcall ConstructDX9Renderer(void* mem) {
-  SPDLOG_TRACE("ConstructDX9Renderer called - Constructing DX9 Renderer in place at {}", mem);
   if (mem) {
     ::new (mem) zCRnd_D3D_DX9();
   }
@@ -2654,10 +2603,8 @@ IDirect3DDevice9* zCRnd_D3D_DX9::GetDevice() const {
 void zCRnd_D3D_DX9::SetVSync(bool enable) {
   // D3D9 vsync is controlled via D3DPRESENT_PARAMETERS.PresentationInterval
   // Changing it requires device reset, which is disruptive during gameplay.
-  // For benchmark purposes, we log the intent but note the limitation.
   // TODO: Implement device rest when vsync state changes.
   if (impl_) {
     impl_->SetVSync(enable);
-    SPDLOG_INFO("[D3D9] VSync {} (Note: Full effect requires device reset)", enable ? "enabled" : "disabled");
   }
 }

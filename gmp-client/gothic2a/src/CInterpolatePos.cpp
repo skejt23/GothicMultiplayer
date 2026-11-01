@@ -32,115 +32,104 @@ SOFTWARE.
 
 #include "CInterpolatePos.h"
 
-#include "CIngame.h"
+#include <algorithm>
+#include <cmath>
+#include <utility>
 
-// Externs
+#include "CIngame.h"
+#include "config.h"
+
 extern CIngame* global_ingame;
 
-CInterpolatePos::CInterpolatePos(Gothic2APlayer* Player) {
-  InterpolatingPlayer = Player;
-  IsInterpolating = false;
-  global_ingame->Interpolation.push_back(this);
-  InterCount = 0;
-};
+namespace {
+double LocalTimeMs() {
+  return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+}  // namespace
+
+CInterpolatePos::CInterpolatePos(Gothic2APlayer* actor) : InterpolatingPlayer(actor), IsInterpolating(false) {
+  gmp::PoseInterpolator::Settings settings;
+  settings.delay_ms = Config::Instance().GetInterpolationDelayMs();
+  PoseBuffer = gmp::PoseInterpolator(settings);
+  if (global_ingame) global_ingame->Interpolation.push_back(this);
+}
 
 CInterpolatePos::~CInterpolatePos() {
-  IsInterpolating = false;
-  InterCount = 0;
-  InterpolatingPlayer = NULL;
-  for (int i = 0; i < (int)global_ingame->Interpolation.size(); i++) {
-    if (global_ingame->Interpolation[i] == this) {
-      global_ingame->Interpolation.erase(global_ingame->Interpolation.begin() + i);
-    }
+  StopInterpolation();
+  if (global_ingame) {
+    auto& interpolators = global_ingame->Interpolation;
+    interpolators.erase(std::remove(interpolators.begin(), interpolators.end(), this), interpolators.end());
   }
-};
+}
 
 void CInterpolatePos::DoInterpolate() {
-  if (!IsInterpolating)
+  if (!IsInterpolating) return;
+  if (!InterpolatingPlayer || !InterpolatingPlayer->npc) {
+    StopInterpolation();
     return;
-  // trzeba bedzie wymyslic jakis lepszy pomysl na szybkosc interpolacji
-  if (IsDistanceSmallerThanRadius(70.0f, InterpolatingPlayer->npc->GetPositionWorld(), InterpolatingTo))
-    Interpolate(InterpolatingTo[VX], InterpolatingTo[VY], InterpolatingTo[VZ], 0.5f);
-  else if (IsDistanceSmallerThanRadius(100.0f, InterpolatingPlayer->npc->GetPositionWorld(), InterpolatingTo))
-    Interpolate(InterpolatingTo[VX], InterpolatingTo[VY], InterpolatingTo[VZ], 1);
-  else if (IsDistanceSmallerThanRadius(200.0f, InterpolatingPlayer->npc->GetPositionWorld(), InterpolatingTo))
-    Interpolate(InterpolatingTo[VX], InterpolatingTo[VY], InterpolatingTo[VZ], 2, true);
-  else if (IsDistanceSmallerThanRadius(300.0f, InterpolatingPlayer->npc->GetPositionWorld(), InterpolatingTo))
-    Interpolate(InterpolatingTo[VX], InterpolatingTo[VY], InterpolatingTo[VZ], 3, true);
-  else if (IsDistanceSmallerThanRadius(400.0f, InterpolatingPlayer->npc->GetPositionWorld(), InterpolatingTo))
-    Interpolate(InterpolatingTo[VX], InterpolatingTo[VY], InterpolatingTo[VZ], 4, true);
-};
+  }
+  const double now = LocalTimeMs();
+  const auto pose = PoseBuffer.Evaluate(now);
+  if (pose) {
+    InterpolatingPlayer->SetPosition(zVEC3(pose->position[0], pose->position[1], pose->position[2]));
+    const zVEC3 position = InterpolatingPlayer->npc->GetPositionWorld();
+    InterpolatingPlayer->npc->SetHeadingYWorld(position + zVEC3(pose->direction[0], 0.0f, pose->direction[2]));
+  }
+  const double render_time = PoseBuffer.RenderTime(now);
+  while (!Presentations.empty() && static_cast<double>(Presentations.front().source_time_ms) <= render_time) {
+    auto apply = std::move(Presentations.front().apply);
+    Presentations.pop_front();
+    apply();
+    if (!IsInterpolating || !InterpolatingPlayer || !InterpolatingPlayer->npc) return;
+  }
+}
 
-void CInterpolatePos::Interpolate(float x, float y, float z, float value, bool NoCollideMode) {
-  if (!IsInterpolating)
-    return;
-  zVEC3 Pos = InterpolatingPlayer->npc->GetPositionWorld();
-  float PosX = Pos[VX];
-  float PosY = Pos[VY];
-  float PosZ = Pos[VZ];
-  if (PosX != x) {
-    if (x > PosX)
-      PosX += value;
-    if (x < PosX)
-      PosX -= value;
-  }
-  if (PosY != y) {
-    if (y > PosY)
-      PosY += value;
-    if (y < PosY)
-      PosY -= value;
-  }
-  if (PosZ != z) {
-    if (z > PosZ)
-      PosZ += value;
-    if (z < PosZ)
-      PosZ -= value;
-  }
-  Pos[VX] = PosX;
-  Pos[VY] = PosY;
-  Pos[VZ] = PosZ;
-  if (!NoCollideMode)
-    InterpolatingPlayer->npc->SetPositionWorld(Pos);
-  else
-    InterpolatingPlayer->SetPosition(Pos);
-  if (IsDistanceSmallerThanRadius(50.0f, PosX, PosY, PosZ, x, y, z)) {
-    IsInterpolating = false;
-    InterCount = 0;
-  }
-  InterCount++;
-  if (InterCount > 3000) {
-    InterpolatingPlayer->SetPosition(x, y, z);
-    InterCount = 0;
-    IsInterpolating = false;
-  }
-};
+bool CInterpolatePos::IsDistanceSmallerThanRadius(float radius, float bx, float by, float bz, float rx, float ry, float rz) {
+  return std::hypot(rx - bx, ry - by, rz - bz) < radius;
+}
 
-bool CInterpolatePos::IsDistanceSmallerThanRadius(float radius, float bX, float bY, float bZ, float rX, float rY, float rZ) {
-  float vector[3];
-  vector[0] = rX - bX;
-  vector[1] = rY - bY;
-  vector[2] = rZ - bZ;
-  if ((vector[0] < radius && vector[0] > -radius) && (vector[1] < radius && vector[1] > -radius) && (vector[2] < radius && vector[2] > -radius)) {
-    return true;
-  } else
-    return false;
-};
+bool CInterpolatePos::IsDistanceSmallerThanRadius(float radius, const zVEC3& from, const zVEC3& to) {
+  return IsDistanceSmallerThanRadius(radius, from[VX], from[VY], from[VZ], to[VX], to[VY], to[VZ]);
+}
 
-bool CInterpolatePos::IsDistanceSmallerThanRadius(float radius, const zVEC3& Pos, const zVEC3& Pos1) {
-  float vector[3];
-  vector[0] = Pos1[VX] - Pos[VX];
-  vector[1] = Pos1[VY] - Pos[VY];
-  vector[2] = Pos1[VZ] - Pos[VZ];
-  if ((vector[0] < radius && vector[0] > -radius) && (vector[1] < radius && vector[1] > -radius) && (vector[2] < radius && vector[2] > -radius)) {
-    return true;
-  } else
-    return false;
-};
+void CInterpolatePos::StopInterpolation() {
+  IsInterpolating = false;
+  PoseBuffer.Reset();
+  Presentations.clear();
+}
 
 void CInterpolatePos::UpdateInterpolation(float x, float y, float z) {
-  if (!IsInterpolating)
+  const zVEC3 heading = InterpolatingPlayer && InterpolatingPlayer->npc
+      ? InterpolatingPlayer->npc->GetAtVectorWorld() : zVEC3(0.0f, 0.0f, 1.0f);
+  UpdatePoseInterpolation(x, y, z, heading[VX], heading[VY], heading[VZ], static_cast<std::uint64_t>(LocalTimeMs()));
+}
+
+void CInterpolatePos::UpdatePoseInterpolation(float x, float y, float z, float nx, float ny, float nz,
+                                             std::uint64_t source_time_ms, bool teleport) {
+  if (!InterpolatingPlayer || !InterpolatingPlayer->npc) {
+    StopInterpolation();
+    return;
+  }
+  if (teleport) {
+    StopInterpolation();
+    InterpolatingPlayer->SetPosition(zVEC3(x, y, z));
+    const zVEC3 position = InterpolatingPlayer->npc->GetPositionWorld();
+    InterpolatingPlayer->npc->SetHeadingYWorld(position + zVEC3(nx, 0.0f, nz));
+  }
+  if (PoseBuffer.Push({{x, y, z}, {nx, ny, nz}}, source_time_ms, LocalTimeMs(), teleport)) {
     IsInterpolating = true;
-  InterpolatingTo[VX] = x;
-  InterpolatingTo[VY] = y;
-  InterpolatingTo[VZ] = z;
-};
+  }
+}
+
+void CInterpolatePos::QueuePresentation(std::uint64_t source_time_ms, std::function<void()> apply) {
+  if (!apply) return;
+  // The action stream is reliable and ordered, while poses may overtake it.
+  // Sort by source time so a delayed older action cannot block a newer one.
+  auto insertion = std::upper_bound(Presentations.begin(), Presentations.end(), source_time_ms,
+      [](std::uint64_t time, const Presentation& presentation) { return time < presentation.source_time_ms; });
+  Presentations.insert(insertion, Presentation{source_time_ms, std::move(apply)});
+  // Bounded presentation lifetime; never replay stale effects accumulated during
+  // a paused world. Transport action IDs provide deduplication before this queue.
+  while (Presentations.size() > 128) Presentations.pop_front();
+  IsInterpolating = true;
+}

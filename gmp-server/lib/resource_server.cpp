@@ -5,8 +5,11 @@
 
 #include <fstream>
 #include <iomanip>
+#include <array>
+#include <algorithm>
 #include <random>
 #include <sstream>
+#include <vector>
 
 namespace {
 std::string GenerateResourceToken() {
@@ -26,8 +29,35 @@ std::string GenerateResourceToken() {
 }
 }  // namespace
 
-ResourceServer::ResourceServer(std::uint16_t port, std::filesystem::path public_dir) : port_(port), public_dir_(std::move(public_dir)) {
+bool ResourceServer::RegisterAllowedAsset(std::string logical_path, std::filesystem::path source_path) {
+  namespace fs = std::filesystem;
+  fs::path logical(logical_path);
+  logical = logical.lexically_normal();
+  if (logical.empty() || logical.is_absolute()) {
+    return false;
+  }
+  for (const auto& part : logical) {
+    if (part == "..") {
+      return false;
+    }
+  }
+  std::error_code ec;
+  source_path = fs::weakly_canonical(source_path, ec);
+  if (ec || !fs::is_regular_file(source_path, ec) || ec) {
+    return false;
+  }
+  std::lock_guard<std::mutex> lock(asset_mutex_);
+  allowed_assets_[logical.generic_string()] = std::move(source_path);
+  return true;
 }
+
+ResourceServer::ResourceServer(std::uint16_t port, std::filesystem::path public_dir, std::size_t file_max_chunk,
+                               std::uint32_t rate_limit_per_minute, std::uint32_t download_timeout_seconds)
+    : port_(port),
+      public_dir_(std::move(public_dir)),
+      file_max_chunk_(file_max_chunk),
+      rate_limit_per_minute_(rate_limit_per_minute),
+      download_timeout_seconds_(download_timeout_seconds) {}
 
 ResourceServer::~ResourceServer() {
   Stop();
@@ -35,6 +65,10 @@ ResourceServer::~ResourceServer() {
 
 bool ResourceServer::Start() {
   http_server_ = std::make_unique<httplib::Server>();
+  if (download_timeout_seconds_ > 0) {
+    http_server_->set_read_timeout(download_timeout_seconds_, 0);
+    http_server_->set_write_timeout(download_timeout_seconds_, 0);
+  }
   http_server_->Get(R"(/public/(.+))", [this](const httplib::Request& req, httplib::Response& res) { HandleDownloadRequest(req, res); });
 
   SPDLOG_INFO("Serving client resources from '{}'", public_dir_.string());
@@ -44,7 +78,7 @@ bool ResourceServer::Start() {
 
   const char* bind_address = "0.0.0.0";
   auto bound_port = http_server_->bind_to_port(bind_address, port_);
-  if (bound_port <= 0) {
+  if (!bound_port) {
     SPDLOG_ERROR("Failed to bind resource HTTP server on {}:{}", bind_address, port_);
     http_server_.reset();
     return false;
@@ -91,6 +125,28 @@ bool ResourceServer::IsTokenValid(const std::string& token) const {
   return token_to_connection_.find(token) != token_to_connection_.end();
 }
 
+bool ResourceServer::AcceptRequestFrom(std::string_view address) {
+  if (rate_limit_per_minute_ == 0) {
+    return true;
+  }
+  const auto now = std::chrono::steady_clock::now();
+  constexpr auto kWindow = std::chrono::minutes(1);
+  std::lock_guard<std::mutex> lock(rate_limit_mutex_);
+  auto& window = request_windows_[std::string(address)];
+  if (window.started.time_since_epoch().count() == 0 || now - window.started >= kWindow) {
+    window = RequestWindow{now, 1};
+  } else if (window.count >= rate_limit_per_minute_) {
+    return false;
+  } else {
+    ++window.count;
+  }
+
+  if (++request_counter_ % 256 == 0) {
+    std::erase_if(request_windows_, [now](const auto& entry) { return now - entry.second.started >= std::chrono::minutes(2); });
+  }
+  return true;
+}
+
 std::optional<std::filesystem::path> ResourceServer::ResolvePublicAssetPath(std::string_view requested_path) const {
   namespace fs = std::filesystem;
   fs::path rel_path(requested_path.begin(), requested_path.end());
@@ -102,6 +158,14 @@ std::optional<std::filesystem::path> ResourceServer::ResolvePublicAssetPath(std:
   for (const auto& part : rel_path) {
     if (part == "..") {
       return std::nullopt;
+    }
+  }
+
+  {
+    std::lock_guard<std::mutex> lock(asset_mutex_);
+    const auto allowed = allowed_assets_.find(rel_path.generic_string());
+    if (allowed != allowed_assets_.end()) {
+      return allowed->second;
     }
   }
 
@@ -120,6 +184,13 @@ std::optional<std::filesystem::path> ResourceServer::ResolvePublicAssetPath(std:
 }
 
 void ResourceServer::HandleDownloadRequest(const httplib::Request& req, httplib::Response& res) {
+  if (!AcceptRequestFrom(req.remote_addr)) {
+    res.status = 429;
+    res.set_header("Retry-After", "60");
+    res.set_content("rate limit exceeded", "text/plain");
+    return;
+  }
+
   auto token_it = req.params.find("token");
   if (token_it == req.params.end()) {
     res.status = 401;
@@ -147,15 +218,47 @@ void ResourceServer::HandleDownloadRequest(const httplib::Request& req, httplib:
     return;
   }
 
-  std::ifstream file(resolved_path->string(), std::ios::binary);
-  if (!file) {
+  std::error_code ec;
+  const auto size = std::filesystem::file_size(*resolved_path, ec);
+  if (ec) {
     res.status = 404;
     res.set_content("not found", "text/plain");
     return;
   }
 
-  std::ostringstream buffer;
-  buffer << file.rdbuf();
-  auto payload = buffer.str();
-  res.set_content(std::move(payload), "application/octet-stream");
+  auto file = std::make_shared<std::ifstream>(*resolved_path, std::ios::binary);
+  auto file_mutex = std::make_shared<std::mutex>();
+  auto buffer = std::make_shared<std::vector<char>>(file_max_chunk_);
+  if (!file->is_open()) {
+    res.status = 404;
+    res.set_content("not found", "text/plain");
+    return;
+  }
+  const auto request_deadline = download_timeout_seconds_ == 0
+                                    ? std::chrono::steady_clock::time_point::max()
+                                    : std::chrono::steady_clock::now() + std::chrono::seconds(download_timeout_seconds_);
+  res.set_header("Accept-Ranges", "bytes");
+  res.set_content_provider(
+      static_cast<std::size_t>(size), "application/octet-stream",
+      [file, file_mutex, buffer, request_deadline](std::size_t offset, std::size_t length, httplib::DataSink& sink) {
+        if (std::chrono::steady_clock::now() >= request_deadline) {
+          return false;
+        }
+        std::lock_guard<std::mutex> lock(*file_mutex);
+        file->clear();
+        file->seekg(static_cast<std::streamoff>(offset), std::ios::beg);
+        if (!*file) return false;
+        std::size_t remaining = length;
+        while (remaining > 0) {
+          if (std::chrono::steady_clock::now() >= request_deadline) {
+            return false;
+          }
+          const auto wanted = std::min(remaining, buffer->size());
+          file->read(buffer->data(), static_cast<std::streamsize>(wanted));
+          const auto count = file->gcount();
+          if (count <= 0 || !sink.write(buffer->data(), static_cast<std::size_t>(count))) return false;
+          remaining -= static_cast<std::size_t>(count);
+        }
+        return true;
+      });
 }

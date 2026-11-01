@@ -98,3 +98,8 @@ enum WeaponMode : int {
   WEAPONMODE_MAG,
   WEAPONMODE_MAX
 };
+
+enum WeatherType : int {
+  WEATHER_SNOW = 1,
+  WEATHER_RAIN = 2
+};

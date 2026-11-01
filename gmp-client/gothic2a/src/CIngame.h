@@ -25,15 +25,12 @@ SOFTWARE.
 
 #pragma once
 
+#include <chrono>
 #include <ctime>
 
-#include "CAnimMenu.h"
 #include "CChat.h"
 #include "CInterpolatePos.h"
 #include "CInventory.h"
-#include "language.h"
-#include "CMap.h"
-#include "CPlayerList.h"
 #include "CShrinker.h"
 
 enum CURRENT_MAP { MAP_UNKNOWN, MAP_COLONY, MAP_OLDWORLD, MAP_KHORINIS, MAP_JARKENDAR };
@@ -47,13 +44,11 @@ public:
   void HandleInput(void);
   void CheckForUpdate(void);
   void CheckForHPDiff(void);
-  bool ValidatePlayerForHPDiff(Gothic2APlayer*);
   void CheckSwampLights();
   bool IgnoreFirstSync;
   CURRENT_MAP RecognizedMap;
   bool PlayerExists(const char* PlayerName);
   time_t NextTimeSync;
-  CMap* MMap;
   CShrinker* Shrinker;
   CInventory* Inventory;
   std::vector<CInterpolatePos*> Interpolation;
@@ -61,19 +56,6 @@ public:
 private:
   zSTRING szPing;
   bool SwampLightsOn;
-  bool mapusable;
-  std::string chatbuffer;
-  char buffer[85];
-  time_t BuffTimer;
-  time_t SecTimer;
-  time_t ChatTimer;
-  zSTRING ChatTmp;
-  oCMsgMovement* Movement;
-  void ClearAfterWrite();
-  void PrepareForWrite();
-  clock_t last_player_update;
-  CPlayerList* PList;
+  std::chrono::steady_clock::time_point last_player_update;
   CChat* chat_interface;
-  CAnimMenu* AMenu;
-  bool WritingOnChat;
 };

@@ -48,7 +48,6 @@ D3DFORMAT SelectDepthStencilFormat(IDirect3D9* d3d, D3DFORMAT backBufferFormat) 
   if (SUCCEEDED(d3d->CheckDepthStencilMatch(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, backBufferFormat, backBufferFormat, D3DFMT_D24S8))) {
     if (SUCCEEDED(
             d3d->CheckDeviceFormat(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, backBufferFormat, D3DUSAGE_DEPTHSTENCIL, D3DRTYPE_SURFACE, D3DFMT_D24S8))) {
-      SPDLOG_INFO("Selected D24S8 depth-stencil format (24-bit depth, 8-bit stencil)");
       return D3DFMT_D24S8;
     }
   }
@@ -57,11 +56,9 @@ D3DFORMAT SelectDepthStencilFormat(IDirect3D9* d3d, D3DFORMAT backBufferFormat) 
   if (SUCCEEDED(d3d->CheckDepthStencilMatch(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, backBufferFormat, backBufferFormat, D3DFMT_D16))) {
     if (SUCCEEDED(
             d3d->CheckDeviceFormat(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, backBufferFormat, D3DUSAGE_DEPTHSTENCIL, D3DRTYPE_SURFACE, D3DFMT_D16))) {
-      SPDLOG_INFO("Selected D16 depth-stencil format (16-bit depth, no stencil)");
       return D3DFMT_D16;
     }
   }
-  SPDLOG_INFO("Selected D32 depth-stencil format (32-bit depth, no stencil)");
   return D3DFMT_D32;
 }
 
@@ -126,10 +123,7 @@ bool EnsureIndexBufferCapacity(D3D9RendererImpl& data, std::uint32_t indexCount)
 // --- D3D9RendererImpl Implementation ---
 
 bool D3D9RendererImpl::Init(void* hwnd, int width, int height, bool fullscreen) {
-  SPDLOG_TRACE("Initializing D3D9RendererImpl...");
-
   if (d3d || device) {
-    SPDLOG_TRACE("D3D9RendererImpl already initialized, cleaning up first...");
     Cleanup();
   }
 
@@ -200,7 +194,6 @@ bool D3D9RendererImpl::Init(void* hwnd, int width, int height, bool fullscreen) 
     }
 
     if (found_mode) {
-      SPDLOG_INFO("Init: Creating fullscreen device: {}x{}@{}Hz", display_mode.Width, display_mode.Height, display_mode.RefreshRate);
       present_params.Windowed = FALSE;
       present_params.BackBufferFormat = display_mode.Format;
       present_params.FullScreen_RefreshRateInHz = display_mode.RefreshRate;
@@ -210,7 +203,6 @@ bool D3D9RendererImpl::Init(void* hwnd, int width, int height, bool fullscreen) 
       present_params.FullScreen_RefreshRateInHz = 0;
     }
   } else {
-    SPDLOG_INFO("Init: Creating windowed device: {}x{}", back_buffer_width, back_buffer_height);
     present_params.Windowed = TRUE;
     present_params.FullScreen_RefreshRateInHz = 0;
   }
@@ -256,8 +248,6 @@ bool D3D9RendererImpl::Init(void* hwnd, int width, int height, bool fullscreen) 
   // Use caps already retrieved during T&L check
   max_anisotropy = std::clamp<DWORD>(caps.MaxAnisotropy, 1u, 16u);
   max_simultaneous_textures = std::clamp<DWORD>(caps.MaxSimultaneousTextures, 1u, 8u);
-
-  SPDLOG_DEBUG("D3D9 Device Caps: MaxAnisotropy={}, MaxSimultaneousTextures={}", max_anisotropy, max_simultaneous_textures);
 
   capabilities_.max_texture_size = (std::min)(caps.MaxTextureWidth, caps.MaxTextureHeight);
 
@@ -378,8 +368,6 @@ bool D3D9RendererImpl::Reset(int width, int height) {
     SPDLOG_ERROR("Device Reset failed with HRESULT: 0x{:08X}", static_cast<unsigned long>(hr));
     return false;
   }
-
-  SPDLOG_INFO("Device Reset successful: {}x{}", width, height);
 
   // Recreate ring buffers
   constexpr size_t kBatchVBSize = 256 * 1024;
@@ -529,28 +517,9 @@ void D3D9RendererImpl::EndFrame() {
   // Flush any remaining batched geometry before frame end
   FlushBatch();
 
-  SPDLOG_TRACE("Frame batch stats: {} polys batched, {} batches flushed, {} draw calls saved", batch_stats_.polygons_batched,
-               batch_stats_.batches_flushed, batch_stats_.draw_calls_saved);
-
-  // Log state cache and ring buffer stats periodically (every 60 frames)
+  // Reset state cache and ring buffer stats periodically (every 60 frames)
   static int frame_counter = 0;
   if (++frame_counter >= 60) {
-    const auto& stats = state_stats_;
-    const size_t total_calls = stats.GetTotalApiCalls();
-    const size_t total_hits = stats.GetTotalCacheHits();
-    if (total_calls + total_hits > 0) {
-      const float hit_rate = static_cast<float>(total_hits) / static_cast<float>(total_calls + total_hits) * 100.0f;
-      SPDLOG_DEBUG("State cache: {} API calls, {} cache hits ({:.1f}% hit rate)", total_calls, total_hits, hit_rate);
-    }
-
-    // Log ring buffer efficiency
-    const size_t vb_discards = batch_ring_vb_.GetDiscardCount() + alpha_ring_vb_.GetDiscardCount();
-    const size_t vb_nooverwrite = batch_ring_vb_.GetNoOverwriteCount() + alpha_ring_vb_.GetNoOverwriteCount();
-    if (vb_discards + vb_nooverwrite > 0) {
-      const float nooverwrite_rate = static_cast<float>(vb_nooverwrite) / static_cast<float>(vb_discards + vb_nooverwrite) * 100.0f;
-      SPDLOG_DEBUG("Ring buffer: {} discards, {} nooverwrite ({:.1f}% stall-free)", vb_discards, vb_nooverwrite, nooverwrite_rate);
-    }
-
     batch_ring_vb_.ResetStats();
     batch_ring_ib_.ResetStats();
     alpha_ring_vb_.ResetStats();
@@ -1555,8 +1524,6 @@ void D3D9RendererImpl::SetVSync(bool enable) {
   vsync = enable;
   // Note: Actual D3D9 vsync change requires device reset (PresentInterval in D3DPRESENT_PARAMETERS).
   // We store the intent here, so if a reset happens, it will be picked up.
-  // For benchmark purposes, the benchmark is started before level load/device reset might happen,
-  // or we accept that D3D9 won't switch dynamically without a reset.
   if (enable) {
     present_params.PresentationInterval = D3DPRESENT_INTERVAL_ONE;
   } else {

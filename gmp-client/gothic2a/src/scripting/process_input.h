@@ -25,6 +25,7 @@ SOFTWARE.
 #pragma once
 
 #include <array>
+#include <optional>
 #include <string_view>
 
 #include "ZenGin/zGothicAPI.h"
@@ -34,10 +35,15 @@ namespace gmp::gothic {
 
 constexpr int kMaxTrackedCode = MAX_MOUSE_BTNS_AND_CODES;
 
+void InstallChatInputHooks();
+
 // Input state arrays
 extern bool s_prevPressed[kMaxTrackedCode + 1];
 extern bool s_pressedThisFrame[kMaxTrackedCode + 1];
 extern bool s_toggledThisFrame[kMaxTrackedCode + 1];
+
+std::optional<int> FindKeyboardKeyCode(std::string_view name);
+std::string_view FindKeyboardKeyName(int code);
 
 // Process input and trigger key events
 void ProcessInput(zCInput* zinput);
@@ -166,12 +172,15 @@ inline constexpr std::array kGameKeys = {
 // Bind all key constants to Lua state
 void BindInputConstants(sol::state& lua);
 
+// Bind input query/control functions to Lua state
+void BindInput(sol::state& lua);
+
 // Bind Cursor related functions to Lua state
 void BindCursor(sol::state& lua);
 
 }  // namespace gmp::gothic
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Escape key.
  *
@@ -181,7 +190,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Number key 1.
  *
@@ -191,7 +200,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Number key 2.
  *
@@ -201,7 +210,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Number key 3.
  *
@@ -211,7 +220,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Number key 4.
  *
@@ -221,7 +230,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Number key 5.
  *
@@ -231,7 +240,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Number key 6.
  *
@@ -241,7 +250,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Number key 7.
  *
@@ -251,7 +260,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Number key 8.
  *
@@ -261,7 +270,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Number key 9.
  *
@@ -271,7 +280,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Number key 0.
  *
@@ -281,7 +290,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Minus key.
  *
@@ -291,7 +300,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Equals key.
  *
@@ -301,7 +310,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Backspace key.
  *
@@ -311,7 +320,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Tab key.
  *
@@ -321,7 +330,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Letter key Q.
  *
@@ -331,7 +340,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Letter key W.
  *
@@ -341,7 +350,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Letter key E.
  *
@@ -351,7 +360,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Letter key R.
  *
@@ -361,7 +370,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Letter key T.
  *
@@ -371,7 +380,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Letter key Y.
  *
@@ -381,7 +390,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Letter key U.
  *
@@ -391,7 +400,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Letter key I.
  *
@@ -401,7 +410,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Letter key O.
  *
@@ -411,7 +420,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Letter key P.
  *
@@ -421,7 +430,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Left bracket key.
  *
@@ -431,7 +440,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Right bracket key.
  *
@@ -441,7 +450,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Enter / Return key.
  *
@@ -451,7 +460,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Left Control key.
  *
@@ -461,7 +470,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Letter key A.
  *
@@ -471,7 +480,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Letter key S.
  *
@@ -481,7 +490,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Letter key D.
  *
@@ -491,7 +500,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Letter key F.
  *
@@ -501,7 +510,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Letter key G.
  *
@@ -511,7 +520,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Letter key H.
  *
@@ -521,7 +530,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Letter key J.
  *
@@ -531,7 +540,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Letter key K.
  *
@@ -541,7 +550,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Letter key L.
  *
@@ -551,7 +560,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Semicolon key.
  *
@@ -561,7 +570,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Apostrophe key.
  *
@@ -571,7 +580,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Grave accent key.
  *
@@ -581,7 +590,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Left Shift key.
  *
@@ -591,7 +600,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Backslash key.
  *
@@ -601,7 +610,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Letter key Z.
  *
@@ -611,7 +620,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Letter key X.
  *
@@ -621,7 +630,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Letter key C.
  *
@@ -631,7 +640,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Letter key V.
  *
@@ -641,7 +650,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Letter key B.
  *
@@ -651,7 +660,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Letter key N.
  *
@@ -661,7 +670,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Letter key M.
  *
@@ -671,7 +680,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Comma key.
  *
@@ -681,7 +690,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Period key.
  *
@@ -691,7 +700,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Slash key.
  *
@@ -701,7 +710,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Right Shift key.
  *
@@ -711,7 +720,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Left Alt key.
  *
@@ -721,7 +730,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Spacebar key.
  *
@@ -731,7 +740,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Caps Lock key.
  *
@@ -741,7 +750,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Function key F1.
  *
@@ -751,7 +760,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Function key F2.
  *
@@ -761,7 +770,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Function key F3.
  *
@@ -771,7 +780,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Function key F4.
  *
@@ -781,7 +790,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Function key F5.
  *
@@ -791,7 +800,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Function key F6.
  *
@@ -801,7 +810,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Function key F7.
  *
@@ -811,7 +820,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Function key F8.
  *
@@ -821,7 +830,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Function key F9.
  *
@@ -831,7 +840,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Function key F10.
  *
@@ -841,7 +850,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Function key F11.
  *
@@ -851,7 +860,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Function key F12.
  *
@@ -860,7 +869,7 @@ void BindCursor(sol::state& lua);
  * @name     KEY_F12
  *
  */
-/* luadoc (const)
+/* luagmp (const)
  *
  * Mouse delta X movement.
  *
@@ -870,7 +879,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Mouse delta Y movement.
  *
@@ -880,7 +889,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Mouse movement up.
  *
@@ -890,7 +899,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Mouse movement down.
  *
@@ -900,7 +909,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Mouse left direction.
  *
@@ -910,7 +919,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Mouse right direction.
  *
@@ -920,7 +929,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Mouse wheel scroll up.
  *
@@ -930,7 +939,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Mouse wheel scroll down.
  *
@@ -940,7 +949,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Mouse left button.
  *
@@ -950,7 +959,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Mouse right button.
  *
@@ -960,7 +969,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Mouse middle button.
  *
@@ -970,7 +979,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Mouse extra button 1.
  *
@@ -980,7 +989,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Mouse extra button 2.
  *
@@ -990,7 +999,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Mouse extra button 3.
  *
@@ -1000,7 +1009,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Mouse extra button 4.
  *
@@ -1010,7 +1019,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Mouse extra button 5.
  *
@@ -1019,7 +1028,7 @@ void BindCursor(sol::state& lua);
  * @name     MOUSE_XBUTTON5
  *
  */
-/* luadoc (const)
+/* luagmp (const)
  *
  * Move left action.
  *
@@ -1029,7 +1038,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Move right action.
  *
@@ -1039,7 +1048,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Move up action.
  *
@@ -1049,7 +1058,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Move down action.
  *
@@ -1059,7 +1068,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Primary action.
  *
@@ -1069,7 +1078,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Slow movement / walk modifier.
  *
@@ -1079,7 +1088,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Secondary action.
  *
@@ -1089,7 +1098,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Weapon action.
  *
@@ -1099,7 +1108,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Strafe movement.
  *
@@ -1109,7 +1118,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Alternate strafe movement.
  *
@@ -1119,7 +1128,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Shift modifier.
  *
@@ -1129,7 +1138,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * End action.
  *
@@ -1139,7 +1148,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Open inventory.
  *
@@ -1149,7 +1158,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Look mode.
  *
@@ -1159,7 +1168,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Sneak mode.
  *
@@ -1169,7 +1178,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Strafe left.
  *
@@ -1179,7 +1188,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Strafe right.
  *
@@ -1189,7 +1198,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Show status screen.
  *
@@ -1199,7 +1208,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Show log screen.
  *
@@ -1209,7 +1218,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Show map screen.
  *
@@ -1219,7 +1228,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * First-person look.
  *
@@ -1229,7 +1238,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Lock target.
  *
@@ -1239,7 +1248,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Parry / block action.
  *
@@ -1249,7 +1258,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Left-hand action.
  *
@@ -1259,7 +1268,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Right-hand action.
  *
@@ -1269,7 +1278,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Use potion.
  *
@@ -1279,7 +1288,7 @@ void BindCursor(sol::state& lua);
  *
  */
 
-/* luadoc (const)
+/* luagmp (const)
  *
  * Use healing item.
  *

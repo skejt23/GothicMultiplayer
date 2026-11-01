@@ -47,6 +47,7 @@ public:
     std::string version;
     std::optional<std::string> author;
     std::optional<std::string> description;
+    std::vector<std::string> scripts;
   };
 
   struct DiscoveredResource {
@@ -72,7 +73,7 @@ public:
 
   // Create the global exports proxy table
   // This allows resources to call exports.otherResource.func()
-  void CreateExportsProxy(sol::state& lua);
+  void BindExports(sol::state& lua);
 
   // Override setTimer in Lua to capture current resource for ownership tracking
   void BindResourceAwareTimer(LuaScript& lua_script);
@@ -118,6 +119,8 @@ public:
 
 private:
   static void SetCurrentResource(Resource* resource);  // Non-owning
+  const DiscoveredResource* FindDiscoveredResource(const std::string& name) const;
+  const DiscoveredResource* FindLoadableResource(const std::string& name);
 
   std::unordered_map<std::string, std::unique_ptr<Resource>> resources_;
   std::vector<DiscoveredResource> discovered_resources_;

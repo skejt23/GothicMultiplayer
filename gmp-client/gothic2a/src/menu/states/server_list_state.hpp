@@ -25,6 +25,7 @@ SOFTWARE.
 #pragma once
 
 #include <chrono>
+#include <string>
 
 #include "menu/menu_context.hpp"
 #include "menu/states/menu_state.hpp"
@@ -37,22 +38,41 @@ namespace states {
  *
  * This state displays the server list and allows players to:
  * - Browse available servers
- * - Enter a custom IP address
+ * - Add or remove favourite servers
+ * - Add a private server to favourites by address
+ * - Enter an address for a direct connection
  * - Connect to a selected server
  */
 class ServerListState : public MenuState {
 private:
+  enum class EndpointEntryMode {
+    None,
+    DirectConnect,
+    AddFavorite,
+  };
+
   MenuContext& context_;
 
   bool shouldReturnToMainMenu_;
   bool shouldConnectToServer_;
-  bool enteringCustomIP_;
+  bool shouldExitMenuAfterConnection_;
+  EndpointEntryMode endpointEntryMode_;
   bool connectionAttemptInProgress_;
-  std::chrono::steady_clock::time_point connectionStartTime_;
+  std::string endpointEntryError_;
+  std::string serverListStatus_;
+  std::chrono::steady_clock::time_point serverListStatusExpiresAt_;
+  zCView* connectionBackground_{nullptr};
+  zCView* connectionProgressFrame_{nullptr};
+  zCView* connectionProgressFill_{nullptr};
+  zCView* connectionBannerText_{nullptr};
+  zCView* connectionProgressText_{nullptr};
+  int renderedConnectionProgressPercent_{-1};
+  std::string renderedConnectionProgressMessage_;
+  std::string renderedConnectionBanner_;
 
 public:
   explicit ServerListState(MenuContext& context);
-  ~ServerListState() override = default;
+  ~ServerListState() override;
 
   // MenuState interface
   void OnEnter() override;
@@ -67,10 +87,13 @@ private:
   void RenderServerList();
   void RenderCustomIPEntry();
   void RenderConnectionProgress();
+  void CloseConnectionProgress();
   void HandleInput();
   void HandleCommonInput();
   void HandleServerListInput();
   void HandleCustomIPInput();
+  void BeginEndpointEntry(EndpointEntryMode mode);
+  void CancelEndpointEntry();
   void ConnectToServer();
   void ScheduleGameSetup();
   void HandleConnectionFailure();

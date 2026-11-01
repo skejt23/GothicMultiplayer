@@ -25,18 +25,22 @@ target("LuaRuntime")
     
     -- Source files
     -- Note: script_base.h is header-only template (policy-based design)
-    add_files("spdlog_bind.cpp", "utility_bind.cpp", "timer_manager.cpp", "shared_bind.cpp", "math_bind.cpp")
+    add_files("bind_helpers.cpp", "spdlog_bind.cpp", "lua_utility.cpp", "timer_manager.cpp", "shared_bind.cpp", "lua_math.cpp",
+              "lua_value_codec.cpp", "lua_diagnostics.cpp", "lua_events.cpp")
     
     -- Headers
     add_headerfiles("*.h")
     
     -- Include directories
-    -- Public include allows: #include "shared/lua_runtime/script_base.h"
+    -- Public include allows: #include "Shared/lua_runtime/script_base.h"
     add_includedirs("$(projectdir)", {public = true})
     
     -- Dependencies
     add_deps("SharedLib")
-    add_packages("sol2", "spdlog", "fmt", {public = true})
+    add_packages("sol2", "spdlog", "fmt", "nlohmann_json", {public = true})
+    add_packages("xxhash", {public = true})
     
     -- Not built by default (only when needed by client/server)
     set_default(false)
+
+includes("test")

@@ -117,7 +117,6 @@ void InitializeD3D9Patches() {
   // =============================================================================
   if (auto original = CreateHook(kOCItemRenderAddress, (DWORD)Hook_OCItemRender)) {
     g_originalOCItemRender = reinterpret_cast<OCItemRenderFn>(*original);
-    SPDLOG_INFO("Hooked oCItem::Render at 0x{:08X} for D3D9 inventory render fix", kOCItemRenderAddress);
   } else {
     SPDLOG_ERROR("Failed to hook oCItem::Render at 0x{:08X}", kOCItemRenderAddress);
   }

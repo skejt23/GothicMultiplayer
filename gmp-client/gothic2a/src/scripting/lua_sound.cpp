@@ -27,37 +27,65 @@ SOFTWARE.
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <utility>
+
+#include "lua_helpers.h"
 
 namespace gmp::gothic {
-namespace {
-constexpr float kMinVolume = 0.0f;
-constexpr float kMaxVolume = 1.0f;
-constexpr float kMinBalance = -1.0f;
-constexpr float kMaxBalance = 1.0f;
-}  // namespace
 
-/* luadoc (class)
-*
-* Sound playback helper.
-*
-* Provides basic control over a sound resource loaded from a file, including
-* playback, looping, volume, stereo balance and querying playback state.
-*
-* @name     Sound
-* @side     client
-* @category Sound
-*
-*/
-/* luadoc (constructor)
-*
-* Creates a new Sound from a file.
-*
-* @param    (string) file Sound file path.
-*
-*/
+/* luagmp (class)
+ *
+ * This class controls playback of a non-positional sound.
+ *
+ * @version  0.3.0
+ * @name     Sound
+ * @side     client
+ * @category Game
+ *
+ */
+/* luagmp (constructor)
+ *
+ * Creates a new Sound from a file.
+ *
+ * @param    (string) file     Sound file path.
+ *
+ */
 
 LuaSound::LuaSound(const std::string& filename) : file_(filename), volume_(1.0f), looping_(false), balance_(0.0f), handle_(-1), sound_fx_(nullptr) {
   ReloadSound();
+}
+
+LuaSound::LuaSound(LuaSound&& other) noexcept
+    : file_(std::move(other.file_)),
+      volume_(other.volume_),
+      looping_(other.looping_),
+      balance_(other.balance_),
+      handle_(other.handle_),
+      sound_fx_(other.sound_fx_) {
+  other.handle_ = -1;
+  other.sound_fx_ = nullptr;
+}
+
+LuaSound& LuaSound::operator=(LuaSound&& other) noexcept {
+  if (this == &other) {
+    return *this;
+  }
+
+  StopIfNeeded();
+  if (sound_fx_) {
+    sound_fx_->Release();
+  }
+
+  file_ = std::move(other.file_);
+  volume_ = other.volume_;
+  looping_ = other.looping_;
+  balance_ = other.balance_;
+  handle_ = other.handle_;
+  sound_fx_ = other.sound_fx_;
+
+  other.handle_ = -1;
+  other.sound_fx_ = nullptr;
+  return *this;
 }
 
 LuaSound::~LuaSound() {
@@ -83,8 +111,6 @@ void LuaSound::ReloadSound() {
     return;
   }
 
-  SPDLOG_INFO("Attempting to load sound: '{}'", file_);
-
   Gothic_II_Addon::zSTRING soundName = file_.c_str();
   sound_fx_ = zsound->LoadSoundFX(soundName);
   if (!sound_fx_) {
@@ -92,7 +118,6 @@ void LuaSound::ReloadSound() {
     return;
   }
 
-  SPDLOG_INFO("Successfully loaded sound: '{}'", file_);
   ApplyProperties();
 }
 
@@ -117,13 +142,13 @@ void LuaSound::StopIfNeeded() {
   handle_ = -1;
 }
 
-/* luadoc (method)
-*
-* Starts sound playback.
-*
-* @name     play
-*
-*/
+/* luagmp (method)
+ *
+ * This method will start Sound playback.
+ *
+ * @name     play
+ *
+ */
 void LuaSound::play() {
   if (!sound_fx_) {
     ReloadSound();
@@ -141,82 +166,55 @@ void LuaSound::play() {
   sound_fx_->SetVolume(volume_);
   sound_fx_->SetPan(balance_);
 
-  SPDLOG_INFO("Attempting to play sound: '{}' (vol={}, pan={}, loop={})", file_, volume_, balance_, looping_);
-
   handle_ = zsound->PlaySound(sound_fx_, 0, Gothic_II_Addon::zSND_FREQ_DEFAULT, volume_, balance_);
-
-  SPDLOG_INFO("PlaySound returned handle: {}", handle_);
 }
 
-/* luadoc (method)
-*
-* Stops sound playback.
-*
-* @name     stop
-*
-*/
+/* luagmp (method)
+ *
+ * This method will stop Sound playback.
+ *
+ * @name     stop
+ *
+ */
 void LuaSound::stop() {
   StopIfNeeded();
 }
 
-/* luadoc (method)
-*
-* Returns whether the sound is currently playing.
-*
-* @name     isPlaying
-* @return   (bool) True if the sound is playing.
-*
-*/
-bool LuaSound::isPlaying() const {
-  return handle_ >= 0 && zsound && zsound->IsSoundActive(handle_) != 0;
+/* luagmp (method)
+ *
+ * This method will return whether the Sound is currently playing.
+ *
+ * @name     isPlaying
+ * @return   (boolean) True if the sound is playing.
+ *
+ */
+bool LuaSound::isPlaying() {
+  if (handle_ < 0 || !zsound) {
+    return false;
+  }
+
+  if (zsound->IsSoundActive(handle_) != 0) {
+    return true;
+  }
+
+  handle_ = -1;
+  return false;
 }
 
-/* luadoc (property)
-*
-* Gets or sets the sound file path.
-*
-* @name     file
-* @return   (string) Sound file path.
-*
-*/
-/* luadoc (property)
-*
-* Returns the current playback time.
-*
-* @name     playingTime
-* @readonly
-* @return   (number) Playback time.
-*
-*/
-/* luadoc (property)
-*
-* Gets or sets the playback volume.
-*
-* @name     volume
-* @return   (number) Volume level.
-*
-*/
-/* luadoc (property)
-*
-* Gets or sets whether the sound should loop.
-*
-* @name     looping
-* @return   (bool) True if looping is enabled.
-*
-*/
-/* luadoc (property)
-*
-* Gets or sets the stereo balance (pan).
-*
-* @name     balance
-* @return   (number) Stereo balance value.
-*
-*/
 
+/* luagmp (property)
+ *
+ * Represents the sound file path.
+ *
+ * @name     file
+ * @return   (string)
+ *
+ */
 std::string LuaSound::getFile() const {
   return file_;
 }
 
+/// Assigns the file property using the same value format as its getter.
 void LuaSound::setFile(const std::string& filename) {
   if (filename == file_) {
     return;
@@ -226,7 +224,16 @@ void LuaSound::setFile(const std::string& filename) {
   ReloadSound();
 }
 
-float LuaSound::getPlayingTime() const {
+/* luagmp (property)
+ *
+ * Represents the total sound duration in seconds.
+ *
+ * @name     duration
+ * @readonly
+ * @return   (number)
+ *
+ */
+float LuaSound::getDuration() const {
   if (sound_fx_) {
     return sound_fx_->GetPlayingTimeMSEC() / 1000.0f;
   }
@@ -238,31 +245,79 @@ float LuaSound::getPlayingTime() const {
   return 0.0f;
 }
 
+/* luagmp (property)
+ * Playback volume from 0.0 to 1.0.
+ *
+ * @name     volume
+ * @return   (number)
+ *
+ */
 float LuaSound::getVolume() const {
   return volume_;
 }
 
+/// Assigns the volume property using the same value format as its getter.
 void LuaSound::setVolume(float volume) {
-  volume_ = std::clamp(volume, kMinVolume, kMaxVolume);
+  volume_ = std::clamp(volume, lua_helpers::kSoundMinVolume, lua_helpers::kSoundMaxVolume);
   ApplyProperties();
 }
 
+/* luagmp (property)
+ *
+ * Represents whether the sound should loop.
+ *
+ * @name     looping
+ * @return   (boolean)
+ *
+ */
 bool LuaSound::getLooping() const {
   return looping_;
 }
 
+/// Assigns the looping property using the same value format as its getter.
 void LuaSound::setLooping(bool looping) {
+  if (looping_ == looping) {
+    return;
+  }
+
+  const bool was_playing = isPlaying();
   looping_ = looping;
   ApplyProperties();
+
+  if (was_playing) {
+    StopIfNeeded();
+    play();
+  }
 }
 
+/* luagmp (property)
+ * Stereo balance from -1 (left) through 0 (center) to 1 (right).
+ *
+ * @name balance
+ * @return (number)
+ */
 float LuaSound::getBalance() const {
   return balance_;
 }
 
+/// Assigns the balance property using the same value format as its getter.
 void LuaSound::setBalance(float balance) {
-  balance_ = std::clamp(balance, kMinBalance, kMaxBalance);
+  balance_ = std::clamp(balance, lua_helpers::kSoundMinBalance, lua_helpers::kSoundMaxBalance);
   ApplyProperties();
+}
+
+void BindSound(sol::state& lua) {
+  sol::usertype<LuaSound> sound_type = lua.new_usertype<LuaSound>("Sound", sol::constructors<LuaSound(const std::string&)>());
+
+  sound_type["play"] = &LuaSound::play;
+  sound_type["stop"] = &LuaSound::stop;
+  sound_type["isPlaying"] = &LuaSound::isPlaying;
+
+  sound_type["file"] = sol::property(&LuaSound::getFile, &LuaSound::setFile);
+  sound_type["duration"] = sol::property(&LuaSound::getDuration);
+  sound_type["volume"] = sol::property(&LuaSound::getVolume, &LuaSound::setVolume);
+  sound_type["looping"] = sol::property(&LuaSound::getLooping, &LuaSound::setLooping);
+  sound_type["balance"] = sol::property(&LuaSound::getBalance, &LuaSound::setBalance);
 }
 
 }  // namespace gmp::gothic

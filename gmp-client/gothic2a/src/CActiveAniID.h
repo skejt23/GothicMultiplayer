@@ -26,18 +26,41 @@ SOFTWARE.
 #ifndef CACTIVEANIID_H
 #define CACTIVEANIID_H
 
-#include <stack>
+#include <cstdint>
+#include <deque>
+#include <string>
+#include <unordered_map>
 
 class CActiveAniID {
 private:
-  std::stack<int> animation_stack;
+  struct ObservedAnimation {
+    std::string name;
+    float frame = 0.0f;
+    int direction = 1;
+    bool finite = false;
+  };
+  std::unordered_map<int, ObservedAnimation> observed_animations;
+  const void* observed_hero = nullptr;
+  const void* observed_model = nullptr;
+  int current_animation = -1;
 
 public:
+  struct Transition {
+    std::string name;
+    bool started;
+    std::uint64_t source_time_ms;
+  };
   CActiveAniID(void);
   ~CActiveAniID(void);
   static CActiveAniID *GetInstance();
   void AddAni(int id);
   void ValidateStack(void);
   int GetAniID(void);
+  void Observe();
+  void Reset();
+  std::deque<Transition> TakeTransitions();
+
+ private:
+  std::deque<Transition> transitions;
 };
 #endif

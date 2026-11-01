@@ -30,6 +30,8 @@ SOFTWARE.
 #include <optional>
 #include <string>
 
+#include "default_character_appearance.h"
+
 #include "ZenGin/zGothicAPI.h"
 
 // KEYBOARD LAYOUTS
@@ -47,37 +49,22 @@ public:
 
   using ConsolePosition = WindowPosition;
 
-  /**
-   * @brief Test mode configuration for debugging/development.
-   * When enabled, skips the main menu and spawns directly into the specified level.
-   */
-  struct TestModeConfig {
-    bool enabled = false;
-    std::string level;  // ZEN file path, e.g. "NEWWORLD\\NEWWORLD.ZEN"
-    float spawn_x = 0.0f;
-    float spawn_y = 0.0f;
-    float spawn_z = 0.0f;
-  };
-
   bool IsDefault() const;
 
   zSTRING Nickname;
-  int lang;
-  bool logchat;
-  bool watch;
-  enum KeyboardLayout { KEYBOARD_POLISH, KEYBOARD_GERMAN, KEYBOARD_CYRYLLIC };
-  int keyboardlayout;
+  std::string language = "EN";
   enum class RendererType { D3D7, D3D9, D3D11 };
   bool vsync_enabled = true;
-  int WatchPosX;
-  int WatchPosY;
-  int ChatLines;
+  bool extended_menu_scenes = false;
 
   Config();
   ~Config();
 
   void DefaultSettings();
   void SaveConfigToFile();
+
+  const gmp::CharacterAppearance& GetCharacterAppearance() const { return character_appearance_; }
+  void SetCharacterAppearance(gmp::CharacterAppearance appearance);
 
   const std::optional<WindowPosition>& GetWindowPosition() const;
   void SetWindowPosition(WindowPosition window_position);
@@ -89,24 +76,16 @@ public:
     return window_always_on_top_;
   }
 
+  void SetWindowAlwaysOnTop(bool enabled) {
+    window_always_on_top_ = enabled;
+  }
+
   RendererType GetRendererType() const {
     return renderer_type_;
   }
 
-  /**
-   * @brief Get the test mode configuration.
-   * @return Reference to the test mode configuration.
-   */
-  const TestModeConfig& GetTestModeConfig() const {
-    return test_mode_config_;
-  }
-
-  /**
-   * @brief Check if test mode is enabled.
-   * @return true if test mode should be used.
-   */
-  bool IsTestModeEnabled() const {
-    return test_mode_config_.enabled;
+  void SetRendererType(RendererType renderer_type) {
+    renderer_type_ = renderer_type;
   }
 
   /**
@@ -117,6 +96,38 @@ public:
     return mcp_pipe_enabled_;
   }
 
+  /**
+   * @brief Check if Debug Console should be enabled.
+   * Defaults to true (enabled).
+   */
+  bool IsDebugConsoleEnabled() const {
+    return debug_console_enabled_;
+  }
+
+  bool IsVoiceChatEnabled() const {
+    return voice_chat_enabled_;
+  }
+
+  void SetVoiceChatEnabled(bool enabled) {
+    voice_chat_enabled_ = enabled;
+  }
+
+  int GetVoicePushToTalkKey() const {
+    return voice_push_to_talk_key_;
+  }
+
+  void SetVoicePushToTalkKey(int key) {
+    voice_push_to_talk_key_ = key;
+  }
+
+  float GetVoiceOutputVolume() const {
+    return static_cast<float>(voice_output_volume_percent_) / 100.0f;
+  }
+
+  int GetInterpolationDelayMs() const { return interpolation_delay_ms_; }
+
+  void SetVoiceOutputVolume(float volume);
+
   static Config& Instance() {
     static Config instance;
     return instance;
@@ -126,12 +137,18 @@ private:
   void LoadConfigFromFile();
 
   bool is_default_{true};
+  gmp::CharacterAppearance character_appearance_;
   std::filesystem::path config_file_path_;
   std::optional<WindowPosition> window_position_;
   std::optional<ConsolePosition> console_position_;
   bool window_always_on_top_ = false;
   RendererType renderer_type_ = RendererType::D3D9;  // D3D9 renderer by default
-  TestModeConfig test_mode_config_;
   // Whether to enable the MCP Named Pipe server (disabled by default)
   bool mcp_pipe_enabled_ = false;
+  // Whether to spawn external debug console window (enabled by default)
+  bool debug_console_enabled_ = true;
+  bool voice_chat_enabled_ = true;
+  int voice_push_to_talk_key_ = KEY_K;
+  int voice_output_volume_percent_ = 100;
+  int interpolation_delay_ms_ = 120;
 };

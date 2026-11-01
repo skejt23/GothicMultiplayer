@@ -127,6 +127,18 @@ public:
     return currentState_.get();
   }
 
+  void UpdateScene(float delta_time) {
+    if (currentState_) {
+      currentState_->UpdateScene(delta_time);
+    }
+  }
+
+  void StopScene() {
+    if (currentState_) {
+      currentState_->StopScene();
+    }
+  }
+
   /**
    * @brief Check if a state is currently active
    */

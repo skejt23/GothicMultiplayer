@@ -27,51 +27,13 @@ SOFTWARE.
 #include "menu/menu_context.hpp"
 #include "menu/states/menu_state.hpp"
 
-namespace menu {
-namespace states {
+namespace menu::states {
 
-/**
- * @brief State for GMP-specific online options (nickname, chat, language, etc.)
- *
- * This state allows configuration of:
- * - Nickname
- * - Chat logging
- * - Watch/clock settings
- * - Anti-aliasing
- * - Joystick
- * - Chat lines
- * - Keyboard layout
- * - Language
- * - Intro videos
- */
 class OnlineOptionsState : public MenuState {
-private:
-  MenuContext& context_;
-
-  enum class OptionItem {
-    NICKNAME = 0,
-    LOG_CHAT = 1,
-    WATCH_TOGGLE = 2,
-    WATCH_POSITION = 3,
-    ANTIALIASING = 4,
-    JOYSTICK = 5,
-    CHAT_LINES = 6,
-    KEYBOARD_LAYOUT = 7,
-    LANGUAGE = 8,
-    INTRO_VIDEOS = 9,
-    BACK = 10,
-    OPTION_COUNT = 11
-  };
-
-  OptionItem selectedOption_;
-  bool shouldReturnToMainMenu_;
-  bool shouldEnterWatchPositioning_;
-
 public:
   explicit OnlineOptionsState(MenuContext& context);
-  ~OnlineOptionsState() override = default;
+  ~OnlineOptionsState() override;
 
-  // MenuState interface
   void OnEnter() override;
   void OnExit() override;
   StateResult Update() override;
@@ -81,11 +43,40 @@ public:
   }
 
 private:
-  void RenderOptionsMenu();
+  enum class Page {
+    Categories,
+    Multiplayer,
+    Display,
+  };
+
+  void RenderMenu();
+  void RenderCategories();
+  void RenderMultiplayerOptions();
+  void RenderDisplayOptions();
+  void SetFont(bool small_font, bool highlighted);
+  void PrintCentered(int x, int width, int y, const zSTRING& text);
+  void PrintHeading(const zSTRING& text);
+  void PrintWideItem(int index, int y, const zSTRING& text);
+  void PrintOption(int index, int row, const zSTRING& label, const zSTRING& value, bool value_active);
+
   void HandleInput();
-  void ExecuteOption(OptionItem option);
-  void AdjustOption(OptionItem option, int direction);
+  void HandleNicknameInput();
+  void HandlePushToTalkInput();
+  void MoveSelection(int direction);
+  int GetItemCount() const;
+  void ActivateSelectedItem();
+  void AdjustSelectedItem(int direction);
+  void ChangeLanguage(int direction);
+  void GoBack();
+
+  MenuContext& context_;
+  Page page_;
+  int selectedItem_;
+  bool shouldReturnToMainMenu_;
+  bool editingNickname_;
+  bool capturingPushToTalk_;
+  zSTRING nicknameBeforeEdit_;
+  zCView* menuView_;
 };
 
-}  // namespace states
-}  // namespace menu
+}  // namespace menu::states

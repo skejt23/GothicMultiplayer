@@ -24,48 +24,43 @@ SOFTWARE.
 
 #pragma once
 
-#include <gmock/gmock.h>
-
-#include <atomic>
 #include <cstdint>
-#include <glm/glm.hpp>
+#include <optional>
 #include <string>
-#include <thread>
+#include <vector>
 
 #include "packets.h"
-#include "znet_client.h"
+#include "transport/transport.h"
 
-class FakeClientObserver {
+// A protocol peer with explicit polling on the test thread. It joins after
+// initial info and reports world readiness after its own spawn snapshot.
+class FakeClient {
 public:
-  virtual ~FakeClientObserver() = default;
-
-  virtual void OnExistingPlayersPacket(const ExistingPlayersPacket& packet) = 0;
-  virtual void OnJoinGamePacket(const JoinGamePacket& packet) = 0;
-};
-
-class FakeObserverMock : public FakeClientObserver {
-public:
-  MOCK_METHOD(void, OnExistingPlayersPacket, (const ExistingPlayersPacket& packet), (override));
-  MOCK_METHOD(void, OnJoinGamePacket, (const JoinGamePacket& packet), (override));
-};
-
-class FakeClient : public Net::NetClient::PacketHandler {
-public:
-  FakeClient(const std::string& username = "TestUser", FakeClientObserver* observer = nullptr);
-  ~FakeClient();
-
-  // Connection methods
+  explicit FakeClient(const std::string& username = "TestUser");
   bool Connect(const std::string& host, uint16_t port = 57005);
+  void Pulse();
+  void Disconnect();
+  bool IsConnected() const;
+
+  const std::optional<InitialInfoPacket>& InitialInfo() const { return initial_info_; }
+  const std::vector<JoinGamePacket>& Joins() const { return joins_; }
+  const std::vector<PlayerSpawnPacket>& Spawns() const { return spawns_; }
+  const std::vector<DisconnectionInfoPacket>& Departures() const { return departures_; }
+  const std::vector<MessagePacket>& Messages() const { return messages_; }
+  const std::string& Error() const { return error_; }
+  const PlayerSpawnPacket* FindSpawn(std::uint32_t player_id) const;
+  bool SendActorAction(ActorActionPacket action);
 
 private:
-  bool HandlePacket(unsigned char* data, std::uint32_t size) override;
-  void SentJoinGamePacket();
+  void HandlePacket(unsigned char* data, std::uint32_t size);
+  void SendJoinGame();
 
-  FakeClientObserver* observer_;
   std::string username_;
-  Net::NetClient* client_;
-  std::thread client_thread_;
-  std::atomic<bool> running_{false};
-  glm::vec3 position_{0.0f};
-  glm::vec3 rotation_{0.0f};
+  Net::ClientTransport client_;
+  std::optional<InitialInfoPacket> initial_info_;
+  std::vector<JoinGamePacket> joins_;
+  std::vector<PlayerSpawnPacket> spawns_;
+  std::vector<DisconnectionInfoPacket> departures_;
+  std::vector<MessagePacket> messages_;
+  std::string error_;
 };

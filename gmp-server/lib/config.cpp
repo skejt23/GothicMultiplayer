@@ -29,9 +29,9 @@ SOFTWARE.
 #include <spdlog/common.h>
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/fmt/ostr.h>
-#include <spdlog/fmt/ranges.h>
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <fstream>
@@ -39,6 +39,7 @@ SOFTWARE.
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "shared/toml_wrapper.h"
@@ -46,6 +47,7 @@ SOFTWARE.
 namespace {
 constexpr std::uint32_t kMaxNameLength = 100;
 constexpr std::uint32_t kMaxAuthKeyLength = 32;
+constexpr std::size_t kServerIdentitySeedBytes = 32;
 
 const std::unordered_map<std::string, std::variant<std::string, std::vector<std::string>, std::int32_t, bool>> kDefault_Config_Values = {
     {"name", std::string("Gothic Multiplayer Server")},
@@ -60,12 +62,21 @@ const std::unordered_map<std::string, std::variant<std::string, std::vector<std:
     {"allow_modification", true},
     {"hide_map", false},
     {"respawn_time_seconds", 5},
+    {"voice_enabled", true},
+    {"voice_range", 3500},
+    {"resources", std::vector<std::string>{std::string("default"), std::string("prototype")}},
+    {"addon_vdfs", std::vector<std::string>{}},
+    {"downloader_group", std::string("")},
+    {"downloader_file_max_chunk", 4 * 1024 * 1024},
+    {"downloader_rate_limit", 30},
+    {"downloader_download_timeout_seconds", 300},
     {"log_file", std::string("log.txt")},
     {"log_to_stdout", true},
     {"log_level", std::string("trace")},
-    {"scripts", std::vector<std::string>{std::string("main.lua")}},
     {"tick_rate_ms", 100},
     {"seconds_per_game_minute", 4},
+    {"stream_radius", 5000},
+    {"stream_height", 0},
 #ifndef WIN32
     {"daemon", true}
 #else
@@ -101,7 +112,10 @@ std::vector<unsigned char> base64_decode(const std::string& encoded) {
 
 }  // namespace
 
-Config::Config() {
+Config::Config() : Config("config.toml") {
+}
+
+Config::Config(std::filesystem::path config_path) : config_path_(std::move(config_path)) {
   if (sodium_init() < 0) {
     SPDLOG_ERROR("Failed to initialize libsodium");
     throw std::runtime_error("Failed to initialize libsodium");
@@ -114,7 +128,7 @@ void Config::Load() {
 
   TomlWrapper config;
   try {
-    config = TomlWrapper::CreateFromFile("config.toml");
+    config = TomlWrapper::CreateFromFile(config_path_.string());
   } catch (const std::exception& ex) {
     SPDLOG_ERROR("Couldn't load config file: {}", ex.what());
     return;
@@ -132,7 +146,7 @@ void Config::Load() {
         value.second);
   }
   ValidateAndFixValues();
-  EnsureServerKeys();
+  EnsureServerIdentitySeed();
 }
 
 void Config::ValidateAndFixValues() {
@@ -148,6 +162,63 @@ void Config::ValidateAndFixValues() {
     SPDLOG_WARN("Truncated auth_key since it exceeded the maximum length limit({})", kMaxAuthKeyLength);
   }
 
+  auto& resources = std::get<std::vector<std::string>>(values_.at("resources"));
+  std::vector<std::string> normalized_resources;
+  normalized_resources.reserve(resources.size());
+  for (const auto& resource : resources) {
+    if (resource.empty()) {
+      SPDLOG_WARN("Ignoring empty resource name in config");
+      continue;
+    }
+
+    if (std::find(normalized_resources.begin(), normalized_resources.end(), resource) != normalized_resources.end()) {
+      SPDLOG_WARN("Ignoring duplicate resource '{}' in config", resource);
+      continue;
+    }
+
+    normalized_resources.push_back(resource);
+  }
+  resources = std::move(normalized_resources);
+
+  auto& addon_vdfs = std::get<std::vector<std::string>>(values_.at("addon_vdfs"));
+  std::vector<std::string> normalized_addons;
+  normalized_addons.reserve(addon_vdfs.size());
+  for (const auto& addon : addon_vdfs) {
+    if (addon.empty()) {
+      SPDLOG_WARN("Ignoring empty addon VDF path in config");
+      continue;
+    }
+    if (std::find(normalized_addons.begin(), normalized_addons.end(), addon) != normalized_addons.end()) {
+      SPDLOG_WARN("Ignoring duplicate addon VDF '{}' in config", addon);
+      continue;
+    }
+    normalized_addons.push_back(addon);
+  }
+  addon_vdfs = std::move(normalized_addons);
+
+  auto& downloader_group = std::get<std::string>(values_.at("downloader_group"));
+  if (downloader_group.size() > 64) {
+    downloader_group.resize(64);
+    SPDLOG_WARN("Truncated downloader_group to 64 characters");
+  }
+  auto& file_max_chunk = std::get<std::int32_t>(values_.at("downloader_file_max_chunk"));
+  constexpr std::int32_t kMinimumChunk = 16 * 1024;
+  constexpr std::int32_t kMaximumChunk = 16 * 1024 * 1024;
+  if (file_max_chunk < kMinimumChunk || file_max_chunk > kMaximumChunk) {
+    SPDLOG_WARN("Invalid downloader_file_max_chunk {}; using 4194304", file_max_chunk);
+    file_max_chunk = 4 * 1024 * 1024;
+  }
+  auto& rate_limit = std::get<std::int32_t>(values_.at("downloader_rate_limit"));
+  if (rate_limit < 0 || rate_limit > 10000) {
+    SPDLOG_WARN("Invalid downloader_rate_limit {}; using 30", rate_limit);
+    rate_limit = 30;
+  }
+  auto& download_timeout = std::get<std::int32_t>(values_.at("downloader_download_timeout_seconds"));
+  if (download_timeout < 0 || download_timeout > 86400) {
+    SPDLOG_WARN("Invalid downloader_download_timeout_seconds {}; using 300", download_timeout);
+    download_timeout = 300;
+  }
+
   auto& log_level = std::get<std::string>(values_.at("log_level"));
   const std::set<spdlog::string_view_t> valid_log_levels = SPDLOG_LEVEL_NAMES;
   auto it_level = valid_log_levels.find(spdlog::string_view_t(log_level));
@@ -156,6 +227,15 @@ void Config::ValidateAndFixValues() {
     auto& default_log_level = std::get<std::string>(kDefault_Config_Values.at("log_level"));
     SPDLOG_WARN("Invalid log level in config: {}. Setting to default \"{}\"", log_level, default_log_level);
     values_["log_level"] = default_log_level;
+  }
+
+  for (const auto* key : {"seconds_per_game_minute", "stream_radius", "stream_height", "voice_range"}) {
+    auto& value = std::get<std::int32_t>(values_.at(key));
+    if (value < 0) {
+      auto default_value = std::get<std::int32_t>(kDefault_Config_Values.at(key));
+      SPDLOG_WARN("Invalid {} in config: {}. Setting to default {}", key, value, default_value);
+      value = default_value;
+    }
   }
 }
 
@@ -179,6 +259,33 @@ void Config::LogConfigValues() const {
   SPDLOG_INFO("* {:<18}: {}", "Allow modification", bool_to_string(Get<bool>("allow_modification")));
   SPDLOG_INFO("* {:<18}: {}", "Hide map", bool_to_string(Get<bool>("hide_map")));
   SPDLOG_INFO("* {:<18}: {}", "Respawn time", fmt::format("{}s", Get<std::int32_t>("respawn_time_seconds")));
+  SPDLOG_INFO("* {:<18}: {}", "Voice chat", bool_to_string(Get<bool>("voice_enabled")));
+  SPDLOG_INFO("* {:<18}: {}", "Voice range", Get<std::int32_t>("voice_range"));
+
+  SPDLOG_INFO("");
+  SPDLOG_INFO("-= Resourcepacks =-");
+  const auto& resources = Get<std::vector<std::string>>("resources");
+  std::ostringstream resources_list;
+  for (std::size_t i = 0; i < resources.size(); ++i) {
+    if (i > 0) {
+      resources_list << ", ";
+    }
+    resources_list << resources[i];
+  }
+  SPDLOG_INFO("* {:<18}: {}", "Resources", resources.empty() ? std::string("<none>") : resources_list.str());
+  const auto& addon_vdfs = Get<std::vector<std::string>>("addon_vdfs");
+  std::ostringstream addon_list;
+  for (std::size_t i = 0; i < addon_vdfs.size(); ++i) {
+    if (i > 0)
+      addon_list << ", ";
+    addon_list << addon_vdfs[i];
+  }
+  SPDLOG_INFO("* {:<18}: {}", "VDFs", addon_vdfs.empty() ? std::string("<none>") : addon_list.str());
+  SPDLOG_INFO("* {:<18}: {}", "Download group",
+              Get<std::string>("downloader_group").empty() ? std::string("<client ip_port>") : Get<std::string>("downloader_group"));
+  SPDLOG_INFO("* {:<18}: {} bytes", "Download chunk", Get<std::int32_t>("downloader_file_max_chunk"));
+  SPDLOG_INFO("* {:<18}: {}/min", "Download rate", Get<std::int32_t>("downloader_rate_limit"));
+  SPDLOG_INFO("* {:<18}: {} s", "Download timeout", Get<std::int32_t>("downloader_download_timeout_seconds"));
 
   SPDLOG_INFO("");
   SPDLOG_INFO("-= Logging =-");
@@ -190,6 +297,9 @@ void Config::LogConfigValues() const {
   SPDLOG_INFO("-= Performance =-");
   SPDLOG_INFO("* {:<18}: {} ms", "Tick rate", Get<std::int32_t>("tick_rate_ms"));
   SPDLOG_INFO("* {:<18}: {} s", "Secs per game min", Get<std::int32_t>("seconds_per_game_minute"));
+  SPDLOG_INFO("* {:<18}: {}", "Stream radius", Get<std::int32_t>("stream_radius"));
+  const auto stream_height = Get<std::int32_t>("stream_height");
+  SPDLOG_INFO("* {:<18}: {}", "Stream height", stream_height == 0 ? std::string("unlimited") : std::to_string(stream_height));
 
 #ifndef WIN32
   const bool daemon = Get<bool>("daemon");
@@ -201,97 +311,45 @@ void Config::LogConfigValues() const {
   SPDLOG_INFO(kFrame);
 }
 
-void Config::EnsureServerKeys() {
+void Config::EnsureServerIdentitySeed() {
   auto& seed = std::get<std::string>(values_.at("server_identity_seed"));
 
-  // Check if seed already exists and is valid
+  // Preserve the existing website token and server-list identity.
   if (!seed.empty()) {
     auto decoded_seed = base64_decode(seed);
 
-    if (decoded_seed.size() == crypto_sign_SEEDBYTES) {
-      SPDLOG_INFO("Server identity seed loaded from config");
-      DeriveKeysFromSeed();
+    if (decoded_seed.size() == kServerIdentitySeedBytes) {
+      SPDLOG_INFO("Server website token loaded from config");
       return;
     } else {
-      SPDLOG_WARN("Existing server seed is invalid (expected {} bytes, got {}), generating new one", crypto_sign_SEEDBYTES, decoded_seed.size());
+      SPDLOG_WARN("Existing server seed is invalid (expected {} bytes, got {}), generating new one", kServerIdentitySeedBytes, decoded_seed.size());
     }
   }
 
   // Generate new random seed
-  std::array<unsigned char, crypto_sign_SEEDBYTES> new_seed;
+  std::array<unsigned char, kServerIdentitySeedBytes> new_seed;
   randombytes_buf(new_seed.data(), new_seed.size());
 
   // Encode to base64 and store
   seed = base64_encode(new_seed.data(), new_seed.size());
 
-  SPDLOG_INFO("Generated new server identity seed");
-
-  // Derive and cache the keys
-  DeriveKeysFromSeed();
+  SPDLOG_INFO("Generated new server website token");
 
   // Save to config file
   SaveConfigToFile();
 }
 
-void Config::DeriveKeysFromSeed() {
-  const auto& seed_str = Get<std::string>("server_identity_seed");
-  if (seed_str.empty()) {
-    SPDLOG_ERROR("Cannot derive keys: seed is empty");
-    cached_public_key_.clear();
-    cached_private_key_.clear();
-    return;
-  }
-
-  // Decode and cache the seed
-  auto binary_seed = base64_decode(seed_str);
-  if (binary_seed.size() != crypto_sign_SEEDBYTES) {
-    SPDLOG_ERROR("Invalid seed size for key derivation: expected {} bytes, got {}", crypto_sign_SEEDBYTES, binary_seed.size());
-    cached_public_key_.clear();
-    cached_private_key_.clear();
-    return;
-  }
-
-  // Derive keypair from seed
-  std::array<unsigned char, crypto_sign_PUBLICKEYBYTES> pk;
-  std::array<unsigned char, crypto_sign_SECRETKEYBYTES> sk;
-
-  if (crypto_sign_seed_keypair(pk.data(), sk.data(), binary_seed.data()) != 0) {
-    SPDLOG_ERROR("Failed to derive keypair from seed");
-    cached_public_key_.clear();
-    cached_private_key_.clear();
-    return;
-  }
-
-  // Cache the derived keys
-  cached_public_key_.assign(pk.begin(), pk.end());
-  cached_private_key_.assign(sk.begin(), sk.end());
-
-  SPDLOG_DEBUG("Server identity keys derived and cached in memory");
-}
-
 void Config::SaveConfigToFile() {
   try {
-    auto config = TomlWrapper::CreateFromFile("config.toml");
+    auto config = TomlWrapper::CreateFromFile(config_path_.string());
 
     // Update the server seed in the TOML data
     config["server_identity_seed"] = Get<std::string>("server_identity_seed");
 
-    config.Serialize("config.toml");
+    config.Serialize(config_path_.string());
 
-    SPDLOG_INFO("Saved server identity seed to config.toml");
+    SPDLOG_INFO("Saved server website token to {}", config_path_.string());
   } catch (const std::exception& ex) {
     SPDLOG_ERROR("Failed to save config file: {}", ex.what());
   }
-}
-
-// ============================================================================
-// Binary accessors - for network transmission and crypto operations
-// ============================================================================
-
-std::vector<unsigned char> Config::GetServerPublicKeyBinary() const {
-  return cached_public_key_;
-}
-
-std::vector<unsigned char> Config::GetServerPrivateKeyBinary() const {
-  return cached_private_key_;
 }

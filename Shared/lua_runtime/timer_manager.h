@@ -51,8 +51,8 @@ public:
   std::optional<std::chrono::milliseconds> GetInterval(TimerId id) const;
   void SetInterval(TimerId id, std::chrono::milliseconds interval);
 
-  std::optional<std::uint32_t> GetExecuteTimes(TimerId id) const;
-  void SetExecuteTimes(TimerId id, std::uint32_t execute_times);
+  std::optional<std::uint32_t> GetRemainingExecutions(TimerId id) const;
+  void SetRemainingExecutions(TimerId id, std::uint32_t execute_times);
 
   void SetOwnerContextExecutor(OwnerContextExecutor executor);
 

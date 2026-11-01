@@ -28,6 +28,7 @@ SOFTWARE.
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <filesystem>
 #include <string>
 
 #ifdef _WIN32
@@ -44,6 +45,8 @@ enum class LanguageEncoding {
   kNone,
   kCp1250,
   kCp1251,
+  kCp1252,
+  kCp1254,
 };
 
 namespace detail {
@@ -65,12 +68,18 @@ inline bool KeywordMatches(const std::string& haystack, const char* keyword) {
   return haystack.find(keyword) != std::string::npos;
 }
 
-inline constexpr std::array<LanguageEncodingHint, 5> kEncodingHints = {
-    {{LanguageEncoding::kCp1250, {"polish", "polski", "german", "deutsch", "czech", "cesky"}},
-     {LanguageEncoding::kCp1250, {"hungarian", "magyar", "interslavic", "medzuslovjansky", "italian", "italiano"}},
+inline constexpr std::array<LanguageEncodingHint, 10> kEncodingHints = {
+    {{LanguageEncoding::kCp1250, {"polish", "polski", "czech", "cesky", "hungarian", "magyar"}},
+     {LanguageEncoding::kCp1250, {"slovak", "slovencina", "interslavic", "medzuslovjansky", nullptr, nullptr}},
+     {LanguageEncoding::kCp1250, {"silesian", "slaski", "slonski", "slonsko", "slask", "slonsk"}},
      {LanguageEncoding::kCp1251, {"russian", "\u0440\u0443\u0441", "rossiya", nullptr, nullptr, nullptr}},
      {LanguageEncoding::kCp1251, {"ukrainian", "\u0443\u043a\u0440", nullptr, nullptr, nullptr, nullptr}},
-     {LanguageEncoding::kCp1251, {"\u0440\u0443\u0441\u0441\u043a\u0438\u0439", nullptr, nullptr, nullptr, nullptr, nullptr}}}};
+     {LanguageEncoding::kCp1251, {"\u0440\u0443\u0441\u0441\u043a\u0438\u0439", nullptr, nullptr, nullptr, nullptr, nullptr}},
+     {LanguageEncoding::kCp1252, {"english", "german", "deutsch", "italian", "italiano", nullptr}},
+     {LanguageEncoding::kCp1252, {"french", "francais", "fran\u00e7ais", "danish", "dansk", nullptr}},
+     {LanguageEncoding::kCp1252, {"spanish", "espanol", "espa\u00f1ol", nullptr, nullptr, nullptr}},
+     {LanguageEncoding::kCp1254, {"turkish", "turkce", "t\u00fcrk", nullptr, nullptr, nullptr}}
+    }};
 
 #ifdef _WIN32
 inline std::string ConvertUtf8ToCodePage(const std::string& text, unsigned int code_page) {
@@ -133,16 +142,13 @@ inline LanguageEncoding DetectLanguageEncoding(const std::string& language_field
   if (path_contains("_pl") || path_contains("/pl") || path_contains("\\pl")) {
     return LanguageEncoding::kCp1250;
   }
-  if (path_contains("_de") || path_contains("/de") || path_contains("\\de")) {
-    return LanguageEncoding::kCp1250;
-  }
   if (path_contains("_cz") || path_contains("/cz") || path_contains("\\cz")) {
     return LanguageEncoding::kCp1250;
   }
-  if (path_contains("_hu") || path_contains("/hu") || path_contains("\\hu")) {
+  if (path_contains("_sk") || path_contains("/sk") || path_contains("\\sk")) {
     return LanguageEncoding::kCp1250;
   }
-  if (path_contains("_it") || path_contains("/it") || path_contains("\\it")) {
+  if (path_contains("_hu") || path_contains("/hu") || path_contains("\\hu")) {
     return LanguageEncoding::kCp1250;
   }
   if (path_contains("_ru") || path_contains("/ru") || path_contains("\\ru")) {
@@ -150,6 +156,18 @@ inline LanguageEncoding DetectLanguageEncoding(const std::string& language_field
   }
   if (path_contains("_ua") || path_contains("/ua") || path_contains("\\ua")) {
     return LanguageEncoding::kCp1251;
+  }
+  if (path_contains("_en") || path_contains("/en") || path_contains("\\en")) {
+    return LanguageEncoding::kCp1252;
+  }
+  if (path_contains("_de") || path_contains("/de") || path_contains("\\de")) {
+    return LanguageEncoding::kCp1252;
+  }
+  if (path_contains("_it") || path_contains("/it") || path_contains("\\it")) {
+    return LanguageEncoding::kCp1252;
+  }
+  if (path_contains("_tr") || path_contains("/tr") || path_contains("\\tr")) {
+    return LanguageEncoding::kCp1254;
   }
   if (path_contains("_is") || path_contains("/is") || path_contains("\\is")) {
     return LanguageEncoding::kCp1250;
@@ -164,6 +182,10 @@ inline std::string ConvertFromUtf8(const std::string& text, LanguageEncoding enc
       return detail::ConvertUtf8ToCodePage(text, 1250);
     case LanguageEncoding::kCp1251:
       return detail::ConvertUtf8ToCodePage(text, 1251);
+    case LanguageEncoding::kCp1252:
+      return detail::ConvertUtf8ToCodePage(text, 1252);
+    case LanguageEncoding::kCp1254:
+      return detail::ConvertUtf8ToCodePage(text, 1254);
     case LanguageEncoding::kNone:
     default:
       return text;

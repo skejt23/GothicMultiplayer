@@ -38,9 +38,9 @@ SOFTWARE.
 #include <nlohmann/json.hpp>
 
 #include "CSyncFuncs.h"
-#include "CWatch.h"
 #include "ExtendedServerList.h"
 #include "config.h"
+#include "content/content_transition_manager.h"
 #include "interface.h"
 #include "keyboard.h"
 #include "language.h"
@@ -66,8 +66,6 @@ zCOLOR Red = zCOLOR(0xFF, 0, 0);
 CMainMenu::CMainMenu() {
   player->SetMovLock(1);
   Patch::PlayerInterfaceEnabled(false);
-  hbX = 0;
-  hbY = 0;
   RECT wymiary;
   GetWindowRect(Patch::GetHWND(), &wymiary);
   fWRatio = 1280.0f / (float)wymiary.right;  // zalozenie jest takie ze szerokosc jest dopasowywana weddug szerokosci 1280
@@ -90,6 +88,13 @@ CMainMenu::CMainMenu() {
 void CMainMenu::InitializeStateMachine() {
   SPDLOG_INFO("Initializing menu state machine");
 
+  // States borrow the context. Destroy them before replacing it on re-entry.
+  if (stateMachine_) {
+    stateMachine_->Clear();
+    stateMachine_.reset();
+  }
+  menuContext_.reset();
+
   // Create menu context with all shared resources
   menuContext_ = std::make_unique<menu::MenuContext>(Config::Instance(), Language::Instance(), server_list_);
 
@@ -102,16 +107,11 @@ void CMainMenu::InitializeStateMachine() {
 
   // Menu visual elements - logo will be created by EnterMenuState
   menuContext_->logoView = nullptr;
-  menuContext_->titleWeapon = nullptr;
-  menuContext_->cameraWeapon = nullptr;
-  menuContext_->titleWeaponEnabled = false;
 
   // Player state backup
   menuContext_->savedPlayerPosition = HeroPos;
   menuContext_->savedPlayerAngle = Angle;
   menuContext_->savedPlayerNormal = NAngle;
-  menuContext_->savedHealthBarX = hbX;
-  menuContext_->savedHealthBarY = hbY;
 
   // Create extended server list
   menuContext_->extendedServerList = new ExtendedServerList(server_list_);
@@ -150,13 +150,9 @@ CMainMenu::~CMainMenu() {
 void CMainMenu::PrepareForMenuEntry() {
   PreparePlayerForMenuReentry();
 
-  // Disable health bar
-  if (menuContext_) {
-    menuContext_->DisableHealthBar();
-  } else if (ogame && ogame->hpBar) {
-    ogame->hpBar->GetSize(hbX, hbY);
-    ogame->hpBar->SetSize(0, 0);
-  }
+  // Use the native HUD gate; hiding a bar must not destroy its dimensions.
+  if (ogame)
+    ogame->SetShowPlayerStatus(FALSE);
 }
 
 void __stdcall CMainMenu::ReLaunchMenuCallback() {
@@ -176,14 +172,43 @@ void __stdcall CMainMenu::ReLaunchMenuCallback() {
 }
 
 void CMainMenu::ReLaunchMainMenu() {
+  StopMenuScenes();
   zinput->ClearKeyBuffer();
-  if (!memcmp("NEWWORLD\\NEWWORLD.ZEN", ogame->GetGameWorld()->GetWorldFilename().ToChar(), 21)) {
+  PrepareWorldChange();
+  const bool reload_base_world = NetGame::Instance().ConsumeBaseWorldReloadRequest();
+  if (reload_base_world) {
+    SPDLOG_INFO("Recreating the base Gothic game session after addon disconnect");
+    std::string error;
+    auto* content = NetGame::Instance().content_transition_manager.get();
+    if (!content || !content->DeactivateServerContent(error)) {
+      SPDLOG_ERROR("Failed to restore the base Gothic game session: {}", error);
+      return;
+    }
+    constexpr int kNewGameSlot = -2;
+    gmp::gothic::PrepareDisconnectLoadingScreen();
+    ogame->LoadGame(kNewGameSlot, zSTRING("NEWWORLD\\NEWWORLD.ZEN"));
+  } else if (ogame && ogame->GetGameWorld() &&
+             !memcmp("NEWWORLD\\NEWWORLD.ZEN", ogame->GetGameWorld()->GetWorldFilename().ToChar(), 21)) {
   }  // jest mapa
   else {
+    if (!ogame || !ogame->GetGameWorld()) {
+      SPDLOG_ERROR("Cannot reload the base world because the Gothic game session is unavailable");
+      return;
+    }
+    gmp::gothic::PrepareDisconnectLoadingScreen();
     Patch::ChangeLevelEnabled(true);
     ogame->ChangeLevel("NEWWORLD\\NEWWORLD.ZEN", zSTRING("????"));
     Patch::ChangeLevelEnabled(false);
   }
+
+  if (!ogame || !ogame->GetGameWorld() || !player) {
+    SPDLOG_ERROR("Cannot relaunch the GMP menu because the base world or hero is unavailable");
+    return;
+  }
+  ResetWorldRenderState();
+  HeroPos = player->GetPositionWorld();
+  Angle = player->trafoObjToWorld.GetAtVector();
+  NAngle = player->trafoObjToWorld.GetRightVector();
   HooksManager::GetInstance()->AddHook(HT_AIMOVING, (DWORD)CMainMenu::ReLaunchMenuCallback);
 }
 
@@ -204,13 +229,17 @@ void CMainMenu::PreparePlayerForMenuReentry() {
     player->UnequipItem(meleeWeapon);
   }
 
-  if (auto* rightHand = player->GetRightHand()) {
-    zCVob* leftHand = player->GetLeftHand();
-    player->DropAllInHand();
-    if (leftHand) {
-      leftHand->RemoveVobFromWorld();
-    }
+  zCVob* rightHand = player->GetRightHand();
+  zCVob* leftHand = player->GetLeftHand();
+  if (rightHand) {
+    zSTRING slot(NPC_NODE_RIGHTHAND);
+    player->RemoveFromSlot(slot, 0, 1);
     rightHand->RemoveVobFromWorld();
+  }
+  if (leftHand && leftHand != rightHand) {
+    zSTRING slot(NPC_NODE_LEFTHAND);
+    player->RemoveFromSlot(slot, 0, 1);
+    leftHand->RemoveVobFromWorld();
   }
 
   player->SetWeaponMode2(NPC_WEAPON_NONE);
@@ -238,6 +267,12 @@ void CMainMenu::RenderMenu() {
     return;
   }
 
+  // Actors have already moved before the world render. Project their labels
+  // here so names and the rendered models use the same camera/pose.
+  if (menuContext_) {
+    menuContext_->sceneManager.Render();
+  }
+
   // Run state machine update
   bool shouldContinue = stateMachine_->Update();
 
@@ -255,5 +290,22 @@ void CMainMenu::RenderMenu() {
     HooksManager::GetInstance()->RemoveHook(HT_RENDER, (DWORD)CMainMenu::MainMenuLoop);
 
     SPDLOG_INFO("Menu shutdown complete");
+  }
+}
+
+void CMainMenu::StopMenuScenes() {
+  // GetInstance() would create the menu during startup/shutdown callbacks.
+  if (Instance && Instance->menuContext_) {
+    if (Instance->stateMachine_) {
+      Instance->stateMachine_->StopScene();
+    }
+    Instance->menuContext_->sceneManager.StopScene();
+  }
+}
+
+void CMainMenu::UpdateMenuScene() {
+  if (Instance && Instance->stateMachine_ && Instance->menuContext_) {
+    Instance->menuContext_->sceneManager.Update(ztimer ? ztimer->frameTimeFloatSecs : 0.0f);
+    Instance->stateMachine_->UpdateScene(ztimer ? ztimer->frameTimeFloatSecs : 0.0f);
   }
 }

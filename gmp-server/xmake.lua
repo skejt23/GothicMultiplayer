@@ -20,7 +20,7 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 -- SOFTWARE.
 
-includes("lib/znet", "lib/znet_rak")
+
 
 target("Server")
     set_kind("static")
@@ -28,9 +28,10 @@ target("Server")
     add_files("lib/Lua/*.cpp")
     add_includedirs("$(builddir)/config")
     add_includedirs("lib", {public = true})
-    add_deps("common", "SharedLib", "LuaRuntime", "znet_server", "ResourcePacker")
+    add_deps("common", "SharedLib", "AddonSupport", "LuaRuntime", "Transport", "ResourcePacker")
     add_defines("SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE")
-    add_packages("spdlog", "fmt", "toml11", "nlohmann_json", "bitsery", "glm", "sol2", "cpp-httplib", "dylib", "openssl", "libsodium", {public = true})
+    add_packages("spdlog", "fmt", "toml11", "nlohmann_json", "bitsery", "glm", "sol2", "cpp-httplib",
+                 "openssl3", "libsodium", "libopus", "sqlite3", "mariadb-connector-c", {public = true})
     local master_endpoint = get_config("master_server_endpoint")
     if master_endpoint and #master_endpoint > 0 then
         add_defines(string.format("MASTER_SERVER_ENDPOINT=\"%s\"", master_endpoint))
@@ -46,9 +47,13 @@ target("ServerApp")
     set_prefixdir("gmp-server", { bindir = "." })
     add_installfiles("resources/config.toml")
     add_installfiles("resources/bans.json")
-    add_installfiles("resources/core/server/*.lua", {prefixdir = "resources/core/server"})
-    add_installfiles("resources/core/shared/*.lua", {prefixdir = "resources/core/shared"})
-    add_installfiles("resources/core/client/*.lua", {prefixdir = "resources/core/client"})
-    add_installfiles("resources/core/resource.toml", {prefixdir = "resources/core"})
+    add_installfiles("resources/default/client/*.lua", {prefixdir = "resources/default/client"})
+    add_installfiles("resources/default/server/*.lua", {prefixdir = "resources/default/server"})
+    add_installfiles("resources/default/shared/*.lua", {prefixdir = "resources/default/shared"})
+    add_installfiles("resources/default/resource.toml", {prefixdir = "resources/default"})
+    add_installfiles("resources/prototype/client/*.lua", {prefixdir = "resources/prototype/client"})
+    add_installfiles("resources/prototype/server/*.lua", {prefixdir = "resources/prototype/server"})
+    add_installfiles("resources/prototype/shared/*.lua", {prefixdir = "resources/prototype/shared"})
+    add_installfiles("resources/prototype/resource.toml", {prefixdir = "resources/prototype"})
 
 includes("test")

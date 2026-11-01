@@ -11,7 +11,8 @@ public = false
 slots = 12
 admin_passwd = ""
 auth_key = ""
-seconds_per_game_minute = 0
+# 0 freezes server time.
+seconds_per_game_minute = 4
 
 # --- Server Identity ---------------------------------------------------------
 # This seed is automatically generated on first startup and uniquely identifies this server.
@@ -27,6 +28,28 @@ map_md5 = ""
 allow_modification = true
 hide_map = false
 respawn_time_seconds = 5
+# Native proximity voice chat. Clients use push-to-talk (K by default).
+voice_enabled = true
+voice_range = 3500
+
+# --- Resourcepack ------------------------------------------------------------
+resources = [
+  "default",
+  "prototype"
+]
+# Optional ordered server content archives. Later VDFs override earlier VDFs.
+# Paths are relative to the gmp-server directory. The ordered set is cached as
+# data/public/addons.zip with an addons.bin identity manifest, then extracted
+# into the client Store group; it is never copied into Gothic II/Data.
+addon_vdfs = []
+# Maximum bytes written in one HTTP content-provider call (16 KiB to 16 MiB).
+downloader_file_max_chunk = 4194304
+# Maximum requests accepted from one address per minute. Set to 0 to disable.
+downloader_rate_limit = 30
+# Client directory below Multiplayer/Store. Empty defaults to ip_port.
+downloader_group = ""
+# Maximum duration of one resource HTTP request. Set to 0 to disable the timeout.
+downloader_download_timeout_seconds = 300
 
 # --- Logging -----------------------------------------------------------------
 log_file = "log.txt"
@@ -35,6 +58,9 @@ log_level = "info"
 
 # --- Performance -------------------------------------------------------------
 tick_rate_ms = 100
+stream_radius = 5000
+# 0 disables the vertical visibility limit.
+stream_height = 0
 
 # --- Process management ------------------------------------------------------
 # Set to true to detach the process when running on Linux.

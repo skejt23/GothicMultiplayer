@@ -72,7 +72,6 @@ void OptionsMenuState::OnExit() {
 }
 
 StateResult OptionsMenuState::Update() {
-  context_.scene.Update();
   CheckForMenuExit();
   return StateResult::Continue;
 }

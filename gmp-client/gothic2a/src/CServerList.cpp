@@ -25,7 +25,11 @@ SOFTWARE.
 
 #pragma warning(disable : 4101)
 
+#include <algorithm>
+#include <array>
 #include <charconv>
+#include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -36,9 +40,12 @@ SOFTWARE.
 #include <utility>
 
 #include <httplib.h>
+#include <iphlpapi.h>
+#include <icmpapi.h>
 #include <nlohmann/json.hpp>
 
 #include "CServerList.h"
+#include "master_server_client.h"
 
 namespace {
 
@@ -47,93 +54,6 @@ constexpr std::string_view kMasterServerEndpoint = MASTER_SERVER_ENDPOINT;
 #else
 constexpr std::string_view kMasterServerEndpoint{};
 #endif
-
-struct MasterServerEndpointInfo {
-  std::string host;
-  std::string path{"/"};
-  int port{80};
-  bool use_https{false};
-};
-
-std::optional<MasterServerEndpointInfo> ParseMasterServerEndpoint(std::string_view endpoint) {
-  if (endpoint.empty()) {
-    return std::nullopt;
-  }
-
-  MasterServerEndpointInfo info;
-  std::string_view remainder = endpoint;
-
-  auto scheme_pos = remainder.find("://");
-  if (scheme_pos != std::string_view::npos) {
-    auto scheme = remainder.substr(0, scheme_pos);
-    if (scheme == "http") {
-      info.use_https = false;
-    } else if (scheme == "https") {
-      info.use_https = true;
-      info.port = 443;
-    } else {
-      return std::nullopt;
-    }
-    remainder.remove_prefix(scheme_pos + 3);
-  }
-
-  if (remainder.empty()) {
-    return std::nullopt;
-  }
-
-  auto path_pos = remainder.find('/');
-  std::string_view host_port = remainder;
-  if (path_pos != std::string_view::npos) {
-    host_port = remainder.substr(0, path_pos);
-    auto path = remainder.substr(path_pos);
-    info.path.assign(path.begin(), path.end());
-    if (info.path.empty()) {
-      info.path = "/";
-    }
-  }
-
-  if (host_port.empty()) {
-    return std::nullopt;
-  }
-
-  auto port_pos = host_port.rfind(':');
-  if (port_pos != std::string_view::npos) {
-    auto port_view = host_port.substr(port_pos + 1);
-    int port_value = 0;
-    auto result = std::from_chars(port_view.data(), port_view.data() + port_view.size(), port_value);
-    if (result.ec != std::errc{}) {
-      return std::nullopt;
-    }
-    info.port = port_value;
-    host_port.remove_suffix(host_port.size() - port_pos);
-  } else if (!info.use_https) {
-    info.port = 80;
-  }
-
-  info.host.assign(host_port.begin(), host_port.end());
-
-  if (info.host.empty()) {
-    return std::nullopt;
-  }
-
-  return info;
-}
-
-std::unique_ptr<httplib::Client> CreateMasterServerClient(const MasterServerEndpointInfo& info) {
-#ifdef CPPHTTPLIB_OPENSSL_SUPPORT
-  if (info.use_https) {
-    auto client = std::make_unique<httplib::SSLClient>(info.host, info.port);
-    client->enable_server_certificate_verification(true);
-    return client;
-  }
-#else
-  if (info.use_https) {
-    return nullptr;
-  }
-#endif
-
-  return std::make_unique<httplib::Client>(info.host, info.port);
-}
 
 unsigned short ClampToUint16(int value) {
   if (value < 0) {
@@ -145,39 +65,71 @@ unsigned short ClampToUint16(int value) {
   return static_cast<unsigned short>(value);
 }
 
-int ParseIntegerField(const nlohmann::json& object, const char* key, int default_value = 0) {
+int ClampToInt(std::int64_t value) {
+  if (value < std::numeric_limits<int>::min()) {
+    return std::numeric_limits<int>::min();
+  }
+  if (value > std::numeric_limits<int>::max()) {
+    return std::numeric_limits<int>::max();
+  }
+  return static_cast<int>(value);
+}
+
+int ClampToInt(std::uint64_t value) {
+  if (value > static_cast<std::uint64_t>(std::numeric_limits<int>::max())) {
+    return std::numeric_limits<int>::max();
+  }
+  return static_cast<int>(value);
+}
+
+std::optional<int> TryParseIntegerField(const nlohmann::json& object, const char* key) {
   auto it = object.find(key);
   if (it == object.end() || it->is_null()) {
-    return default_value;
-  }
-
-  if (it->is_number_integer()) {
-    return static_cast<int>(it->get<std::int64_t>());
+    return std::nullopt;
   }
 
   if (it->is_number_unsigned()) {
-    auto value = it->get<std::uint64_t>();
-    if (value > static_cast<std::uint64_t>(std::numeric_limits<int>::max())) {
+    return ClampToInt(it->get<std::uint64_t>());
+  }
+
+  if (it->is_number_integer()) {
+    return ClampToInt(it->get<std::int64_t>());
+  }
+
+  if (it->is_number_float()) {
+    const auto value = it->get<double>();
+    if (!std::isfinite(value)) {
+      return std::nullopt;
+    }
+    if (value < static_cast<double>(std::numeric_limits<int>::min())) {
+      return std::numeric_limits<int>::min();
+    }
+    if (value > static_cast<double>(std::numeric_limits<int>::max())) {
       return std::numeric_limits<int>::max();
     }
     return static_cast<int>(value);
   }
 
-  if (it->is_number_float()) {
-    return static_cast<int>(it->get<double>());
-  }
-
   if (it->is_string()) {
     const auto& str = it->get_ref<const std::string&>();
-    int parsed_value = default_value;
+    int parsed_value = 0;
     auto result = std::from_chars(str.data(), str.data() + str.size(), parsed_value);
-    if (result.ec == std::errc{}) {
+    if (result.ec == std::errc{} && result.ptr == str.data() + str.size()) {
       return parsed_value;
     }
   }
 
-  return default_value;
+  return std::nullopt;
 }
+
+int ParseIntegerField(const nlohmann::json& object, const char* key, int default_value = 0) {
+  return TryParseIntegerField(object, key).value_or(default_value);
+}
+
+bool IsValidPort(int value) {
+  return value > 0 && value <= std::numeric_limits<unsigned short>::max();
+}
+
 std::string SanitizeDisplayText(std::string text) {
   for (auto& ch : text) {
     unsigned char value = static_cast<unsigned char>(ch);
@@ -198,12 +150,12 @@ std::string ParseStringField(const nlohmann::json& object, const char* key) {
     return it->get<std::string>();
   }
 
-  if (it->is_number_integer()) {
-    return std::to_string(it->get<std::int64_t>());
-  }
-
   if (it->is_number_unsigned()) {
     return std::to_string(it->get<std::uint64_t>());
+  }
+
+  if (it->is_number_integer()) {
+    return std::to_string(it->get<std::int64_t>());
   }
 
   if (it->is_number_float()) {
@@ -213,9 +165,37 @@ std::string ParseStringField(const nlohmann::json& object, const char* key) {
   return {};
 }
 
+int PingHost(const std::string& host) {
+  addrinfo hints{};
+  hints.ai_family = AF_INET;
+  hints.ai_socktype = SOCK_DGRAM;
+  addrinfo* address = nullptr;
+  if (getaddrinfo(host.c_str(), nullptr, &hints, &address) != 0) {
+    return -1;
+  }
+  const std::unique_ptr<addrinfo, decltype(&freeaddrinfo)> resolved(address, freeaddrinfo);
+  if (!address || !address->ai_addr) {
+    return -1;
+  }
+  const auto destination = reinterpret_cast<const sockaddr_in*>(address->ai_addr)->sin_addr.s_addr;
+  const HANDLE handle = IcmpCreateFile();
+  if (handle == INVALID_HANDLE_VALUE) {
+    return -1;
+  }
+  alignas(ICMP_ECHO_REPLY) std::array<unsigned char, sizeof(ICMP_ECHO_REPLY) + 8> buffer{};
+  const auto count = IcmpSendEcho(handle, destination, nullptr, 0, nullptr, buffer.data(), static_cast<DWORD>(buffer.size()), 1000);
+  IcmpCloseHandle(handle);
+  const auto* reply = reinterpret_cast<const ICMP_ECHO_REPLY*>(buffer.data());
+  if (count == 0 || reply->Status != IP_SUCCESS) {
+    return -1;
+  }
+  return ClampToInt(static_cast<std::uint64_t>(reply->RoundTripTime));
+}
+
 }  // namespace
 
 CServerList::~CServerList(void) {
+  stop_pinging_->store(true);
   if (!this->server_vector.empty())
     this->server_vector.clear();
 }
@@ -266,30 +246,21 @@ void CServerList::Parse() {
           continue;
         }
 
-        auto ip = ParseStringField(entry, "ip");
-        if (ip.empty()) {
-          ip = ParseStringField(entry, "address");
-        }
+        auto ip = ParseStringField(entry, "ip_address");
 
         const auto port_value = ParseIntegerField(entry, "port", 0);
-        if (ip.empty() || port_value <= 0) {
+        if (ip.empty() || !IsValidPort(port_value)) {
           continue;
         }
 
         SServerInfo tmp_sv_inf{};
         tmp_sv_inf.Clear();
 
-        tmp_sv_inf.port = ClampToUint16(port_value);
+        tmp_sv_inf.port = static_cast<unsigned short>(port_value);
 
-        auto name = ParseStringField(entry, "servername");
-        if (name.empty()) {
-          name = ParseStringField(entry, "name");
-        }
+        auto name = ParseStringField(entry, "name");
 
-        auto gamemode = ParseStringField(entry, "gamemode");
-        if (gamemode.empty()) {
-          gamemode = ParseStringField(entry, "map");
-        }
+        auto gamemode = ParseStringField(entry, "map");
 
         auto description = ParseStringField(entry, "description");
 
@@ -302,8 +273,8 @@ void CServerList::Parse() {
         tmp_sv_inf.map = gamemode.c_str();
         tmp_sv_inf.server_website = description.c_str();
 
-        tmp_sv_inf.num_of_players = ClampToUint16(ParseIntegerField(entry, "players", 0));
-        tmp_sv_inf.max_players = ClampToUint16(ParseIntegerField(entry, "maxslots", 0));
+        tmp_sv_inf.num_of_players = ClampToUint16(ParseIntegerField(entry, "current_players", 0));
+        tmp_sv_inf.max_players = ClampToUint16(ParseIntegerField(entry, "max_slots", 0));
         tmp_sv_inf.ping = ClampToUint16(ParseIntegerField(entry, "ping", 0));
 
         server_vector.push_back(tmp_sv_inf);
@@ -321,35 +292,27 @@ void CServerList::Parse() {
   data.clear();
 }
 
-bool CServerList::ReceiveListHttp() {
-  server_vector.clear();
-  data.clear();
-  SetError(ErrorCode::kNone, "");
-
+CServerList::FetchResult CServerList::FetchBody() {
   if (kMasterServerEndpoint.empty()) {
-    SetError(ErrorCode::kNotConfigured, "Master server endpoint is not configured.");
-    return false;
+    return {ErrorCode::kNotConfigured, {}, "Master server endpoint is not configured."};
   }
 
-  auto endpoint_info_opt = ParseMasterServerEndpoint(kMasterServerEndpoint);
+  auto endpoint_info_opt = master_server::ParseEndpoint(kMasterServerEndpoint);
   if (!endpoint_info_opt) {
-    SetError(ErrorCode::kInvalidEndpoint, "Master server endpoint has an invalid format.");
-    return false;
+    return {ErrorCode::kInvalidEndpoint, {}, "Master server endpoint must be a valid HTTPS URL."};
   }
 
   const auto endpoint_info = *endpoint_info_opt;
 
 #ifndef CPPHTTPLIB_OPENSSL_SUPPORT
   if (endpoint_info.use_https) {
-    SetError(ErrorCode::kConnectionFailed, "Master server endpoint requires HTTPS support, but this build lacks OpenSSL.");
-    return false;
+    return {ErrorCode::kConnectionFailed, {}, "Master server endpoint requires HTTPS support, but this build lacks OpenSSL."};
   }
 #endif
 
-  auto client = CreateMasterServerClient(endpoint_info);
+  auto client = master_server::CreateClient(endpoint_info);
   if (!client) {
-    SetError(ErrorCode::kConnectionFailed, "Unable to initialize HTTP client for the master server endpoint.");
-    return false;
+    return {ErrorCode::kConnectionFailed, {}, "Unable to initialize HTTPS client for the master server endpoint."};
   }
 
   client->set_connection_timeout(5, 0);
@@ -358,19 +321,87 @@ bool CServerList::ReceiveListHttp() {
 
   auto response = client->Get(endpoint_info.path.c_str());
   if (!response) {
-    SetError(ErrorCode::kConnectionFailed, "Failed to connect to the master server endpoint.");
-    return false;
+    return {ErrorCode::kConnectionFailed, {}, "Failed to connect to the master server endpoint."};
   }
 
   if (response->status != 200) {
-    SetError(ErrorCode::kBadResponse, "Master server responded with HTTP status " + std::to_string(response->status) + ".");
-    return false;
+    return {ErrorCode::kBadResponse, {}, "Master server responded with HTTP status " + std::to_string(response->status) + "."};
   }
 
-  data = response->body;
+  return {ErrorCode::kNone, std::move(response->body), {}};
+}
+
+bool CServerList::ApplyFetchResult(FetchResult result) {
+  SetError(result.error, std::move(result.message));
+  if (result.error != ErrorCode::kNone) {
+    return false;
+  }
+  server_vector.clear();
+  data = std::move(result.body);
   list_type = HTTP_LIST;
   Parse();
   return error_code == ErrorCode::kNone;
+}
+
+bool CServerList::ReceiveListHttp() {
+  return ApplyFetchResult(FetchBody());
+}
+
+bool CServerList::BeginRefresh() {
+  if (refresh_result_.valid()) {
+    return true;
+  }
+  try {
+    refresh_result_ = std::async(std::launch::async, &CServerList::FetchBody);
+    return true;
+  } catch (const std::exception& error) {
+    SetError(ErrorCode::kConnectionFailed, error.what());
+    return false;
+  }
+}
+
+std::optional<bool> CServerList::PollRefresh() {
+  if (!refresh_result_.valid() || refresh_result_.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+    return std::nullopt;
+  }
+  try {
+    return ApplyFetchResult(refresh_result_.get());
+  } catch (const std::exception& error) {
+    SetError(ErrorCode::kConnectionFailed, error.what());
+    return false;
+  }
+}
+
+void CServerList::BeginPings(std::vector<std::string> hosts) {
+  if (ping_result_.valid() || hosts.empty()) {
+    return;
+  }
+  std::sort(hosts.begin(), hosts.end());
+  hosts.erase(std::unique(hosts.begin(), hosts.end()), hosts.end());
+  ping_result_ = std::async(std::launch::async, [hosts = std::move(hosts), stop = stop_pinging_]() {
+    PingResults results;
+    WSADATA winsock{};
+    if (WSAStartup(MAKEWORD(2, 2), &winsock) != 0) {
+      return results;
+    }
+    struct Cleanup {
+      ~Cleanup() { WSACleanup(); }
+    } cleanup;
+    for (const auto& host : hosts) {
+      if (stop->load()) {
+        break;
+      }
+      results.emplace_back(host, PingHost(host));
+    }
+    return results;
+  });
+}
+
+std::optional<CServerList::PingResults> CServerList::PollPings() {
+  if (!ping_result_.valid() || ping_result_.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+    return std::nullopt;
+  }
+  return ping_result_.get();
 }
 
 bool CServerList::ReceiveListUDP() {

@@ -24,6 +24,8 @@ SOFTWARE.
 
 #include "resource_manager.h"
 
+#include "Lua/event_bind.h"
+
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -31,34 +33,191 @@ SOFTWARE.
 #include <toml.hpp>
 
 #include "Script.h"
-#include "shared/lua_runtime/timer_manager.h"
+#include "Shared/lua_runtime/bind_helpers.h"
+#include "Shared/lua_runtime/timer_manager.h"
 
 namespace fs = std::filesystem;
 
 namespace {
 
+// Schedules a timer while retaining the resource that owns its callback.
+struct ResourceSetTimerBinding {
+  TimerManager& timer_manager;
+  int operator()(sol::protected_function func, int interval, int execute_times, sol::variadic_args args, sol::this_state ts) const {
+    sol::state_view state(ts);
+    auto copied_arguments = ::lua::bind_helpers::CopyArguments(state, args);
+    std::string owner;
+    if (auto* resource = ResourceManager::GetCurrentResource())
+      owner = resource->GetName();
+    return static_cast<int>(timer_manager.CreateTimer(std::move(func), std::chrono::milliseconds(interval),
+                                                      execute_times > 0 ? static_cast<std::uint32_t>(execute_times) : 0u, std::move(copied_arguments),
+                                                      owner));
+  }
+};
+
+// Restores the owner's execution context while a resource timer runs.
+struct ResourceTimerContext {
+  ResourceManager& manager;
+  void operator()(const std::string& owner, std::function<void()> callback) const {
+    auto resource = manager.GetResource(owner);
+    if (!resource || !resource->get().IsLoaded()) {
+      SPDLOG_DEBUG("Skipping timer callback for resource '{}' because it is not loaded", owner);
+      return;
+    }
+    ResourceManager::ScopedResourceContext context(resource->get());
+    callback();
+  }
+};
+
+// Calls a resource export in the execution context of its owner.
+struct ResourceExportCall {
+  std::string resource_name;
+  sol::protected_function function;
+  sol::protected_function_result operator()(sol::variadic_args args) const {
+    auto* manager = ResourceManager::GetActiveInstance();
+    auto resource = manager ? manager->GetResource(resource_name) : std::nullopt;
+    if (!resource || !resource->get().IsLoaded())
+      return function(sol::as_args(args));
+    ResourceManager::ScopedResourceContext context(resource->get());
+    return function(sol::as_args(args));
+  }
+};
+
+// Reads one export, wrapping functions so nested resource calls preserve ownership.
+struct ResourceExportIndex {
+  std::string resource_name;
+  sol::object operator()(sol::this_state ts, sol::stack_object, const std::string& key) const {
+    sol::state_view state(ts);
+    auto* manager = ResourceManager::GetActiveInstance();
+    auto resource = manager ? manager->GetResource(resource_name) : std::nullopt;
+    if (!resource || !resource->get().IsLoaded())
+      return sol::nil;
+    sol::table exports = resource->get().GetExports();
+    sol::object value = exports[key];
+    if (value.get_type() == sol::type::function)
+      return sol::make_object(state, sol::as_function(ResourceExportCall{resource_name, value.as<sol::protected_function>()}));
+    return value;
+  }
+};
+
+// Writes one export only while the resource remains loaded.
+struct ResourceExportNewIndex {
+  std::string resource_name;
+  void operator()(sol::stack_object, const std::string& key, const sol::object& value) const {
+    auto* manager = ResourceManager::GetActiveInstance();
+    auto resource = manager ? manager->GetResource(resource_name) : std::nullopt;
+    if (!resource || !resource->get().IsLoaded())
+      return;
+    sol::table exports = resource->get().GetExports();
+    exports[key] = value;
+  }
+};
+
+/* luagmp (global)
+ * Access to exports of loaded resources. Read `exports[resourceName][exportName]`; function calls run in the target resource context.
+ * @name exports
+ * @side server
+ * @return (table) Proxy over loaded resource exports.
+ */
+sol::object ResourceExportsIndex(sol::this_state ts, sol::stack_object, const std::string& name) {
+  sol::state_view state(ts);
+  auto* manager = ResourceManager::GetActiveInstance();
+  auto resource = manager ? manager->GetResource(name) : std::nullopt;
+  if (!resource || !resource->get().IsLoaded())
+    return sol::nil;
+  sol::table exports = resource->get().GetExports();
+  if (!exports.valid())
+    return sol::nil;
+  sol::table proxy = state.create_table();
+  sol::table meta = state.create_table();
+  meta[sol::meta_function::index] = ResourceExportIndex{name};
+  meta[sol::meta_function::new_index] = ResourceExportNewIndex{name};
+  proxy[sol::metatable_key] = meta;
+  return sol::make_object(state, proxy);
+}
+
 constexpr const char* kResourcesDirectory = "resources";
 constexpr const char* kMetadataFileName = "resource.toml";
 
-std::optional<ResourceManager::ResourceMetadata> LoadResourceMetadata(const fs::path& resource_root, const std::string& resource_name) {
+struct ResourceMetadataResult {
+  std::optional<ResourceManager::ResourceMetadata> metadata;
+};
+
+bool IsServerScriptPath(const std::string& path) {
+  return path.rfind("shared/", 0) == 0 || path.rfind("server/", 0) == 0;
+}
+
+bool NormalizeResourceScriptPath(const std::string& script_path, std::string& normalized, std::string& error) {
+  if (script_path.empty()) {
+    error = "script path is empty";
+    return false;
+  }
+
+  fs::path path(script_path);
+  if (path.is_absolute() || path.has_root_name() || path.has_root_directory()) {
+    error = "script path must be relative";
+    return false;
+  }
+
+  for (const auto& part : path) {
+    if (part == fs::path("..")) {
+      error = "script path cannot contain '..'";
+      return false;
+    }
+  }
+
+  if (path.extension() != ".lua") {
+    error = "script path must point to a .lua file";
+    return false;
+  }
+
+  normalized = path.lexically_normal().generic_string();
+  if (!IsServerScriptPath(normalized)) {
+    error = "server resource scripts must be under shared/ or server/";
+    return false;
+  }
+
+  return true;
+}
+
+std::optional<ResourceMetadataResult> LoadResourceMetadata(const fs::path& resource_root, const std::string& resource_name) {
+  ResourceMetadataResult result;
   const fs::path metadata_path = resource_root / kMetadataFileName;
   if (!fs::exists(metadata_path)) {
-    SPDLOG_DEBUG("Resource '{}' has no {} metadata", resource_name, kMetadataFileName);
+    SPDLOG_DEBUG("Skipping directory '{}' because it has no {}", resource_name, kMetadataFileName);
     return std::nullopt;
   }
 
   try {
     const toml::value metadata = toml::parse(metadata_path.string());
     if (!metadata.contains("version")) {
-      SPDLOG_WARN("Resource '{}' metadata is missing a non-empty 'version' field; skipping client pack", resource_name);
-      return std::nullopt;
+      SPDLOG_ERROR("Resource '{}' metadata is missing required 'version' field", resource_name);
+      return result;
     }
 
     ResourceManager::ResourceMetadata meta;
     meta.version = toml::find<std::string>(metadata, "version");
     if (meta.version.empty()) {
-      SPDLOG_WARN("Resource '{}' metadata declared an empty version; skipping client pack", resource_name);
-      return std::nullopt;
+      SPDLOG_ERROR("Resource '{}' metadata declared an empty version", resource_name);
+      return result;
+    }
+
+    if (!metadata.contains("scripts")) {
+      SPDLOG_ERROR("Resource '{}' metadata is missing required 'scripts' field", resource_name);
+      return result;
+    }
+
+    std::vector<std::string> declared_scripts = toml::find<std::vector<std::string>>(metadata, "scripts");
+    meta.scripts.reserve(declared_scripts.size());
+    for (const auto& script : declared_scripts) {
+      std::string normalized;
+      std::string error;
+      if (!NormalizeResourceScriptPath(script, normalized, error)) {
+        SPDLOG_ERROR("Resource '{}' has invalid script '{}': {}", resource_name, script, error);
+        return result;
+      }
+
+      meta.scripts.push_back(std::move(normalized));
     }
 
     const std::string author = toml::find_or(metadata, "author", std::string{});
@@ -71,14 +230,15 @@ std::optional<ResourceManager::ResourceMetadata> LoadResourceMetadata(const fs::
       meta.description = description;
     }
 
-    return meta;
+    result.metadata = std::move(meta);
+    return result;
   } catch (const toml::syntax_error& err) {
     SPDLOG_ERROR("Failed to parse metadata for resource '{}': {}", resource_name, err.what());
   } catch (const std::exception& ex) {
     SPDLOG_ERROR("Unexpected error while reading metadata for resource '{}': {}", resource_name, ex.what());
   }
 
-  return std::nullopt;
+  return result;
 }
 
 }  // namespace
@@ -91,6 +251,10 @@ ResourceManager::ResourceManager() {
 }
 
 ResourceManager::~ResourceManager() {
+  // EventManager outlives Lua states; release callbacks while their state still exists.
+  for (const auto& [name, resource] : resources_) {
+    lua::bindings::RemoveHandlersForResource(name);
+  }
   if (active_instance_ == this) {
     active_instance_ = nullptr;
   }
@@ -114,57 +278,90 @@ std::vector<std::string> ResourceManager::DiscoverResources() {
     }
 
     std::string resource_name = entry.path().filename().string();
+    auto metadata_result = LoadResourceMetadata(entry.path(), resource_name);
+    if (!metadata_result.has_value()) {
+      continue;
+    }
+
     DiscoveredResource descriptor;
     descriptor.name = resource_name;
     descriptor.root_path = entry.path();
-    descriptor.metadata = LoadResourceMetadata(descriptor.root_path, descriptor.name);
+    descriptor.metadata = std::move(metadata_result->metadata);
 
     discovered_resources_.push_back(descriptor);
-    discovered.push_back(resource_name);
-    SPDLOG_DEBUG("  Found resource: '{}'{}", resource_name, descriptor.metadata ? " (metadata detected)" : "");
+    if (descriptor.metadata) {
+      discovered.push_back(resource_name);
+    }
+    SPDLOG_DEBUG("  Found resource: '{}'{}", resource_name, descriptor.metadata ? " (metadata detected)" : " (invalid metadata)");
   }
 
   // Sort for consistent load order
   std::sort(discovered.begin(), discovered.end());
-  std::sort(discovered_resources_.begin(), discovered_resources_.end(), [](const DiscoveredResource& lhs, const DiscoveredResource& rhs) {
-    return lhs.name < rhs.name;
-  });
+  std::sort(discovered_resources_.begin(), discovered_resources_.end(),
+            [](const DiscoveredResource& lhs, const DiscoveredResource& rhs) { return lhs.name < rhs.name; });
 
-  SPDLOG_INFO("Discovered {} resource(s)", discovered.size());
+  const std::size_t valid_count = discovered.size();
+  const std::size_t invalid_count = discovered_resources_.size() - valid_count;
+  SPDLOG_INFO("Discovered {} valid resource(s) ({} invalid)", valid_count, invalid_count);
   return discovered;
 }
 
 void ResourceManager::LogResourceInfo() const {
-  const auto count_scripts_in_directory = [](const fs::path& directory) {
-    std::size_t count = 0;
-
-    if (!fs::exists(directory) || !fs::is_directory(directory)) {
-      return count;
-    }
-
-    for (const auto& entry : fs::directory_iterator(directory)) {
-      if (entry.is_regular_file() && entry.path().extension() == ".lua") {
-        ++count;
-      }
-    }
-
-    return count;
-  };
-
-  std::size_t scripts_count = 0;
+  std::size_t valid_scripts_count = 0;
+  std::size_t valid_resources = 0;
+  std::size_t invalid_resources = 0;
   for (const auto& resource : discovered_resources_) {
-    scripts_count += count_scripts_in_directory(resource.root_path / "shared");
-    scripts_count += count_scripts_in_directory(resource.root_path / "server");
-    scripts_count += count_scripts_in_directory(resource.root_path / "client");
+    if (resource.metadata) {
+      ++valid_resources;
+      valid_scripts_count += resource.metadata->scripts.size();
+    } else {
+      ++invalid_resources;
+    }
   }
 
   SPDLOG_INFO("");
   SPDLOG_INFO("-= Resources =-");
-  SPDLOG_INFO("* {:<18}: {}", "Resources count", discovered_resources_.size());
-  SPDLOG_INFO("* {:<18}: {}", "Scripts count", scripts_count);
+  SPDLOG_INFO("* {:<18}: {}", "Resources valid", valid_resources);
+  SPDLOG_INFO("* {:<18}: {}", "Scripts count", valid_scripts_count);
+  SPDLOG_INFO("* {:<18}: {}", "Resources invalid", invalid_resources);
+}
+
+const ResourceManager::DiscoveredResource* ResourceManager::FindDiscoveredResource(const std::string& name) const {
+  auto it = std::find_if(discovered_resources_.begin(), discovered_resources_.end(),
+                         [&name](const DiscoveredResource& resource) { return resource.name == name; });
+  if (it == discovered_resources_.end()) {
+    return nullptr;
+  }
+
+  return &*it;
+}
+
+const ResourceManager::DiscoveredResource* ResourceManager::FindLoadableResource(const std::string& name) {
+  const DiscoveredResource* descriptor = FindDiscoveredResource(name);
+  if (descriptor == nullptr) {
+    DiscoverResources();
+    descriptor = FindDiscoveredResource(name);
+  }
+
+  if (descriptor == nullptr) {
+    SPDLOG_WARN("Resource '{}' was not discovered from a {}", name, kMetadataFileName);
+    return nullptr;
+  }
+
+  if (!descriptor->metadata) {
+    SPDLOG_WARN("Resource '{}' has invalid metadata", name);
+    return nullptr;
+  }
+
+  return descriptor;
 }
 
 bool ResourceManager::LoadResource(const std::string& name, LuaScript& lua_script) {
+  const DiscoveredResource* descriptor = FindLoadableResource(name);
+  if (descriptor == nullptr || !descriptor->metadata) {
+    return false;
+  }
+
   // Check if already loaded
   if (resources_.find(name) != resources_.end() && resources_[name]->IsLoaded()) {
     SPDLOG_WARN("Resource '{}' is already loaded", name);
@@ -180,7 +377,7 @@ bool ResourceManager::LoadResource(const std::string& name, LuaScript& lua_scrip
   ScopedResourceContext ctx(*resources_[name]);
 
   // Load the resource
-  return resources_[name]->Load(lua_script, lua_script.GetTimerManager());
+  return resources_[name]->Load(lua_script, lua_script.GetTimerManager(), descriptor->root_path, descriptor->metadata->scripts);
 }
 
 void ResourceManager::UnloadResource(const std::string& name, LuaScript& lua_script) {
@@ -198,6 +395,11 @@ void ResourceManager::UnloadResource(const std::string& name, LuaScript& lua_scr
 }
 
 bool ResourceManager::ReloadResource(const std::string& name, LuaScript& lua_script) {
+  const DiscoveredResource* descriptor = FindLoadableResource(name);
+  if (descriptor == nullptr || !descriptor->metadata) {
+    return false;
+  }
+
   auto it = resources_.find(name);
   if (it == resources_.end()) {
     SPDLOG_WARN("Resource '{}' does not exist", name);
@@ -208,138 +410,7 @@ bool ResourceManager::ReloadResource(const std::string& name, LuaScript& lua_scr
   ScopedResourceContext ctx(*it->second);
 
   // Reload the resource
-  return it->second->Reload(lua_script, lua_script.GetTimerManager());
-}
-
-void ResourceManager::BindResourceAwareTimer(LuaScript& lua_script) {
-  auto& lua = lua_script.GetLuaState();
-  auto& timer_manager = lua_script.GetTimerManager();
-
-  // Helper to copy variadic arguments
-  auto copy_args = [](sol::state_view lua, const sol::variadic_args& args) {
-    std::vector<sol::object> copied;
-    copied.reserve(args.size());
-    for (auto arg : args) {
-      copied.emplace_back(sol::make_object(lua, arg));
-    }
-    return copied;
-  };
-
-  // Override setTimer to capture the current resource for ownership tracking
-  lua.set_function("setTimer", [&timer_manager, copy_args](sol::protected_function func, int interval, int execute_times, sol::variadic_args args,
-                                                           sol::this_state ts) {
-    sol::state_view lua(ts);
-    auto copied_arguments = copy_args(lua, args);
-    auto timer_interval = std::chrono::milliseconds(interval);
-    std::uint32_t times = execute_times > 0 ? static_cast<std::uint32_t>(execute_times) : 0u;
-
-    // Capture current resource name for ownership tracking
-    std::string owner_resource;
-    if (auto* current_res = ResourceManager::GetCurrentResource()) {
-      owner_resource = current_res->GetName();
-    }
-
-    return static_cast<int>(timer_manager.CreateTimer(std::move(func), timer_interval, times, std::move(copied_arguments), owner_resource));
-  });
-
-  timer_manager.SetOwnerContextExecutor([this](const std::string& owner_name, std::function<void()> callback) {
-    auto resource_opt = GetResource(owner_name);
-    if (!resource_opt || !resource_opt->get().IsLoaded()) {
-      SPDLOG_DEBUG("Skipping timer callback for resource '{}' because it is not loaded", owner_name);
-      return;
-    }
-
-    ScopedResourceContext ctx(resource_opt->get());
-    callback();
-  });
-}
-
-void ResourceManager::CreateExportsProxy(sol::state& lua) {
-  sol::table exports_proxy = lua.create_table();
-  sol::table exports_meta = lua.create_table();
-
-  exports_meta[sol::meta_function::index] = [](sol::this_state s, sol::stack_object /*table*/, const std::string& res_name) -> sol::object {
-    sol::state_view L(s);
-
-    auto* manager = ResourceManager::GetActiveInstance();
-    if (!manager) {
-      return sol::object(L, sol::in_place, sol::nil);
-    }
-
-    auto resource_opt = manager->GetResource(res_name);
-    if (!resource_opt || !resource_opt->get().IsLoaded()) {
-      return sol::object(L, sol::in_place, sol::nil);
-    }
-
-    Resource& resource = resource_opt->get();
-    sol::table exports = resource.GetExports();
-    if (!exports.valid()) {
-      return sol::object(L, sol::in_place, sol::nil);
-    }
-
-    sol::table proxy = L.create_table();
-    sol::table meta = L.create_table();
-
-    meta[sol::meta_function::index] = [res_name](sol::this_state inner_state, sol::stack_object /*table*/, const std::string& key) -> sol::object {
-      sol::state_view inner(inner_state);
-
-      auto* manager = ResourceManager::GetActiveInstance();
-      if (!manager) {
-        return sol::object(inner, sol::in_place, sol::nil);
-      }
-
-      auto resource_opt_inner = manager->GetResource(res_name);
-      if (!resource_opt_inner || !resource_opt_inner->get().IsLoaded()) {
-        return sol::object(inner, sol::in_place, sol::nil);
-      }
-
-      sol::table exports_table = resource_opt_inner->get().GetExports();
-      sol::object value = exports_table[key];
-      if (value.get_type() == sol::type::function) {
-        sol::protected_function func = value;
-        auto wrapper = sol::make_object(inner, [res_name, func](sol::variadic_args args) {
-          auto* manager = ResourceManager::GetActiveInstance();
-          if (!manager) {
-            return func(sol::as_args(args));
-          }
-
-          auto resource_opt_exec = manager->GetResource(res_name);
-          if (!resource_opt_exec || !resource_opt_exec->get().IsLoaded()) {
-            return func(sol::as_args(args));
-          }
-
-          ScopedResourceContext ctx(resource_opt_exec->get());
-          return func(sol::as_args(args));
-        });
-        return wrapper;
-      }
-
-      return value;
-    };
-
-    meta[sol::meta_function::new_index] = [res_name](sol::stack_object /*table*/, const std::string& key, const sol::object& value) {
-      auto* manager = ResourceManager::GetActiveInstance();
-      if (!manager) {
-        return;
-      }
-
-      auto resource_opt_inner = manager->GetResource(res_name);
-      if (!resource_opt_inner || !resource_opt_inner->get().IsLoaded()) {
-        return;
-      }
-
-      sol::table exports_table = resource_opt_inner->get().GetExports();
-      exports_table[key] = value;
-    };
-
-    proxy[sol::metatable_key] = meta;
-    return sol::object(L, proxy);
-  };
-
-  exports_proxy[sol::metatable_key] = exports_meta;
-  lua["exports"] = exports_proxy;
-
-  SPDLOG_DEBUG("Created global exports proxy");
+  return it->second->Reload(lua_script, lua_script.GetTimerManager(), descriptor->root_path, descriptor->metadata->scripts);
 }
 
 std::optional<std::reference_wrapper<Resource>> ResourceManager::GetResource(const std::string& name) {
@@ -369,4 +440,20 @@ ResourceManager::ScopedResourceContext::ScopedResourceContext(Resource& resource
 
 ResourceManager::ScopedResourceContext::~ScopedResourceContext() {
   ResourceManager::SetCurrentResource(previous_);
+}
+
+// Registers the server timer implementation with resource ownership tracking.
+void ResourceManager::BindResourceAwareTimer(LuaScript& lua_script) {
+  auto& timer_manager = lua_script.GetTimerManager();
+  lua_script.GetLuaState().set_function("setTimer", ResourceSetTimerBinding{timer_manager});
+  timer_manager.SetOwnerContextExecutor(ResourceTimerContext{*this});
+}
+
+// Registers the global resource-exports proxy.
+void ResourceManager::BindExports(sol::state& lua) {
+  sol::table proxy = lua.create_table();
+  sol::table meta = lua.create_table();
+  meta[sol::meta_function::index] = ResourceExportsIndex;
+  proxy[sol::metatable_key] = meta;
+  lua["exports"] = proxy;
 }

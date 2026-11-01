@@ -1,0 +1,3 @@
+[submodule "thirdparty/ZenKit"]
+	path = thirdparty/ZenKit
+	url = https://github.com/GothicKit/ZenKit.git

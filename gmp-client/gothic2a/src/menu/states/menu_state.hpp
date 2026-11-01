@@ -74,6 +74,12 @@ public:
    */
   virtual StateResult Update() = 0;
 
+  // Update 3D previews before Gothic renders the world, separately from UI/input.
+  virtual void UpdateScene(float /*delta_time*/) {}
+
+  // Release any borrowed world objects before an external world/session change.
+  virtual void StopScene() {}
+
   /**
    * @brief Check if this state should transition to another state
    *

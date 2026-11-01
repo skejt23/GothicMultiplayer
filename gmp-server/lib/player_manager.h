@@ -25,7 +25,6 @@ SOFTWARE.
 #pragma once
 
 #include <cstdint>
-#include <ctime>
 #include <functional>
 #include <optional>
 #include <string>
@@ -33,8 +32,8 @@ SOFTWARE.
 #include <unordered_set>
 #include <vector>
 
-#include "common_structs.h"
-#include "znet_server.h"
+#include "character.h"
+#include "transport/transport.h"
 
 /**
  * @brief Manages all player-related data and operations.
@@ -44,6 +43,8 @@ SOFTWARE.
  */
 class PlayerManager {
 public:
+  // Session-scoped gameplay ID allocated from player slots. Neither this ID nor
+  // the associated transport handle is a persistent account/player identity.
   using PlayerId = std::uint32_t;
 
   /**
@@ -54,59 +55,63 @@ public:
   /**
    * @brief Represents a player in the game
    */
-  struct Player {
-    PlayerId player_id;
-    Net::ConnectionHandle connection;
-    std::string name;
-    std::string instance;
-    std::uint8_t name_color_r{255};
-    std::uint8_t name_color_g{255};
-    std::uint8_t name_color_b{255};
-    std::string world;
-    std::int32_t virtual_world{0};
-
-    // Streaming state
+  struct Player : Character {
+    Net::ConnectionHandle connection{};
+    // Keep the endpoint and identity available through onPlayerDisconnect, after
+    // the transport has already released its ephemeral connection handle.
+    std::string ip_address;
+    std::string identity;
     std::unordered_set<PlayerId> spawned_players;
-    std::unordered_set<PlayerId> streamed_by_players;
+    struct SentActorState {
+      std::uint64_t generation{0};
+      std::uint32_t sequence{0};
+      std::chrono::steady_clock::time_point sent_at{};
+    };
+    std::unordered_map<PlayerId, SentActorState> sent_actor_states;
+    std::uint8_t passed_crc_test{0};
+    bool npc_world_ready{false};
+    bool has_joined{false};
+    std::optional<std::uint64_t> client_clock_origin;
+    std::uint64_t server_clock_origin{0};
+    std::uint64_t last_source_time_ms{0};
+    bool inventory_initialized{false};
+    std::optional<std::uint32_t> last_item_request_id;
 
-    // Character appearance
-    std::string body_model;
-    std::int16_t body_texture{0};
-    std::string head_model;
-    std::int16_t head_texture{0};
-    float fatness{1.0f};
-    glm::vec3 scale{1.0f, 1.0f, 1.0f};
-    std::vector<std::string> overlays;
+    bool AcceptItemRequest(std::uint32_t request_id) {
+      if (request_id == 0) return false;
+      if (last_item_request_id) {
+        const auto delta = request_id - *last_item_request_id;
+        if (delta == 0 || delta >= 0x80000000u) return false;
+      }
+      last_item_request_id = request_id;
+      return true;
+    }
+    bool is_admin{false};
+    bool voice_enabled{true};
+    bool voice_muted{false};
+    std::string voice_channel{"default"};
+    std::uint32_t voice_range{0};
 
-    // Character state
-    std::uint8_t flags;
-    std::uint8_t walkstyle;
-    std::uint8_t fight_pos;
-    std::uint8_t spellhand;
-    std::uint8_t headstate;
+    // Client-to-server state freshness belongs to this connection's session,
+    // independently of the authoritative Character::state_sequence sent back
+    // to viewers. Do not reset it on respawn, streaming or world changes.
+    std::optional<std::uint32_t> last_client_state_sequence;
 
-    // Game state
-    std::uint8_t is_ingame;
-    std::uint8_t passed_crc_test;
-    std::uint8_t mute;
+    bool AcceptClientStateSequence(std::uint32_t sequence) {
+      // The client skips zero when its counter wraps.
+      if (sequence == 0) return false;
+      if (last_client_state_sequence) {
+        const auto delta = sequence - *last_client_state_sequence;
+        if (delta == 0 || delta >= 0x80000000u) return false;
+      }
+      last_client_state_sequence = sequence;
+      return true;
+    }
 
-    std::int16_t health;
-    std::int16_t max_health{100};
-    std::int16_t mana;
-    std::int16_t max_mana{100};
-
-    std::int32_t level{0};
-    std::int32_t exp{0};
-    std::int32_t next_level_exp{0};
-    std::int32_t learn_points{0};
-    std::int32_t strength{0};
-    std::int32_t dexterity{0};
-    
-    std::unordered_map<int, int> weapon_skills;
-    std::unordered_map<int, int> talents;
-
-    std::time_t tod;  // time of death
-    PlayerState state;
+    bool AcceptClientState(std::uint64_t generation, std::uint32_t acknowledged_command, std::uint32_t sequence) {
+      return generation == actor_generation && acknowledged_command == command_revision &&
+          AcceptClientStateSequence(sequence);
+    }
   };
 
   PlayerManager() = default;
@@ -120,9 +125,9 @@ public:
    * @brief Adds a new player with the given connection handle
    * @param connection The network connection handle
    * @param name The player's name
-   * @return The assigned player ID
+   * @return The assigned player ID, or 0 when full or the connection is invalid/already assigned
    */
-  PlayerId AddPlayer(Net::ConnectionHandle connection, const std::string& name);
+  PlayerId AddPlayer(Net::ConnectionHandle connection, const std::string& name, std::uint32_t max_slots);
 
   /**
    * @brief Removes a player by their player ID

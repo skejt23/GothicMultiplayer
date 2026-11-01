@@ -275,7 +275,6 @@ struct D3D11RendererImpl {
   // We track when a refresh is needed and do it at BeginFrame() to keep rendering correct.
   // Note: With FLIP models, only GetBuffer(0) is valid - other indices return DXGI_ERROR_INVALID_CALL.
   bool flip_rtv_needs_refresh_ = false;  // Set after Present(), cleared after RTV refresh
-  int rtv_refresh_count_ = 0;            // Instrumentation: count of RTV refreshes per stats period
 
   // --- Shaders ---
   ID3D11VertexShader* vs_basic = nullptr;                // 3D transformed geometry with normals
@@ -376,17 +375,6 @@ struct D3D11RendererImpl {
   size_t dynamic_ib_capacity = 0;
   bool frame_begun_ = false;  // Guards against multiple BeginFrame calls per frame
 
-  // --- Performance Counters (reset each frame) ---
-  struct FrameStats {
-    int draw_calls = 0;
-    int alpha_test_cb_updates = 0;
-    int transform_cb_updates = 0;
-    int ib_maps = 0;
-    int texture_binds = 0;
-  };
-  FrameStats frame_stats_;
-  int stats_log_frame_counter_ = 0;
-  
   bool RefreshBackBufferRTV();
 
   // Convenience pointers to current frame's resources

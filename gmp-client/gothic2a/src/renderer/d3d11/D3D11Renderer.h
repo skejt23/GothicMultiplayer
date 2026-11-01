@@ -203,7 +203,7 @@ public:
   // Resets render state after alpha sort object rendering for subsequent alpha poly rendering.
   void ResetStateAfterAlphaSortObjects();
 
-  // Benchmark support: Enable or disable VSync.
+  // Enable or disable VSync.
   void SetVSync(bool enable);
 
 private:

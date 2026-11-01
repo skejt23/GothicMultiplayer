@@ -1,6 +1,6 @@
 #pragma once
 
-#include "shared/lua_runtime/script_base.h"
+#include "Shared/lua_runtime/script_base.h"
 
 class ClientScript : public lua::SandboxedScriptBase {
 public:

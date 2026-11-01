@@ -51,9 +51,6 @@ class AudioDecoder {
  public:
   virtual ~AudioDecoder() = default;
 
-  /// Load audio file and decode to PCM.
-  virtual bool Load(const std::string& filepath) = 0;
-
   /// Load audio from memory buffer.
   virtual bool LoadFromMemory(const uint8_t* data, size_t size) = 0;
 
@@ -82,7 +79,6 @@ class AudioDecoder {
 /// WAV decoder implementation.
 class WavDecoder : public AudioDecoder {
  public:
-  bool Load(const std::string& filepath) override;
   bool LoadFromMemory(const uint8_t* data, size_t size) override;
   const std::vector<uint8_t>& GetPCMData() const override { return pcm_data_; }
   int GetSampleRate() const override { return sample_rate_; }
@@ -91,6 +87,8 @@ class WavDecoder : public AudioDecoder {
   float GetDuration() const override;
 
  private:
+  // Takes ownership of the SDL_LoadWAV buffer and converts it to S16 PCM.
+  bool SetPCMData(const SDL_AudioSpec& spec, Uint8* data, Uint32 length);
   std::vector<uint8_t> pcm_data_;
   int sample_rate_ = 0;
   int channels_ = 0;
@@ -100,7 +98,6 @@ class WavDecoder : public AudioDecoder {
 /// MP3 decoder implementation (using minimp3).
 class Mp3Decoder : public AudioDecoder {
  public:
-  bool Load(const std::string& filepath) override;
   bool LoadFromMemory(const uint8_t* data, size_t size) override;
   const std::vector<uint8_t>& GetPCMData() const override { return pcm_data_; }
   int GetSampleRate() const override { return sample_rate_; }
@@ -117,7 +114,6 @@ class Mp3Decoder : public AudioDecoder {
 /// OGG Vorbis decoder implementation (using stb_vorbis).
 class OggDecoder : public AudioDecoder {
  public:
-  bool Load(const std::string& filepath) override;
   bool LoadFromMemory(const uint8_t* data, size_t size) override;
   const std::vector<uint8_t>& GetPCMData() const override { return pcm_data_; }
   int GetSampleRate() const override { return sample_rate_; }
@@ -155,7 +151,8 @@ class MusicPlayer {
   MusicPlayer(const MusicPlayer&) = delete;
   MusicPlayer& operator=(const MusicPlayer&) = delete;
 
-  /// Load audio file (auto-detects format from extension).
+  /// Load music by a filename/subdirectory path relative to either Music root.
+  /// Auto-detects the audio format from its extension.
   bool Load(const std::string& filepath);
 
   /// Load audio from memory with explicit format.

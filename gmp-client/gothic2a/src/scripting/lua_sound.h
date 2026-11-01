@@ -27,22 +27,27 @@ SOFTWARE.
 #include <string>
 
 #include "ZenGin/zGothicAPI.h"
+#include "sol/sol.hpp"
 
 namespace gmp::gothic {
 
 class LuaSound {
 public:
   explicit LuaSound(const std::string& filename);
+  LuaSound(const LuaSound&) = delete;
+  LuaSound& operator=(const LuaSound&) = delete;
+  LuaSound(LuaSound&& other) noexcept;
+  LuaSound& operator=(LuaSound&& other) noexcept;
   ~LuaSound();
 
   void play();
   void stop();
-  bool isPlaying() const;
+  bool isPlaying();
 
   std::string getFile() const;
   void setFile(const std::string& filename);
 
-  float getPlayingTime() const;
+  float getDuration() const;
 
   float getVolume() const;
   void setVolume(float volume);
@@ -66,5 +71,7 @@ private:
 
   Gothic_II_Addon::zCSoundFX* sound_fx_;
 };
+
+void BindSound(sol::state& lua);
 
 }  // namespace gmp::gothic

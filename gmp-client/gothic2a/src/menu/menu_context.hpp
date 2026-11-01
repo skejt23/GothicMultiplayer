@@ -32,7 +32,7 @@ SOFTWARE.
 #include "audio/music_player.h"
 #include "config.h"
 #include "language.h"
-#include "menu/menu_scene.h"
+#include "menu/menu_scene_manager.h"
 
 namespace menu {
 
@@ -56,8 +56,6 @@ struct MenuContext {
 
   // ===== Menu Visual Elements =====
   zCView* logoView = nullptr;
-  oCItem* titleWeapon = nullptr;
-  oCItem* cameraWeapon = nullptr;
 
   // ===== Configuration & Data =====
   Config& config;
@@ -67,14 +65,12 @@ struct MenuContext {
   // ===== Menu State =====
   zSTRING selectedServerIP;
   int selectedServerIndex = -1;
-  bool titleWeaponEnabled = false;
-  bool writingNickname = false;
 
   // ===== Extended Server List =====
   ExtendedServerList* extendedServerList = nullptr;
 
-  // ===== Menu Scene (for FPS-independent animations) =====
-  MenuScene scene;
+  // ===== Menu Scene Manager =====
+  SceneManager sceneManager;
 
   // ===== Menu Music Player =====
   std::unique_ptr<gmp::audio::MusicPlayer> menuMusicPlayer;
@@ -83,12 +79,10 @@ struct MenuContext {
   zVEC3 savedPlayerPosition;
   zVEC3 savedPlayerAngle;
   zVEC3 savedPlayerNormal;
-  int savedHealthBarX = 0;
-  int savedHealthBarY = 0;
 
   // ===== Constructor =====
   MenuContext(Config& cfg, Language& lang, CServerList& servers)
-      : config(cfg), language(lang), serverList(servers), scene(ogame, nullptr) {
+      : config(cfg), language(lang), serverList(servers), sceneManager(ogame) {
     // Initialize Gothic engine references
     game = ogame;
     player = Gothic_II_Addon::player;
@@ -100,54 +94,17 @@ struct MenuContext {
   // ===== Helper Methods =====
 
   /**
-   * @brief Enable the health bar with previously saved dimensions
-   */
-  void EnableHealthBar() {
-    if (game && game->hpBar) {
-      game->hpBar->SetSize(savedHealthBarX, savedHealthBarY);
-    }
-  }
-
-  /**
-   * @brief Disable the health bar (save dimensions first)
-   */
-  void DisableHealthBar() {
-    if (game && game->hpBar) {
-      int currentX = 0;
-      int currentY = 0;
-      game->hpBar->GetSize(currentX, currentY);
-      if (currentX != 0 || currentY != 0) {
-        savedHealthBarX = currentX;
-        savedHealthBarY = currentY;
-      }
-      game->hpBar->SetSize(0, 0);
-    }
-  }
-
-  /**
    * @brief Insert the title weapon into the world if it is available
    */
   void ShowTitleWeapon() {
-    if (!titleWeaponEnabled && titleWeapon) {
-      titleWeaponEnabled = true;
-      if (game && game->GetWorld()) {
-        game->GetWorld()->AddVob(titleWeapon);
-      }
-      // Update scene to use this weapon
-      scene.SetWeapon(titleWeapon);
-    }
+    sceneManager.ShowWeapon();
   }
 
   /**
    * @brief Remove the title weapon from the world if it is currently shown
    */
   void HideTitleWeapon() {
-    if (titleWeaponEnabled && titleWeapon) {
-      titleWeapon->RemoveVobFromWorld();
-    }
-    titleWeaponEnabled = false;
-    // Clear weapon from scene
-    scene.SetWeapon(nullptr);
+    sceneManager.HideWeapon();
   }
 
   // Destructor to clean up owned resources

@@ -27,6 +27,8 @@ SOFTWARE.
 
 #include <algorithm>
 
+#include "lua_diagnostics.h"
+
 namespace {
 constexpr std::chrono::milliseconds kMinimumInterval{50};
 }
@@ -93,7 +95,7 @@ void TimerManager::SetInterval(TimerId id, std::chrono::milliseconds interval) {
   }
 }
 
-std::optional<std::uint32_t> TimerManager::GetExecuteTimes(TimerId id) const {
+std::optional<std::uint32_t> TimerManager::GetRemainingExecutions(TimerId id) const {
   if (auto it = timers_.find(id); it != timers_.end()) {
     if (it->second.infinite) {
       return 0u;
@@ -103,7 +105,7 @@ std::optional<std::uint32_t> TimerManager::GetExecuteTimes(TimerId id) const {
   return std::nullopt;
 }
 
-void TimerManager::SetExecuteTimes(TimerId id, std::uint32_t execute_times) {
+void TimerManager::SetRemainingExecutions(TimerId id, std::uint32_t execute_times) {
   if (auto it = timers_.find(id); it != timers_.end()) {
     it->second.remaining_executions = execute_times;
     it->second.infinite = execute_times == 0;
@@ -119,48 +121,67 @@ void TimerManager::ProcessTimers() {
     return;
   }
 
-  std::vector<TimerId> to_remove;
-  to_remove.reserve(timers_.size());
+  // Snapshot due ids so callbacks can create or kill timers without invalidating iteration.
+  std::vector<TimerId> due_timers;
+  due_timers.reserve(timers_.size());
 
   auto now = std::chrono::steady_clock::now();
 
-  for (auto& [id, timer] : timers_) {
-    if (now < timer.next_call) {
+  for (const auto& [id, timer] : timers_) {
+    if (now >= timer.next_call) {
+      due_timers.push_back(id);
+    }
+  }
+
+  for (auto id : due_timers) {
+    auto it = timers_.find(id);
+    if (it == timers_.end()) {
       continue;
     }
 
+    now = std::chrono::steady_clock::now();
+    if (now < it->second.next_call) {
+      continue;
+    }
+
+    auto callback = it->second.callback;
+    auto arguments = it->second.arguments;
+    auto owner_resource = it->second.owner_resource;
+
     std::function<void()> invoke_callback = [&]() {
-      sol::protected_function_result result = timer.callback(sol::as_args(timer.arguments));
+      sol::protected_function_result result = callback(sol::as_args(arguments));
       if (!result.valid()) {
         sol::error error = result;
-        SPDLOG_ERROR("Timer {} callback failed: {}", id, error.what());
+        ::lua::diagnostics::LogRuntimeError(error.what(), {owner_resource, "timer callback", "timer " + std::to_string(id)});
       }
     };
 
-    if (!timer.owner_resource.empty() && owner_context_executor_) {
-      owner_context_executor_(timer.owner_resource, invoke_callback);
+    if (!owner_resource.empty() && owner_context_executor_) {
+      owner_context_executor_(owner_resource, invoke_callback);
     } else {
       invoke_callback();
     }
 
+    it = timers_.find(id);
+    if (it == timers_.end()) {
+      continue;
+    }
+
+    auto& timer = it->second;
     if (!timer.infinite) {
       if (timer.remaining_executions == 0) {
-        to_remove.push_back(id);
+        timers_.erase(it);
         continue;
       }
 
       if (--timer.remaining_executions == 0) {
-        to_remove.push_back(id);
+        timers_.erase(it);
         continue;
       }
     }
 
     now = std::chrono::steady_clock::now();
     timer.next_call = now + timer.interval;
-  }
-
-  for (auto id : to_remove) {
-    timers_.erase(id);
   }
 }
 

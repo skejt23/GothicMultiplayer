@@ -30,8 +30,12 @@ SOFTWARE.
 #include <algorithm>
 #include <array>
 #include <memory>
+#include <string_view>
 
-#include "shared/lua_runtime/shared_bind.h"
+#include "Shared/lua_runtime/lua_diagnostics.h"
+#include "Shared/lua_runtime/bind_helpers.h"
+#include "Shared/lua_runtime/shared_bind.h"
+#include "shared/event.h"
 
 ClientResourceRuntime::ClientResourceRuntime() = default;
 ClientResourceRuntime::~ClientResourceRuntime() = default;
@@ -95,11 +99,19 @@ bool ClientResourceRuntime::LoadResources(std::vector<gmp::client::GameClient::R
     SPDLOG_INFO("Loaded client resource '{}' ({} entrypoint(s))", stored_instance.name, entrypoint_count);
   }
 
+  EventManager::Instance().TriggerEvent("onInit", 0);
   return true;
 }
 
 void ClientResourceRuntime::UnloadResources() {
   if (!resources_.empty()) {
+    const bool had_started_resource =
+        std::any_of(resources_.begin(), resources_.end(), [](const auto& resource) { return resource->started; });
+
+    if (had_started_resource) {
+      EventManager::Instance().TriggerEvent("onExit", 0);
+    }
+
     for (auto it = resources_.rbegin(); it != resources_.rend(); ++it) {
       if ((*it)->started) {
         std::string error_message;
@@ -115,6 +127,7 @@ void ClientResourceRuntime::UnloadResources() {
   if (reset_callback_) {
     reset_callback_();
   }
+  lua_gc(script_.GetLuaState().lua_state(), LUA_GCCOLLECT, 0);
 }
 
 void ClientResourceRuntime::ProcessTimers() {
@@ -148,42 +161,10 @@ void ClientResourceRuntime::SetServerInfoProvider(gmp::client::GameClient& game_
       [&game_client]() { return static_cast<int>(game_client.GetMaxSlots()); },
       [&game_client]() {
         std::vector<int> player_ids;
-        auto& manager = game_client.player_manager();
-        const bool has_local = manager.HasLocalPlayer();
-        const auto& players = manager.GetAllPlayers();
-
-        player_ids.reserve(players.size() + (has_local ? 1 : 0));
-
-        if (has_local) {
-          const auto& local = manager.GetLocalPlayer();
-          if (local.has_spawned()) {
-            player_ids.push_back(static_cast<int>(local.id()));
-          }
-        }
-
-        for (const auto& [id, player_ptr] : players) {
-          if (player_ptr && player_ptr->has_spawned()) {
-            player_ids.push_back(static_cast<int>(id));
-          }
-        }
-
+        for (const auto& [id, _] : game_client.GetOnlinePlayers()) player_ids.push_back(static_cast<int>(id));
         return player_ids;
       },
-      [&game_client]() {
-        int count = 0;
-        auto& manager = game_client.player_manager();
-        if (manager.HasLocalPlayer() && manager.GetLocalPlayer().has_spawned()) {
-          ++count;
-        }
-
-        for (const auto& [_, player_ptr] : manager.GetAllPlayers()) {
-          if (player_ptr && player_ptr->has_spawned()) {
-            ++count;
-          }
-        }
-
-        return count;
-      },
+      [&game_client]() { return static_cast<int>(game_client.GetOnlinePlayers().size()); },
   });
 }
 
@@ -215,6 +196,8 @@ void ClientResourceRuntime::SetupRequire(ResourceInstance& instance) {
           throw sol::error(fmt::format("Resource '{}' has no pack loaded", instance_ref.name));
         }
 
+        CaptureLifecycleHooks(instance_ref);
+
         std::string normalized = module_name;
         std::replace(normalized.begin(), normalized.end(), '.', '/');
 
@@ -241,7 +224,9 @@ void ClientResourceRuntime::SetupRequire(ResourceInstance& instance) {
 
         gmp::resource::LoadedFile& file = *file_opt;
 
-        sol::load_result chunk = lua_state.load_buffer(reinterpret_cast<const char*>(file.data.data()), file.data.size(), used_path.c_str());
+        const std::string chunk_name = "@" + used_path;
+        sol::load_result chunk =
+            lua_state.load_buffer(reinterpret_cast<const char*>(file.data.data()), file.data.size(), chunk_name.c_str());
         if (!chunk.valid()) {
           sol::error err = chunk;
           throw err;
@@ -271,6 +256,7 @@ void ClientResourceRuntime::SetupRequire(ResourceInstance& instance) {
         }
 
         sol::object exported = result.get<sol::object>();
+        CaptureLifecycleHooks(instance_ref);
         if (!exported.valid() || exported.get_type() == sol::type::nil) {
           exported = sol::make_object(lua_state, true);
         }
@@ -303,10 +289,12 @@ bool ClientResourceRuntime::ExecuteEntryPoints(ResourceInstance& instance, std::
       return false;
     }
 
-    sol::load_result chunk = lua.load_buffer(reinterpret_cast<const char*>(file.data.data()), file.data.size(), entrypoint.c_str());
+    const std::string chunk_name = "@" + entrypoint;
+    sol::load_result chunk = lua.load_buffer(reinterpret_cast<const char*>(file.data.data()), file.data.size(), chunk_name.c_str());
     if (!chunk.valid()) {
       sol::error err = chunk;
-      error_message = fmt::format("Resource '{}': syntax error in '{}': {}", instance.name, entrypoint, err.what());
+      ::lua::diagnostics::LogSyntaxError(err.what(), {instance.name, "loading entrypoint", entrypoint});
+      error_message = fmt::format("Resource '{}': failed to load entrypoint '{}': {}", instance.name, entrypoint, err.what());
       return false;
     }
 
@@ -329,27 +317,70 @@ bool ClientResourceRuntime::ExecuteEntryPoints(ResourceInstance& instance, std::
     sol::protected_function_result result = pf();
     if (!result.valid()) {
       sol::error err = result;
-      error_message = fmt::format("Resource '{}': runtime error in '{}': {}", instance.name, entrypoint, err.what());
+      ::lua::diagnostics::LogRuntimeError(err.what(), {instance.name, "executing entrypoint", entrypoint});
+      error_message = fmt::format("Resource '{}': failed to execute entrypoint '{}': {}", instance.name, entrypoint, err.what());
       return false;
     }
+    CaptureLifecycleHooks(instance);
   }
 
   return true;
 }
 
-bool ClientResourceRuntime::InvokeLifecycle(ResourceInstance& instance, const char* hook, std::string& error_message) {
+void ClientResourceRuntime::CaptureLifecycleHooks(ResourceInstance& instance) {
+  CaptureLifecycleHook(instance, "onResourceStart");
+  CaptureLifecycleHook(instance, "onResourceStop");
+}
+
+void ClientResourceRuntime::CaptureLifecycleHook(ResourceInstance& instance, const char* hook) {
   sol::object fn = instance.env[hook];
   if (!fn.valid() || fn.get_type() != sol::type::function) {
-    return true;
+    return;
   }
 
   sol::protected_function pf = fn;
-  // Function already has the correct environment captured from its creation
-  sol::protected_function_result result = pf();
-  if (!result.valid()) {
-    sol::error err = result;
-    error_message = fmt::format("Resource '{}': error in {}: {}", instance.name, hook, err.what());
-    return false;
+  const void* identity = ::lua::bind_helpers::GetLuaIdentity(pf);
+
+  auto& hooks = std::string_view(hook) == "onResourceStart" ? instance.start_hooks : instance.stop_hooks;
+  auto& hook_ids = std::string_view(hook) == "onResourceStart" ? instance.start_hook_ids : instance.stop_hook_ids;
+  if (std::find(hook_ids.begin(), hook_ids.end(), identity) != hook_ids.end()) {
+    return;
+  }
+
+  hooks.emplace_back(std::move(pf));
+  hook_ids.push_back(identity);
+}
+
+bool ClientResourceRuntime::InvokeLifecycle(ResourceInstance& instance, const char* hook, std::string& error_message) {
+  const bool is_start = std::string_view(hook) == "onResourceStart";
+  auto& hooks = is_start ? instance.start_hooks : instance.stop_hooks;
+  if (hooks.empty()) {
+    return true;
+  }
+
+  auto invoke_hook = [&](sol::protected_function& pf) {
+    sol::protected_function_result result = pf();
+    if (!result.valid()) {
+      sol::error err = result;
+      ::lua::diagnostics::LogRuntimeError(err.what(), {instance.name, "lifecycle hook", hook});
+      error_message = fmt::format("Resource '{}': lifecycle hook '{}' failed", instance.name, hook);
+      return false;
+    }
+    return true;
+  };
+
+  if (is_start) {
+    for (auto& lifecycle_hook : hooks) {
+      if (!invoke_hook(lifecycle_hook)) {
+        return false;
+      }
+    }
+  } else {
+    for (auto it = hooks.rbegin(); it != hooks.rend(); ++it) {
+      if (!invoke_hook(*it)) {
+        return false;
+      }
+    }
   }
 
   return true;

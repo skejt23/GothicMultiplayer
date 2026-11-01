@@ -1,1 +1,0 @@
-LOG_INFO('[Core][Shared] Core shared resources initialized.')

@@ -70,6 +70,20 @@ TomlWrapper TomlWrapper::CreateFromFile(std::string_view file_path) {
 }
 
 void TomlWrapper::Serialize(std::string_view file_path) const {
+  if (data_.is_empty()) {
+    return;
+  }
+  std::ofstream output(std::string(file_path), std::ios_base::out | std::ios_base::binary);
+  Serialize(output);
+}
+
+TomlWrapper TomlWrapper::CreateFromStream(std::istream& input, std::string_view source_name) {
+  TomlWrapper val;
+  val.data_ = toml::parse<toml::ordered_type_config>(input, std::string(source_name));
+  return val;
+}
+
+void TomlWrapper::Serialize(std::ostream& output_stream) const {
   if (!data_.is_empty()) {
     std::stringstream ss;
     ss << data_;
@@ -77,7 +91,6 @@ void TomlWrapper::Serialize(std::string_view file_path) const {
 
     std::string output = FormatOutputWithSectionSpacing(content);
 
-    std::ofstream ofs(std::string(file_path), std::ios_base::out | std::ios_base::binary);
-    ofs << output;
+    output_stream << output;
   }
 }

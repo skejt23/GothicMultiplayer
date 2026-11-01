@@ -36,24 +36,17 @@ SOFTWARE.
 #pragma once
 
 #include "ZenGin/zGothicAPI.h"
-#include <string>
 
 class CInventory {
 private:
   oCNpcInventory* Inv;
-  oCNpc* Owner;
-  zCView* InvWindow;
-  bool DropInvoked;
-  std::string temp;
-  zSTRING AmountNum;
+  bool was_open_{false};
+  int last_selected_slot_{-1};
 
 public:
   CInventory(oCNpcInventory* HeroInventory);
   ~CInventory();
-  void DropAmount(oCItem* Item, int amount);
-  oCItem* GetSelectedItem();
-  void InvokeAmountDrop();
-  bool IsEmpty();
+  void BindInventory(oCNpcInventory* inventory);
   bool IsOpened();
   void RenderInventory();
 };

@@ -60,6 +60,7 @@ public:
   void render();
   void scrollUp(unsigned int val);
   void scrollDown(unsigned int val);
+  void ensureRowVisible(unsigned int row);
   ~Table(void);
   void setFont(const G2W::Font& font);
   void setHighlightFont(const G2W::Font& font);
@@ -79,6 +80,9 @@ private:
   int x, y, width, height, interline;
   unsigned int scroll;
   std::vector<sColumn> columns;
+
+  unsigned int getVisibleRowCount() const;
+  unsigned int getMaxScroll() const;
 };
 
 }  // namespace G2W

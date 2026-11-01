@@ -5,9 +5,11 @@ target("ClientMain")
     add_files("src/**.cpp")
     add_includedirs("src/gothic-patches")
     add_includedirs("src")
-    
-    add_deps("common", "SharedLib", "LuaRuntime", "ResourceLoader", "zNetInterface", "Client.Net", "Client.Resources", "SDL3", "BugTrap", "gothic_api")
-    add_packages("spdlog", "fmt", "cpp-httplib", "dylib", "glm", "bitsery", "nlohmann_json", "polyhook2", "asmjit", "sol2", "minimp3", "stb")
+
+    add_deps("common", "SharedLib", "AddonSupport", "ZenKit", "LuaRuntime", "ResourceLoader", "Client.Net", "Client.Resources", "Client.Voice", "SDL3", "BugTrap", "gothic_api")
+    -- Runtime components must also be deployed by `xmake install ... ClientMain`.
+    add_deps("GMPLauncher", {inherit = false})
+    add_packages("spdlog", "fmt", "cpp-httplib", "glm", "bitsery", "nlohmann_json", "polyhook2", "asmjit", "sol2", "minimp3", "stb", "discord")
     -- D3D9 for legacy renderer, D3D11/DXGI/D3DCompiler for modern renderer
     add_syslinks("wsock32", "ws2_32", "Iphlpapi", "user32", "gdi32", "kernel32", "d3d9", "d3d11", "dxgi", "d3dcompiler")
 
@@ -22,7 +24,6 @@ target("ClientMain")
         if not discord_app_id:match("^%d+$") then
             raise("discord_app_id must contain only digits")
         end
-        add_packages("discord")
         add_defines(string.format("DISCORD_APPLICATION_ID=%sLL", discord_app_id))
     end
 
@@ -41,9 +42,15 @@ target("ClientMain")
     set_basename("GMP")
 
     on_install(function (target)
-        local install_to_system_dir = import("install_to_system_dir")
+        local install_to_multiplayer_dir = import("install_to_multiplayer_dir")
         -- Install the main GMP shared library
-        install_to_system_dir(target)
+        install_to_multiplayer_dir(target)
+
+        -- Selecting ClientMain does not run dependency on_install hooks in xmake.
+        for _, name in ipairs({"GMPLauncher", "SDL3", "BugTrap"}) do
+            local dependency = target:dep(name)
+            dependency:script("install")(dependency)
+        end
 
         -- Install resources
         local installdir = target:installdir()
@@ -56,7 +63,10 @@ target("ClientMain")
         print("Installed resources to " .. installdir)
 
         local discord_pkg = target:pkg("discord")
-        if discord_pkg then
+        if not discord_pkg then
+            raise("Required Discord SDK package is unavailable")
+        end
+        do
             local dllCandidates = {}
             local pkgdir = discord_pkg:installdir()
             if pkgdir then
@@ -74,24 +84,11 @@ target("ClientMain")
                     end
                 end
             end
-        if #dllCandidates > 0 then
-           local dllSource = dllCandidates[1]
-           local systemLower = path.join(installdir, "system")
-           local systemUpper = path.join(installdir, "System")
-           local systemDir = nil
-
-           if os.isdir(systemLower) then
-              systemDir = systemLower
-           elseif os.isdir(systemUpper) then
-              systemDir = systemUpper
-           else
-              systemDir = systemLower
-              os.mkdir(systemDir)
-           end
-
-           os.cp(dllSource, systemDir)
-           print("Installed discord_game_sdk.dll to " .. systemDir)
-        end
+            if #dllCandidates > 0 then
+                install_to_multiplayer_dir(target, {file = dllCandidates[1]})
+            else
+                raise("Required discord_game_sdk.dll was not found in the package")
+            end
         end
     end)
 

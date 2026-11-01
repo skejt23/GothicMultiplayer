@@ -1,0 +1,170 @@
+name: Publish Server Files
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "gmp-server/resources/**"
+
+  # Allows manual execution from the Actions tab.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: windows-latest
+
+    steps:
+      # ------------------------------------------------------------
+      # Checkout GMP
+      # ------------------------------------------------------------
+
+      - name: Checkout GMP
+        uses: actions/checkout@v7
+        with:
+          path: gmp
+          persist-credentials: false
+
+      # ------------------------------------------------------------
+      # Checkout destination Server repository
+      # ------------------------------------------------------------
+
+      - name: Checkout Server repository
+        uses: actions/checkout@v7
+        with:
+          repository: Gothic-Multiplayer-Classic/Server
+          token: ${{ secrets.GMP_REPO_SYNC_TOKEN }}
+          path: server-repo
+
+      # ------------------------------------------------------------
+      # Completely clean destination repository
+      # ------------------------------------------------------------
+
+      - name: Clean Server repository
+        shell: pwsh
+        run: |
+          Get-ChildItem "server-repo" -Force |
+            Where-Object { $_.Name -ne ".git" } |
+            Remove-Item -Recurse -Force
+
+      # ------------------------------------------------------------
+      # Create resources/
+      # ------------------------------------------------------------
+
+      - name: Create Server repository structure
+        shell: pwsh
+        run: |
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path "server-repo/resources" |
+            Out-Null
+
+      # ------------------------------------------------------------
+      # Copy data/
+      #
+      # GMP:
+      # gmp-server/resources/data/
+      #
+      # Server repo:
+      # data/
+      # ------------------------------------------------------------
+
+      - name: Copy data
+        shell: pwsh
+        run: |
+          Copy-Item `
+            "gmp/gmp-server/resources/data" `
+            "server-repo/data" `
+            -Recurse `
+            -Force
+
+      # ------------------------------------------------------------
+      # Copy default/
+      #
+      # GMP:
+      # gmp-server/resources/default/
+      #
+      # Server repo:
+      # resources/default/
+      # ------------------------------------------------------------
+
+      - name: Copy default resources
+        shell: pwsh
+        run: |
+          Copy-Item `
+            "gmp/gmp-server/resources/default" `
+            "server-repo/resources/default" `
+            -Recurse `
+            -Force
+
+      # ------------------------------------------------------------
+      # Copy prototype/
+      #
+      # GMP:
+      # gmp-server/resources/prototype/
+      #
+      # Server repo:
+      # resources/prototype/
+      # ------------------------------------------------------------
+
+      - name: Copy prototype resources
+        shell: pwsh
+        run: |
+          Copy-Item `
+            "gmp/gmp-server/resources/prototype" `
+            "server-repo/resources/prototype" `
+            -Recurse `
+            -Force
+
+      # ------------------------------------------------------------
+      # Copy root configuration files
+      # ------------------------------------------------------------
+
+      - name: Copy configuration files
+        shell: pwsh
+        run: |
+          Copy-Item `
+            "gmp/gmp-server/resources/bans.json" `
+            "server-repo/bans.json" `
+            -Force
+
+          Copy-Item `
+            "gmp/gmp-server/resources/config.toml" `
+            "server-repo/config.toml" `
+            -Force
+
+      # ------------------------------------------------------------
+      # Display final contents
+      # ------------------------------------------------------------
+
+      - name: Show Server repository contents
+        shell: pwsh
+        run: |
+          Get-ChildItem "server-repo" -Recurse -Force |
+            Where-Object { $_.FullName -notmatch '\\.git(\\|$)' } |
+            Select-Object FullName
+
+      # ------------------------------------------------------------
+      # Commit and push
+      # ------------------------------------------------------------
+
+      - name: Commit and push
+        shell: pwsh
+        working-directory: server-repo
+        run: |
+          git config user.name "GMP Automation"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+
+          if (git diff --cached --quiet) {
+            Write-Host "Server repository is already up to date."
+            exit 0
+          }
+
+          git commit -m "Update server files from GMP ${{ github.sha }}"
+          git push

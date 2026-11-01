@@ -24,7 +24,12 @@ SOFTWARE.
 */
 
 #pragma once
+#include <atomic>
+#include <future>
+#include <memory>
+#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "ZenGin/zGothicAPI.h"
@@ -58,12 +63,30 @@ private:
 
   std::vector<SServerInfo> server_vector;
 
+  struct FetchResult {
+    ErrorCode error{ErrorCode::kNone};
+    std::string body;
+    std::string message;
+  };
+
+  static FetchResult FetchBody();
+  bool ApplyFetchResult(FetchResult result);
+  std::future<FetchResult> refresh_result_;
+  std::shared_ptr<std::atomic<bool>> stop_pinging_ = std::make_shared<std::atomic<bool>>(false);
+  std::future<std::vector<std::pair<std::string, int>>> ping_result_;
+
   void Parse();
 
   void SetError(ErrorCode code, std::string message);
 
 public:
+  using PingResults = std::vector<std::pair<std::string, int>>;
   ~CServerList(void);
+  // Network jobs own plain data only. Poll and publish results on the menu thread.
+  bool BeginRefresh();
+  std::optional<bool> PollRefresh();
+  void BeginPings(std::vector<std::string> hosts);
+  std::optional<PingResults> PollPings();
   bool ReceiveListHttp(void);
   bool ReceiveListUDP(void);
   size_t GetListSize(void);

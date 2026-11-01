@@ -52,7 +52,6 @@ public:
   zVEC3 HeroPos;
   zVEC3 Angle;
   zVEC3 NAngle;
-  int hbX, hbY;  // Health bar dimensions
 
 public:
   CMainMenu();
@@ -63,6 +62,9 @@ public:
   void static __stdcall MainMenuLoop();
   void InitializeStateMachine();
   void PrepareForMenuEntry();
+  // Safe before singleton construction; used before content/world transitions.
+  static void StopMenuScenes();
+  static void UpdateMenuScene();
   
 private:
   void PreparePlayerForMenuReentry();

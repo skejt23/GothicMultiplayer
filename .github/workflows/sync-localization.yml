@@ -1,0 +1,54 @@
+name: Sync Localization
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "gmp-client/gothic2a/resources/Multiplayer/Localization/**"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout GMP
+        uses: actions/checkout@v7
+        with:
+          path: gmp
+          persist-credentials: false
+
+      - name: Checkout Localization repository
+        uses: actions/checkout@v7
+        with:
+          repository: Gothic-Multiplayer-Classic/Localization
+          token: ${{ secrets.GMP_REPO_SYNC_TOKEN }}
+          path: localization
+
+      - name: Synchronize localization files
+        run: |
+          rsync -av --delete \
+            --exclude=".git/" \
+            gmp/gmp-client/gothic2a/resources/Multiplayer/Localization/ \
+            localization/
+
+      - name: Commit and push
+        working-directory: localization
+        run: |
+          git config user.name "GMP Automation"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "Localization repository is already up to date."
+            exit 0
+          fi
+
+          git commit -m "Update localization from GMP ${{ github.sha }}"
+          git push

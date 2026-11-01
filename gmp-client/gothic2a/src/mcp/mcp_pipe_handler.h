@@ -29,6 +29,8 @@ SOFTWARE.
 #include <atomic>
 #include <chrono>
 #include <functional>
+#include <future>
+#include <deque>
 #include <memory>
 #include <mutex>
 #include <nlohmann/json.hpp>
@@ -101,6 +103,7 @@ public:
    * @return true if started successfully
    */
   bool Start();
+  static bool IsRequested();
 
   /**
    * @brief Stop the pipe server
@@ -200,6 +203,17 @@ private:
    * @return JSON response
    */
   json ProcessRequest(const json& request);
+  json DispatchRequest(const json& request);
+  struct PendingRequest {
+    enum State : std::uint8_t { Queued, Running, Cancelled };
+    json request;
+    std::promise<json> completion;
+    std::atomic<State> state{Queued};
+  };
+  std::mutex pending_mutex_;
+  std::deque<std::shared_ptr<PendingRequest>> pending_requests_;
+  std::string pipe_name_{kPipeName};
+  bool test_rpc_enabled_{false};
 
   /**
    * @brief Update game state based on current Gothic state
@@ -217,8 +231,7 @@ private:
 
   // Game state tracking
   std::atomic<GameState> game_state_{GameState::NotStarted};
-  std::chrono::steady_clock::time_point ready_time_;
-  std::atomic<bool> has_ready_time_{false};
+  std::atomic<std::int64_t> ready_time_ms_{-1};
 };
 
 }  // namespace mcp

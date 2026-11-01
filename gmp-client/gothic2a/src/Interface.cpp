@@ -42,33 +42,41 @@ SOFTWARE.
 #include "net_game.h"
 
 
-bool HelpOpen = false;
 CMenu* MainMenu;
 std::vector<CMenu*> MenuList;
 zCMenu* Options;
 bool OrgOptionsOpened = false;
-extern zCOLOR Red;
-extern zCOLOR Normal;
+bool GMPMenuEnabled = true;
+extern CIngame* global_ingame;
 constexpr const char* GothicMP = "Gothic Multiplayer";
-
-// MENU FUNCTIONS
-void CreateHelpMenu() {
-  HelpOpen = true;
-}
 
 void ExitMainMenu() {
   // Miejsce na ewentualny kod
 }
 
-void ExitToBigMainMenu() {
-  auto pos = player->trafoObjToWorld.GetTranslation();
-  player->ResetPos(pos);
-  player->RefreshNpc();
+void ReturnToBigMainMenuAfterDisconnect() {
+  if (player) {
+    auto pos = player->trafoObjToWorld.GetTranslation();
+    player->ResetPos(pos);
+    player->RefreshNpc();
+  }
   MainMenu = NULL;
-  NetGame::Instance().Disconnect();
+  if (global_ingame) {
+    delete global_ingame;
+    global_ingame = nullptr;
+  }
   CMainMenu::GetInstance()->ReLaunchMainMenu();
   HooksManager::GetInstance()->RemoveHook(HT_RENDER, (DWORD)InterfaceLoop);
   HooksManager::GetInstance()->RemoveHook(HT_RENDER, (DWORD)CIngame::Loop);
+}
+
+void ExitToBigMainMenu() {
+  // Menu actions run during rendering; session teardown must wait until the
+  // engine no longer holds the current frame's game session.
+  GMPCore::Instance().DeferToNextFrame([]() {
+    NetGame::Instance().Disconnect();
+    ReturnToBigMainMenuAfterDisconnect();
+  });
 }
 
 void ExitToMainmenu() {
@@ -98,17 +106,6 @@ void LeaveOptionsMenu() {
 };
 
 void InterfaceLoop(void) {
-  if (HelpOpen) {
-    screen->Print(2500, 2000, Language::Instance()[Language::HCONTROLS]);
-    screen->Print(2500, 2200, Language::Instance()[Language::HCHAT]);
-    screen->Print(2500, 2400, Language::Instance()[Language::HCHATMAIN]);
-    screen->Print(2500, 2800, Language::Instance()[Language::HPLAYERLIST]);
-    screen->Print(2500, 3000, Language::Instance()[Language::HMAP]);
-    screen->Print(2500, 3200, Language::Instance()[Language::HANIMSMENU]);
-    screen->SetFontColor(Red);
-    screen->Print(2500, 3400, Language::Instance()[Language::SHOWHOW]);
-    screen->SetFontColor(Normal);
-  }
   if (OrgOptionsOpened) {
     if (!player->IsMovLock())
       player->SetMovLock(1);
@@ -126,11 +123,8 @@ void InterfaceLoop(void) {
     }
   }
   if (!player->inventory2.IsOpen()) {
-    if (zinput->KeyToggled(KEY_ESCAPE) && !OrgOptionsOpened) {
+    if (zinput->KeyToggled(KEY_ESCAPE) && !OrgOptionsOpened && GMPMenuEnabled) {
       if (!MainMenu) {
-        if (HelpOpen) {
-          HelpOpen = false;
-        }
         CreateMainMenu();
       } else {
         if (MainMenu->IsOpened()) {
@@ -138,9 +132,6 @@ void InterfaceLoop(void) {
         } else {
           delete MainMenu;
           MainMenu = NULL;
-          if (HelpOpen) {
-            HelpOpen = false;
-          }
           CreateMainMenu();
         }
       }
@@ -148,10 +139,30 @@ void InterfaceLoop(void) {
   }
 }
 
+void EnableGMPMenu(bool enable) {
+  GMPMenuEnabled = enable;
+}
+
+void OpenGMPMenu() {
+  if (!MainMenu) {
+    CreateMainMenu();
+    return;
+  }
+
+  if (!MainMenu->IsOpened()) {
+    MainMenu->Open();
+  }
+}
+
+void CloseGMPMenu() {
+  if (MainMenu && MainMenu->IsOpened()) {
+    MainMenu->Close();
+  }
+}
+
 void CreateMainMenu() {
   MainMenu = new CMenu(GothicMP, zCOLOR(0, 128, 128), 3500, 4000);  // MAIN-MENU
   MainMenu->AddMenuItem(Language::Instance()[Language::INGAMEM_BACKTOGAME], (DWORD)ExitMainMenu);
-  MainMenu->AddMenuItem(Language::Instance()[Language::INGAMEM_HELP], (DWORD)CreateHelpMenu);
   MainMenu->AddMenuItem(Language::Instance()[Language::MMENU_OPTIONS], (DWORD)CreateOptionsMenu);
   MainMenu->AddMenuItem(Language::Instance()[Language::EXITTOMAINMENU], (DWORD)ExitToBigMainMenu);
   MainMenu->AddMenuItem(Language::Instance()[Language::MMENU_LEAVEGAME], (DWORD)ExitGameFromMainMenu);

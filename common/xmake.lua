@@ -22,5 +22,15 @@
 
 target("common")
     set_kind("headeronly")
-    add_includedirs(".", "znet", {public = true})
+    add_includedirs(".", "protocol", {public = true})
     add_packages("glm")
+target("Transport")
+    set_kind("static")
+    add_files("transport/transport.cpp", "transport/machine_identity.cpp")
+    add_includedirs(".", {public = true})
+    add_packages("gamenetworkingsockets", {public = true})
+    add_packages("libsodium", {public = true})
+    if is_plat("windows") then
+        add_syslinks("advapi32", {public = true})
+    end
+    set_default(false)

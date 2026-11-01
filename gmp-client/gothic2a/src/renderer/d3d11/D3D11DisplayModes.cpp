@@ -98,8 +98,6 @@ void D3D11DisplayModes::Enumerate() {
     return;
   }
 
-  SPDLOG_INFO("D3D11DisplayModes: Found {} display modes from adapter", modeCount);
-
   // Get all modes
   std::vector<DXGI_MODE_DESC> allModes(modeCount);
   hr = output->GetDisplayModeList(DXGI_FORMAT_B8G8R8A8_UNORM, 0, &modeCount, allModes.data());
@@ -118,11 +116,8 @@ void D3D11DisplayModes::Enumerate() {
   for (const auto& pref : kPreferredResolutions) {
     if (availableModes.count(pref) > 0) {
       modes_.push_back({pref.first, pref.second, 32});
-      SPDLOG_DEBUG("D3D11DisplayModes: Added mode {}x{}", pref.first, pref.second);
     }
   }
-
-  SPDLOG_INFO("D3D11DisplayModes: {} modes available", modes_.size());
 }
 
 int D3D11DisplayModes::GetNumModes() const {

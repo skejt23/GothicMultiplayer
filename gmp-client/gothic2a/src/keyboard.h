@@ -26,6 +26,8 @@ SOFTWARE.
 #pragma once
 
 namespace GInput {
-char GetCharacterFormKeyboard(bool ignorekeyboardlayout = false);  // false - cyrillic
+bool IsControlShortcutPressed();
+char TranslateKeyFromKeyboard(int key, bool ignorekeyboardlayout = false, unsigned int code_page = 0);
+char GetCharacterFormKeyboard(bool ignorekeyboardlayout = false);
 char GetNumberCharacterFromKeyboard();
 }  // namespace GInput

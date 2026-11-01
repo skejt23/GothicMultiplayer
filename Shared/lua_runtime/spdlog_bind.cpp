@@ -1,6 +1,7 @@
 #include "spdlog_bind.h"
 
 #include <fmt/args.h>
+#include <fmt/format.h>
 #include <spdlog/spdlog.h>
 
 #include "shared/event.h"
@@ -24,102 +25,129 @@ void log(std::string text, sol::variadic_args args) {
       store.push_back(arg.as<std::string>());
     }
   }
-  logFunc(fmt::vformat(text, store));
+  try {
+    logFunc(fmt::vformat(text, store));
+  } catch (const fmt::format_error& error) {
+    SPDLOG_ERROR("Lua log format error in '{}': {}", text, error.what());
+  }
+}
+
+/* luagmp (func)
+ *
+ * Logs a message with ERROR severity.
+ *
+ * Error messages indicate serious problems that prevent normal operation
+ * or cause a feature to fail.
+ *
+ * @version  0.3.0
+ * @name     LOG_ERROR
+ * @side     shared
+ * @category Log
+ * @param  (string) text      Message text, may contain format specifiers.
+ *
+ */
+void Function_LOG_ERROR(std::string text, sol::variadic_args args) {
+  log<spdlog::error>(std::move(text), args);
+}
+
+/* luagmp (func)
+ *
+ * Logs a message with INFO severity.
+ *
+ * Informational messages describe normal application behavior and
+ * important runtime events.
+ *
+ * @version  0.3.0
+ * @name     LOG_INFO
+ * @side     shared
+ * @category Log
+ * @param  (string) text      Message text, may contain format specifiers.
+ *
+ */
+void Function_LOG_INFO(std::string text, sol::variadic_args args) {
+  log<spdlog::info>(std::move(text), args);
+}
+
+/* luagmp (func)
+ *
+ * Logs a message with DEBUG severity.
+ *
+ * Debug messages provide diagnostic information useful during development
+ * and troubleshooting.
+ *
+ * @version  0.3.0
+ * @name     LOG_DEBUG
+ * @side     shared
+ * @category Log
+ * @param  (string) text      Message text, may contain format specifiers.
+ *
+ */
+void Function_LOG_DEBUG(std::string text, sol::variadic_args args) {
+  log<spdlog::debug>(std::move(text), args);
+}
+
+/* luagmp (func)
+ *
+ * Logs a message with CRITICAL severity.
+ *
+ * Critical messages report very severe errors that may require immediate
+ * attention or application shutdown.
+ *
+ * @version  0.3.0
+ * @name     LOG_CRITICAL
+ * @side     shared
+ * @category Log
+ * @param  (string) text      Message text, may contain format specifiers.
+ *
+ */
+void Function_LOG_CRITICAL(std::string text, sol::variadic_args args) {
+  log<spdlog::critical>(std::move(text), args);
+}
+
+/* luagmp (func)
+ *
+ * Logs a message with WARN severity.
+ *
+ * Warning messages indicate potential problems or unusual situations that
+ * do not immediately stop execution.
+ *
+ * @version  0.3.0
+ * @name     LOG_WARN
+ * @side     shared
+ * @category Log
+ * @param  (string) text      Message text, may contain format specifiers.
+ *
+ */
+void Function_LOG_WARN(std::string text, sol::variadic_args args) {
+  log<spdlog::warn>(std::move(text), args);
+}
+
+/* luagmp (func)
+ *
+ * Logs a message with TRACE severity.
+ *
+ * Trace messages provide very detailed output, typically used for
+ * low-level debugging and deep diagnostics.
+ *
+ * @version  0.3.0
+ * @name     LOG_TRACE
+ * @side     shared
+ * @category Log
+ * @param  (string) text      Message text, may contain format specifiers.
+ *
+ */
+void Function_LOG_TRACE(std::string text, sol::variadic_args args) {
+  log<spdlog::trace>(std::move(text), args);
 }
 
 void Bind_spdlog(sol::state& lua) {
-  lua["LOG_ERROR"] = log<spdlog::error>;
-  lua["LOG_INFO"] = log<spdlog::info>;
-  lua["LOG_DEBUG"] = log<spdlog::debug>;
-  lua["LOG_CRITICAL"] = log<spdlog::critical>;
-  lua["LOG_WARN"] = log<spdlog::warn>;
-  lua["LOG_TRACE"] = log<spdlog::trace>;
+  lua["LOG_ERROR"] = Function_LOG_ERROR;
+  lua["LOG_INFO"] = Function_LOG_INFO;
+  lua["LOG_DEBUG"] = Function_LOG_DEBUG;
+  lua["LOG_CRITICAL"] = Function_LOG_CRITICAL;
+  lua["LOG_WARN"] = Function_LOG_WARN;
+  lua["LOG_TRACE"] = Function_LOG_TRACE;
 }
 
 }  // namespace bindings
 }  // namespace lua
-
-
-/* luadoc (func)
-*
-* Logs a message with ERROR severity.
-*
-* Error messages indicate serious problems that prevent normal operation
-* or cause a feature to fail.
-*
-* @name     LOG_ERROR
-* @side     shared
-* @category Log
-* @param  (string) text      The message text, may contain format specifiers.
-*
-*/
-
-/* luadoc (func)
-*
-* Logs a message with INFO severity.
-*
-* Informational messages describe normal application behavior and
-* important runtime events.
-*
-* @name     LOG_INFO
-* @side     shared
-* @category Log
-* @param  (string) text      The message text, may contain format specifiers.
-*
-*/
-
-/* luadoc (func)
-*
-* Logs a message with DEBUG severity.
-*
-* Debug messages provide diagnostic information useful during development
-* and troubleshooting.
-*
-* @name     LOG_DEBUG
-* @side     shared
-* @category Log
-* @param  (string) text      The message text, may contain format specifiers.
-*
-*/
-
-/* luadoc (func)
-*
-* Logs a message with CRITICAL severity.
-*
-* Critical messages report very severe errors that may require immediate
-* attention or application shutdown.
-*
-* @name     LOG_CRITICAL
-* @side     shared
-* @category Log
-* @param  (string) text      The message text, may contain format specifiers.
-*
-*/
-
-/* luadoc (func)
-*
-* Logs a message with WARN severity.
-*
-* Warning messages indicate potential problems or unusual situations that
-* do not immediately stop execution.
-*
-* @name     LOG_WARN
-* @side     shared
-* @category Log
-* @param  (string) text      The message text, may contain format specifiers.
-*
-*/
-
-/* luadoc (func)
-*
-* Logs a message with TRACE severity.
-*
-* Trace messages provide very detailed output, typically used for
-* low-level debugging and deep diagnostics.
-*
-* @name     LOG_TRACE
-* @side     shared
-* @category Log
-* @param  (string) text      The message text, may contain format specifiers.
-*
-*/

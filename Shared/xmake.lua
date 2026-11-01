@@ -20,7 +20,7 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 -- SOFTWARE.
 
-includes("lua_compiler", "lua_runtime", "resource")
+includes("lua_compiler", "lua_runtime", "resource", "addon")
 
 target("SharedLib")
     set_kind("static")

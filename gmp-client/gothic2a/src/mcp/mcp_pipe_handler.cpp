@@ -28,9 +28,14 @@ SOFTWARE.
 #include <spdlog/spdlog.h>
 
 #include <cmath>
+#include <algorithm>
+#include <cstdlib>
 
 #include "ZenGin/zGothicAPI.h"
 #include "renderer/d3d9/D3D9Renderer.h"
+#include "config.h"
+#include "net_game.h"
+#include "Shared/lua_runtime/lua_value_codec.h"
 
 using namespace Gothic_II_Addon;
 
@@ -60,7 +65,15 @@ bool MCPPipeHandler::Start() {
     return true;
   }
 
-  SPDLOG_INFO("Starting MCP Pipe Handler on {}", kPipeName);
+  test_rpc_enabled_ = std::getenv("GMP_MCP_TEST_RPC") && std::string(std::getenv("GMP_MCP_TEST_RPC")) == "1";
+  if (const char* pipe = std::getenv("GMP_MCP_PIPE_NAME"); pipe && *pipe) {
+    const std::string suffix(pipe);
+    if (suffix.size() > 64 || !std::all_of(suffix.begin(), suffix.end(), [](unsigned char c) {
+          return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-';
+        })) return false;
+    pipe_name_ = R"(\\.\pipe\)" + suffix;
+  }
+  SPDLOG_INFO("Starting MCP Pipe Handler on {}", pipe_name_);
 
   // Create stop event (manual-reset, initially non-signaled)
   stop_event_ = CreateEventA(nullptr, TRUE, FALSE, nullptr);
@@ -81,6 +94,11 @@ bool MCPPipeHandler::Start() {
   return true;
 }
 
+bool MCPPipeHandler::IsRequested() {
+  const char* enabled = std::getenv("GMP_MCP_ENABLE");
+  return Config::Instance().IsMCPPipeEnabled() || (enabled && std::string(enabled) == "1");
+}
+
 void MCPPipeHandler::Stop() {
   if (!running_.load()) {
     return;
@@ -89,6 +107,11 @@ void MCPPipeHandler::Stop() {
   SPDLOG_INFO("Stopping MCP Pipe Handler");
 
   stop_requested_.store(true);
+  {
+    std::lock_guard<std::mutex> lock(pending_mutex_);
+    for (auto& pending : pending_requests_) pending->state.store(PendingRequest::Cancelled);
+    pending_requests_.clear();
+  }
 
   // Signal the stop event to unblock any waiting operations in the server thread
   if (stop_event_ != NULL) {
@@ -97,6 +120,7 @@ void MCPPipeHandler::Stop() {
 
   // Wait for server thread to exit - it will handle its own cleanup
   if (server_thread_.joinable()) {
+    CancelSynchronousIo(server_thread_.native_handle());
     SPDLOG_DEBUG("Waiting for server thread to exit...");
     server_thread_.join();
     SPDLOG_DEBUG("Server thread exited");
@@ -147,7 +171,7 @@ void MCPPipeHandler::RegisterDefaultHandlers() {
 
     json result = {{"connected", true},       {"gameRunning", ogame != nullptr},       {"inWorld", ogame && ogame->GetGameWorld() != nullptr},
                    {"hasPlayer", has_player}, {"gameState", GameStateToString(state)}, {"isReady", IsGameReady()},
-                   {"version", "1.0.0"}};
+                   {"version", "1.0.0"}, {"pid", GetCurrentProcessId()}, {"testRpcEnabled", test_rpc_enabled_}};
 
     // Add time since ready if applicable
     auto ms_since_ready = GetTimeSinceReady();
@@ -163,15 +187,131 @@ void MCPPipeHandler::RegisterDefaultHandlers() {
     return result;
   });
 
+  RegisterHandler("executeLua", [this](const json& params) {
+    if (!test_rpc_enabled_) return json{{"success", false}, {"error", "Test RPC requires GMP_MCP_TEST_RPC=1"}};
+    const std::string code = params.value("code", std::string{});
+    if (code.empty() || code.size() > 32768) return json{{"success", false}, {"error", "Lua source must contain 1..32768 bytes"}};
+    auto* runtime = NetGame::Instance().resource_runtime.get();
+    if (!runtime) return json{{"success", false}, {"error", "Client Lua runtime is unavailable"}};
+    auto& lua = runtime->GetLuaState();
+    auto result = lua.safe_script(code, sol::script_pass_on_error);
+    if (!result.valid()) {
+      const sol::error error = result;
+      return json{{"success", false}, {"error", error.what()}};
+    }
+    json values = json::array();
+    for (int index = 0; index < result.return_count(); ++index) {
+      json value;
+      std::string error;
+      if (!gmp::lua::EncodeLuaObject(lua, result.get<sol::object>(index), value, error))
+        return json{{"success", false}, {"error", error}};
+      values.push_back(std::move(value));
+    }
+    return json{{"success", true}, {"values", std::move(values)}};
+  });
+  RegisterHandler("connect", [this](const json& params) {
+    if (!test_rpc_enabled_) return json{{"success", false}, {"error", "Test RPC requires GMP_MCP_TEST_RPC=1"}};
+    const auto address = params.value("address", std::string{});
+    if (address.empty() || address.size() > 256) return json{{"success", false}, {"error", "Invalid address"}};
+    return json{{"success", NetGame::Instance().Connect(address)}};
+  });
+  RegisterHandler("getActorSyncInfo", [this](const json& params) {
+    if (!test_rpc_enabled_) return json{{"success", false}, {"error", "Test RPC requires GMP_MCP_TEST_RPC=1"}};
+    auto& net = NetGame::Instance();
+    auto id = params.value("actorId", std::uint64_t{0});
+    if (!id && net.game_client && net.game_client->player_manager().HasLocalPlayer())
+      id = net.game_client->player_manager().GetLocalPlayer().id();
+    auto* actor = net.FindEngineActor(id);
+    if (!actor || !actor->GetNpc()) return json{{"success", false}, {"error", "Actor has no native instance"}};
+    auto* npc = actor->GetNpc();
+    const auto& cached = actor->base_player();
+    const auto state = cached.state();
+    const auto vector = [](const glm::vec3& value) { return json::array({value.x, value.y, value.z}); };
+    const auto native_vector = [](const zVEC3& value) { return json::array({value[VX], value[VY], value[VZ]}); };
+    const auto item = [](oCItem* value) -> json {
+      if (!value) return nullptr;
+      return {{"identity", static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(value))},
+              {"instanceId", value->GetInstance()}, {"instance", std::string(value->GetInstanceName().ToChar())},
+              {"amount", value->amount}, {"active", value->HasFlag(ITM_FLAG_ACTIVE) != 0}};
+    };
+    auto slot = [&](const char* name) { zSTRING native_name(name); return item(npc->GetSlotItem(native_name)); };
+    json cache = {{"generation", cached.actor_generation()}, {"commandRevision", cached.command_revision()},
+        {"sequence", cached.state_sequence()}, {"sourceTimeMs", cached.source_time_ms()},
+        {"position", vector(state.position)}, {"heading", vector(state.nrot)}, {"health", state.health_points},
+        {"mana", state.mana_points}, {"maxHealth", cached.max_health()}, {"maxMana", cached.max_mana()},
+        {"strength", cached.strength()}, {"dexterity", cached.dexterity()}, {"weaponMode", state.weapon_mode},
+        {"activeSpell", state.active_spell_instance}, {"activeSpellNr", state.active_spell_nr},
+        {"bodyState", state.body_state}, {"walkMode", state.walk_mode}, {"lookYaw", state.look_yaw},
+        {"lookPitch", state.look_pitch}, {"invulnerable", state.invulnerable}, {"lifeState", state.life_state},
+        {"leftHand", state.left_hand_item_instance}, {"rightHand", state.right_hand_item_instance},
+        {"armor", state.equipped_armor_instance}, {"helmet", state.equipped_helmet_instance},
+        {"shield", state.equipped_shield_instance}, {"amulet", state.equipped_amulet_instance},
+        {"belt", state.equipped_belt_instance}, {"ringLeft", state.equipped_ring_left_instance},
+        {"ringRight", state.equipped_ring_right_instance}, {"melee", state.melee_weapon_instance},
+        {"ranged", state.ranged_weapon_instance}, {"overlays", cached.overlays()},
+        {"npcEpoch", cached.npc_control_epoch()}, {"npcHost", cached.npc_host_player_id()},
+        {"npcAction", cached.npc_action_id()}, {"npcAnimationRevision", cached.npc_animation_revision()}};
+    json native = {{"instance", std::string(npc->GetInstanceName().ToChar())},
+        {"identity", static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(npc))},
+        {"isGlobalHero", npc == ::player}, {"position", native_vector(npc->GetPositionWorld())},
+        {"heading", native_vector(npc->GetAtVectorWorld())}, {"health", npc->GetAttribute(NPC_ATR_HITPOINTS)},
+        {"maxHealth", npc->GetAttribute(NPC_ATR_HITPOINTSMAX)}, {"mana", npc->GetAttribute(NPC_ATR_MANA)},
+        {"maxMana", npc->GetAttribute(NPC_ATR_MANAMAX)}, {"strength", npc->GetAttribute(NPC_ATR_STRENGTH)},
+        {"dexterity", npc->GetAttribute(NPC_ATR_DEXTERITY)}, {"weaponMode", npc->GetWeaponMode()},
+        {"bodyState", npc->GetBodyState()}, {"dead", npc->IsDead() != 0}, {"unconscious", npc->IsUnconscious() != 0},
+        {"invulnerable", (npc->variousFlags & NPC_FLAG_IMMORTAL) != 0}, {"activeSpellNr", npc->GetActiveSpellNr()},
+        {"leftHand", item(dynamic_cast<oCItem*>(npc->GetLeftHand()))},
+        {"rightHand", item(dynamic_cast<oCItem*>(npc->GetRightHand()))},
+        {"armor", item(npc->GetEquippedArmor())}, {"helmet", slot(NPC_NODE_HELMET)}, {"shield", slot(NPC_NODE_SHIELD)},
+        {"melee", item(npc->GetEquippedMeleeWeapon())}, {"ranged", item(npc->GetEquippedRangedWeapon())}};
+    if (auto* controller = npc->GetAnictrl()) {
+      native["walkMode"] = controller->walkmode;
+      native["lookYaw"] = controller->lookTargetx;
+      native["lookPitch"] = controller->lookTargety;
+    }
+    if (auto* book = npc->GetSpellBook()) native["selectedSpellItem"] = item(book->GetSpellItem(book->GetSelectedSpell()));
+    json inventory = json::array();
+    std::size_t count = 0;
+    for (auto* entry = npc->inventory2.inventory.GetNextInList(); entry; entry = entry->GetNextInList()) {
+      if (auto* value = entry->GetData()) {
+        ++count;
+        if (inventory.size() < 256) inventory.push_back(item(value));
+      }
+    }
+    native["inventory"] = std::move(inventory);
+    native["inventoryCount"] = count;
+    native["inventoryTruncated"] = count > 256;
+    json animations = json::array();
+    if (auto* model = npc->GetModel()) {
+      for (int channel = 0; channel < std::clamp(model->numActiveAnis, 0, zMDL_MAX_ANIS_PARALLEL); ++channel) {
+        if (auto* active = model->aniChannels[channel]; active && active->protoAni) {
+          auto* animation = active->protoAni;
+          animations.push_back({{"name", std::string(animation->GetAniName().ToChar())}, {"frame", active->actFrame},
+              {"frames", static_cast<int>(animation->numFrames)}, {"fps", animation->fpsRate},
+              {"direction", active->advanceDir}, {"fading", active->isFadingOut != 0}});
+        }
+      }
+    }
+    native["animations"] = std::move(animations);
+    native["presentationTimeMs"] = actor->PresentationTime(ActorClockMilliseconds());
+    return json{{"success", true}, {"actorId", id}, {"isNpc", cached.is_npc()}, {"isLocal", actor->IsLocalPlayer()},
+                {"cache", std::move(cache)}, {"native", std::move(native)}};
+  });
+  RegisterHandler("disconnect", [this](const json& /*params*/) {
+    if (!test_rpc_enabled_) return json{{"success", false}, {"error", "Test RPC requires GMP_MCP_TEST_RPC=1"}};
+    NetGame::Instance().Disconnect();
+    return json{{"success", true}};
+  });
+
   // Wait for ready - blocks until game is ready or timeout
   RegisterHandler("waitForReady", [this](const json& params) {
-    int timeout_ms = params.value("timeoutMs", 30000);
-    int poll_interval_ms = params.value("pollIntervalMs", 100);
+    const int timeout_ms = std::clamp(params.value("timeoutMs", 30000), 1, 120000);
+    const int poll_interval_ms = std::clamp(params.value("pollIntervalMs", 100), 10, 250);
     constexpr int SETTLE_DELAY_MS = 1500;  // Fixed delay for loading screen fade + world init
 
     auto start = std::chrono::steady_clock::now();
 
-    while (!IsGameReady()) {
+    while (!IsGameReady() && !stop_requested_.load()) {
       auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
 
       if (elapsed >= timeout_ms) {
@@ -183,6 +323,7 @@ void MCPPipeHandler::RegisterDefaultHandlers() {
 
       std::this_thread::sleep_for(std::chrono::milliseconds(poll_interval_ms));
     }
+    if (stop_requested_.load()) return json{{"success", false}, {"error", "MCP server is stopping"}};
 
     // Game reports ready, but add settle delay for:
     // - Loading screen fade-out completion
@@ -460,7 +601,7 @@ void MCPPipeHandler::ServerThread() {
 
   while (!stop_requested_.load()) {
     // Create named pipe with overlapped I/O support
-    pipe_handle_ = CreateNamedPipeA(kPipeName,
+    pipe_handle_ = CreateNamedPipeA(pipe_name_.c_str(),
                                     PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,  // Enable overlapped I/O
                                     PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
                                     1,  // Max instances
@@ -591,8 +732,8 @@ void MCPPipeHandler::HandleClient(HANDLE pipe) {
     json response;
     try {
       json request = json::parse(request_str);
-      response = ProcessRequest(request);
-    } catch (const json::parse_error& e) {
+      response = DispatchRequest(request);
+    } catch (const std::exception& e) {
       SPDLOG_ERROR("JSON parse error: {}", e.what());
       response = json{{"error", "Invalid JSON"}, {"details", e.what()}};
     }
@@ -630,18 +771,21 @@ json MCPPipeHandler::ProcessRequest(const json& request) {
   json params = request.value("params", json::object());
 
   // Find handler
-  std::lock_guard<std::mutex> lock(handlers_mutex_);
-  auto it = handlers_.find(method);
-
-  if (it == handlers_.end()) {
-    response["error"] = "Unknown method";
-    response["method"] = method;
-    return response;
+  CommandHandler handler;
+  {
+    std::lock_guard<std::mutex> lock(handlers_mutex_);
+    auto it = handlers_.find(method);
+    if (it == handlers_.end()) {
+      response["error"] = "Unknown method";
+      response["method"] = method;
+      return response;
+    }
+    handler = it->second;
   }
 
   // Execute handler
   try {
-    response["result"] = it->second(params);
+    response["result"] = handler(params);
   } catch (const std::exception& e) {
     SPDLOG_ERROR("Handler error for {}: {}", method, e.what());
     response["error"] = e.what();
@@ -650,12 +794,51 @@ json MCPPipeHandler::ProcessRequest(const json& request) {
   return response;
 }
 
+json MCPPipeHandler::DispatchRequest(const json& request) {
+  // Waiting only observes atomic readiness, so it must stay off the render
+  // thread. Every command that reads/writes Gothic objects runs on that thread.
+  if (request.value("method", std::string{}) == "waitForReady") return ProcessRequest(request);
+  auto pending = std::make_shared<PendingRequest>();
+  pending->request = request;
+  auto response = pending->completion.get_future();
+  {
+    std::lock_guard<std::mutex> lock(pending_mutex_);
+    if (stop_requested_.load()) return json{{"error", "MCP server is stopping"}};
+    if (pending_requests_.size() >= 64) return json{{"error", "MCP command queue is full"}};
+    pending_requests_.push_back(pending);
+  }
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+  while (response.wait_for(std::chrono::milliseconds(50)) != std::future_status::ready) {
+    if (stop_requested_.load() || std::chrono::steady_clock::now() >= deadline) {
+      auto queued = PendingRequest::Queued;
+      const bool cancelled = pending->state.compare_exchange_strong(queued, PendingRequest::Cancelled);
+      return json{{"error", !cancelled && queued == PendingRequest::Running ? "Native command started but response timed out; do not retry" :
+          "Native command cancelled before execution"}};
+    }
+  }
+  return response.get();
+}
+
 void MCPPipeHandler::ProcessPendingMessages() {
   // This method should be called from the game thread
   // It handles both pending messages and state updates
 
   // 1. Process state updates
   OnRenderFrame();
+  std::deque<std::shared_ptr<PendingRequest>> requests;
+  {
+    std::lock_guard<std::mutex> lock(pending_mutex_);
+    requests.swap(pending_requests_);
+  }
+  for (auto& pending : requests) {
+    auto queued = PendingRequest::Queued;
+    if (stop_requested_.load() || !pending->state.compare_exchange_strong(queued, PendingRequest::Running)) continue;
+    try {
+      pending->completion.set_value(ProcessRequest(pending->request));
+    } catch (const std::exception& error) {
+      pending->completion.set_value(json{{"error", error.what()}});
+    }
+  }
 }
 
 // =============================================================================
@@ -665,7 +848,8 @@ void MCPPipeHandler::ProcessPendingMessages() {
 void MCPPipeHandler::OnLoadingComplete() {
   SPDLOG_INFO("Loading complete (HT_CLOSELOADSCREEN)");
   // Just mark that loading screen closed, actual ready state is checked in OnRenderFrame
-  game_state_.store(GameState::InGame);  // Tentatively in-game
+  ready_time_ms_.store(-1);
+  game_state_.store(GameState::Loading);
 }
 
 void MCPPipeHandler::OnRenderFrame() {
@@ -673,13 +857,13 @@ void MCPPipeHandler::OnRenderFrame() {
 }
 
 int64_t MCPPipeHandler::GetTimeSinceReady() const {
-  if (!has_ready_time_.load()) {
+  const auto ready = ready_time_ms_.load();
+  if (ready < 0) {
     return -1;
   }
 
-  auto now = std::chrono::steady_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - ready_time_);
-  return duration.count();
+  const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+  return now - ready;
 }
 
 void MCPPipeHandler::UpdateGameState() {
@@ -696,7 +880,7 @@ void MCPPipeHandler::UpdateGameState() {
     // If not in world, assume menu or starting
     if (game_state_.load() != GameState::Menu && game_state_.load() != GameState::Starting) {
       game_state_.store(GameState::Menu);
-      has_ready_time_.store(false);
+      ready_time_ms_.store(-1);
     }
     return;
   }
@@ -706,6 +890,8 @@ void MCPPipeHandler::UpdateGameState() {
 
   // If no player but in world, we might be in free cam or initializing
   if (!player) {
+    ready_time_ms_.store(-1);
+    game_state_.store(GameState::Loading);
     return;
   }
 
@@ -713,9 +899,9 @@ void MCPPipeHandler::UpdateGameState() {
 
   // Transition to InGame
   if (current_state != GameState::InGame) {
+    ready_time_ms_.store(std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count());
     game_state_.store(GameState::InGame);
-    ready_time_ = std::chrono::steady_clock::now();
-    has_ready_time_.store(true);
     SPDLOG_INFO("Game is ready! Player: {}", player->GetName().ToChar());
   }
 }

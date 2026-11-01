@@ -34,9 +34,9 @@ class DevTools {
 public:
   static DevTools& Instance();
 
-  void InitHooks();  // Call once to install engine hooks
   void HandleInput(bool writingOnChat);
   void Render();
+  void SetNoclipAllowed(bool allowed);
 
 private:
   DevTools();
@@ -47,27 +47,13 @@ private:
 
   void HandleNoclip(bool writingOnChat);
   void RenderNoclipOverlay();
-
-  void HandleWeatherMenu(bool writingOnChat);
-  void RenderWeatherMenu();
-  void ApplyWeatherOverride();
+  void DisableNoclip();
 
   // Noclip state
+  bool noclip_allowed_;
   bool noclip_enabled_;
   float noclip_speed_;
   clock_t last_noclip_update_;
-
-  // Weather menu state
-  bool weather_menu_open_;
-  int weather_selection_;
-
-  // Weather override - continuously applied each frame via hook
-  bool weather_override_active_;
-  zTWeather override_weather_;
-  float override_rain_weight_;
-
-  // Hook initialization state
-  bool hooks_initialized_;
 };
 
 }  // namespace debug

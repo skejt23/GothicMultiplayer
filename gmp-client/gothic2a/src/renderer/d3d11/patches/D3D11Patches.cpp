@@ -65,7 +65,6 @@ void InitializeD3D11Patches() {
   // =============================================================================
   if (auto original = CreateHook(kRenderManagerDrawVBWithShader, (DWORD)Hook_RenderManager_DrawVBWithShader)) {
     g_rmDrawVBWithShaderOriginal = reinterpret_cast<RenderManagerDrawVBWithShaderFn>(*original);
-    SPDLOG_DEBUG("Hooked zCRenderManager::DrawVertexBuffer(zCShader*) at 0x{:08X}", kRenderManagerDrawVBWithShader);
   } else {
     SPDLOG_ERROR("Failed to hook zCRenderManager::DrawVertexBuffer(zCShader*) at 0x{:08X}", kRenderManagerDrawVBWithShader);
   }

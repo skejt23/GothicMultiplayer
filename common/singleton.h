@@ -46,11 +46,11 @@ public:
 		if(Instance)
 		{
 			delete Instance;
-			Instance = NULL;
+			Instance = nullptr;
 		}
 	}
 };
 
 template<class T>
-T* TSingleton<T>::Instance = NULL;
+T* TSingleton<T>::Instance = nullptr;
 #endif

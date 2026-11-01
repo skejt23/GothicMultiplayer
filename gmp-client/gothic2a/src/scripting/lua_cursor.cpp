@@ -22,20 +22,13 @@ SOFTWARE.
 
 #include <algorithm>
 #include <cmath>
-#include <cstdint>
-#include <cstring>
+#include <cstddef>
+
+#include "lua_helpers.h"
 
 using namespace Gothic_II_Addon;
 
 namespace gmp::gothic {
-namespace {
-constexpr float kMinSensitivity = 1.0f;
-constexpr float kMaxSensitivity = 10.0f;
-constexpr int kDefaultCursorSizePx = 96;
-constexpr uintptr_t kGothicMouseDeviceAddress = 0x008D1D70;
-constexpr std::array<int, 8> kMouseButtonCodes = {MOUSE_BUTTONLEFT, MOUSE_BUTTONRIGHT, MOUSE_BUTTONMID, MOUSE_XBUTTON1,
-                                                  MOUSE_XBUTTON2,   MOUSE_XBUTTON3,    MOUSE_XBUTTON4,  MOUSE_XBUTTON5};
-}  // namespace
 
 class LuaCursorView : public zCView {
 public:
@@ -64,12 +57,11 @@ LuaCursor::LuaCursor()
       attached_to_screen_(false),
       pos_x_(0.0f),
       pos_y_(0.0f),
-      width_(kDefaultCursorSizePx),
-      height_(kDefaultCursorSizePx),
-      mouse_device_(nullptr) {
+      width_(lua_helpers::kCursorDefaultSizePx),
+      height_(lua_helpers::kCursorDefaultSizePx) {
   EnsureView();
-  setSizePx(kDefaultCursorSizePx, kDefaultCursorSizePx);
-  setTexture(texture_name_);
+  setSizePx(lua_helpers::kCursorDefaultSizePx, lua_helpers::kCursorDefaultSizePx);
+  setTextureFile(texture_name_);
 }
 
 LuaCursor::~LuaCursor() {
@@ -145,28 +137,11 @@ void LuaCursor::ApplyDelta(float delta_x, float delta_y) {
   UpdateViewPosition();
 }
 
-void LuaCursor::UpdateFromInput(zCInput* input) {
-  if (!input) {
-    return;
-  }
-
+void LuaCursor::UpdateFromInput(float delta_x, float delta_y) {
   EnsureView();
-
-  float delta_x = 0.0f;
-  float delta_y = 0.0f;
-  float wheel = 0.0f;
-  const bool using_direct_input = PollDirectInput(delta_x, delta_y, wheel);
-  if (!using_direct_input) {
-    input->GetMousePos(delta_x, delta_y, wheel);
-  }
-  (void)wheel;
 
   if (delta_x != 0.0f || delta_y != 0.0f) {
     ApplyDelta(delta_x, delta_y);
-  }
-
-  if (view_) {
-    view_->Blit();
   }
 }
 
@@ -303,7 +278,7 @@ sol::table LuaCursor::getSizePx(sol::this_state s) const {
   return MakeSizeTable(s, true);
 }
 
-void LuaCursor::setTexture(const std::string& file) {
+void LuaCursor::setTextureFile(const std::string& file) {
   texture_name_ = file;
   zSTRING fileString(file.c_str());
   texture_ = zCTexture::Load(fileString, 0);
@@ -312,7 +287,7 @@ void LuaCursor::setTexture(const std::string& file) {
   }
 }
 
-std::string LuaCursor::getTexture() const {
+std::string LuaCursor::getTextureFile() const {
   return texture_name_;
 }
 
@@ -337,19 +312,19 @@ bool LuaCursor::isVisible() const {
 }
 
 void LuaCursor::setSensitivity(float sensitivity) {
-  sensitivity_ = std::clamp(sensitivity, kMinSensitivity, kMaxSensitivity);
+  sensitivity_ = std::clamp(sensitivity, lua_helpers::kCursorMinSensitivity, lua_helpers::kCursorMaxSensitivity);
 }
 
 float LuaCursor::getSensitivity() const {
   return sensitivity_;
 }
 
-bool LuaCursor::isButtonPressed(int button) const {
-  if (!zinput || button < 0 || static_cast<std::size_t>(button) >= kMouseButtonCodes.size()) {
+bool LuaCursor::isButtonDown(int button) const {
+  if (!zinput || button < 0 || static_cast<std::size_t>(button) >= lua_helpers::kCursorMouseButtonCodes.size()) {
     return false;
   }
 
-  return zinput->KeyPressed(kMouseButtonCodes[button]) != 0;
+  return zinput->KeyPressed(lua_helpers::kCursorMouseButtonCodes[button]) != 0;
 }
 
 void LuaCursor::CleanupViews() {
@@ -361,36 +336,6 @@ void LuaCursor::CleanupViews() {
   }
 
   cursor.visible_ = false;
-}
-
-bool LuaCursor::PollDirectInput(float& delta_x, float& delta_y, float& wheel) {
-  if (!mouse_device_) {
-    auto device_ptr = reinterpret_cast<LPDIRECTINPUTDEVICE8A*>(kGothicMouseDeviceAddress);
-    if (!device_ptr) {
-      return false;
-    }
-    mouse_device_ = *device_ptr;
-  }
-
-  if (!mouse_device_) {
-    return false;
-  }
-
-  DIMOUSESTATE2 state{};
-  HRESULT hr = mouse_device_->GetDeviceState(sizeof(state), &state);
-  if (hr == DIERR_INPUTLOST || hr == DIERR_NOTACQUIRED) {
-    mouse_device_->Acquire();
-    hr = mouse_device_->GetDeviceState(sizeof(state), &state);
-  }
-
-  if (FAILED(hr)) {
-    return false;
-  }
-
-  delta_x = static_cast<float>(state.lX);
-  delta_y = static_cast<float>(state.lY);
-  wheel = static_cast<float>(state.lZ);
-  return true;
 }
 
 }  // namespace gmp::gothic

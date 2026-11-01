@@ -312,7 +312,6 @@ private:
 }  // namespace
 
 zCRnd_D3D_DX11::zCRnd_D3D_DX11() {
-  SPDLOG_TRACE("zCRnd_D3D_DX11::zCRnd_D3D_DX11() - Initializing D3D11 Renderer");
   impl_ = std::make_unique<gmp::renderer::d3d11::D3D11RendererImpl>();
 
   // Initialize matrices to identity
@@ -334,7 +333,6 @@ zCRnd_D3D_DX11::zCRnd_D3D_DX11() {
 }
 
 zCRnd_D3D_DX11::~zCRnd_D3D_DX11() {
-  SPDLOG_INFO("zCRnd_D3D_DX11::~zCRnd_D3D_DX11()");
   if (impl_) {
     impl_->Cleanup();
     impl_.reset();
@@ -1019,8 +1017,6 @@ void zCRnd_D3D_DX11::DrawPolySimple(zCTexture* texture, zTRndSimpleVertex* verti
   FlushBatch();
 
   if (!vertices || num_vertices < 3 || !impl_ || GetSurfaceLost()) {
-    SPDLOG_INFO("DrawPolySimple: early exit - vertices={} num_vertices={} impl_={} surface_lost={}", static_cast<void*>(vertices), num_vertices,
-                static_cast<void*>(impl_.get()), GetSurfaceLost());
     return;
   }
 
@@ -1467,7 +1463,6 @@ void zCRnd_D3D_DX11::SetRenderMode(zTRnd_RenderMode mode) {
     return;
 
   render_mode_ = static_cast<int>(mode);
-  SPDLOG_TRACE("SetRenderMode: {}", render_mode_);
 
   // Set up standard render states for geometry rendering using native D3D11 API.
   using namespace gmp::renderer::d3d11;
@@ -1590,7 +1585,6 @@ void zCRnd_D3D_DX11::ResetStatistics() {
 }
 
 void zCRnd_D3D_DX11::Vid_Blit(int complete, tagRECT* src, tagRECT* dst) {
-  SPDLOG_TRACE("Vid_Blit called");
   // This is called every frame by GameManager::Render() after game->Render()
 
   if (impl_) {
@@ -1601,7 +1595,6 @@ void zCRnd_D3D_DX11::Vid_Blit(int complete, tagRECT* src, tagRECT* dst) {
 void zCRnd_D3D_DX11::Vid_Clear(zCOLOR& color, int flags) {
   // Convert zCOLOR to D3DCOLOR (ARGB)
   unsigned long d3dColor = (color.alpha << 24) | (color.r << 16) | (color.g << 8) | color.b;
-  SPDLOG_TRACE("Vid_Clear called with flags={}, color=R:{} G:{} B:{} A:{} -> 0x{:08X}", flags, color.r, color.g, color.b, color.alpha, d3dColor);
   if (impl_) {
     const bool clear_color = (flags != zRND_CLEAR_ZBUFFER);
     const bool clear_depth = (flags != zRND_CLEAR_FRAMEBUFFER);
@@ -1610,12 +1603,10 @@ void zCRnd_D3D_DX11::Vid_Clear(zCOLOR& color, int flags) {
 }
 
 int zCRnd_D3D_DX11::Vid_Lock(zTRndSurfaceDesc& desc) {
-  SPDLOG_TRACE("Vid_Lock called");
   return 0;
 }
 
 int zCRnd_D3D_DX11::Vid_Unlock() {
-  SPDLOG_TRACE("Vid_Unlock called");
   return 0;
 }
 
@@ -1628,7 +1619,6 @@ int zCRnd_D3D_DX11::Vid_GetFrontBufferCopy(zCTextureConvert& texConv) {
 }
 
 int zCRnd_D3D_DX11::Vid_GetNumDevices() {
-  SPDLOG_TRACE("Vid_GetNumDevices called");
   return 1;
 }
 
@@ -1637,18 +1627,15 @@ int zCRnd_D3D_DX11::Vid_GetActiveDeviceNr() {
 }
 
 int zCRnd_D3D_DX11::Vid_SetDevice(int deviceNr) {
-  SPDLOG_TRACE("Vid_SetDevice called with {}", deviceNr);
   return 1;
 }
 
 int zCRnd_D3D_DX11::Vid_GetDeviceInfo(zTRnd_DeviceInfo& info, int deviceNr) {
-  SPDLOG_TRACE("Vid_GetDeviceInfo called for device {}", deviceNr);
   return 1;
 }
 
 int zCRnd_D3D_DX11::Vid_GetNumModes() {
   int count = display_modes_.GetNumModes();
-  SPDLOG_INFO("Vid_GetNumModes called, returning {}", count);
   return count;
 }
 
@@ -1664,7 +1651,6 @@ int zCRnd_D3D_DX11::Vid_GetModeInfo(zTRnd_VidModeInfo& info, int modeNr) {
   info.bpp = mode->bpp;
   info.fullscreenOnly = 0;
 
-  SPDLOG_INFO("Vid_GetModeInfo[{}]: {}x{} {}bpp", modeNr, info.xdim, info.ydim, info.bpp);
   return 1;
 }
 
@@ -1673,7 +1659,6 @@ int zCRnd_D3D_DX11::Vid_GetActiveModeNr() {
 }
 
 int zCRnd_D3D_DX11::Vid_SetMode(int modeNr, HWND__** hwnd) {
-  SPDLOG_INFO("Vid_SetMode: mode={}", modeNr);
   if (!impl_)
     return 0;
 
@@ -1701,10 +1686,7 @@ int zCRnd_D3D_DX11::Vid_SetMode(int modeNr, HWND__** hwnd) {
   vid_ydim = mode->height;
   vid_bpp = mode->bpp;
 
-  SPDLOG_INFO("Setting video mode: {}x{} {}bpp", vid_xdim, vid_ydim, vid_bpp);
-
   HWND hWindow = (hwnd && *hwnd) ? *hwnd : GetActiveWindow();
-  SPDLOG_INFO("Vid_SetMode using HWND: {}", (void*)hWindow);
 
   if (hWindow) {
     const bool want_fullscreen = (screen_mode_ == zRND_SCRMODE_FULLSCREEN);
@@ -1785,8 +1767,6 @@ void zCRnd_D3D_DX11::ApplyWindowMode(HWND hWindow, bool fullscreen, int width, i
 }
 
 void zCRnd_D3D_DX11::Vid_SetScreenMode(zTRnd_ScreenMode mode) {
-  SPDLOG_INFO("Vid_SetScreenMode called: {}", (int)mode);
-
   // HIDE mode is treated as WINDOWED
   if (mode == zRND_SCRMODE_HIDE) {
     mode = zRND_SCRMODE_WINDOWED;
@@ -1798,14 +1778,12 @@ void zCRnd_D3D_DX11::Vid_SetScreenMode(zTRnd_ScreenMode mode) {
 
   if (!impl_ || !impl_->GetDevice()) {
     // Device not initialized yet - just store the mode for later use in Init()
-    SPDLOG_DEBUG("Vid_SetScreenMode: Device not ready, mode {} stored for Init()", (int)mode);
     return;
   }
 
   // If the mode has actually changed, switch fullscreen state
   if (mode != previous_mode) {
     bool want_fullscreen = (mode == zRND_SCRMODE_FULLSCREEN);
-    SPDLOG_INFO("Vid_SetScreenMode: Switching to {} mode", want_fullscreen ? "fullscreen" : "windowed");
     if (!impl_->SetFullscreenState(want_fullscreen)) {
       SPDLOG_WARN("Vid_SetScreenMode: Failed to switch fullscreen state, reverting to previous mode");
       screen_mode_ = previous_mode;
@@ -1826,7 +1804,6 @@ zTRnd_ScreenMode zCRnd_D3D_DX11::Vid_GetScreenMode() {
 }
 
 void zCRnd_D3D_DX11::Vid_SetGammaCorrection(float gamma, float contrast, float brightness) {
-  SPDLOG_INFO("Vid_SetGammaCorrection called: gamma={} contrast={} brightness={}", gamma, contrast, brightness);
   gamma_ = gamma;
   contrast_ = contrast;
   brightness_ = brightness;
@@ -2332,8 +2309,7 @@ int zCRnd_D3D_DX11::SetTextureStageState(unsigned long stage, zTRnd_TextureStage
       break;
     }
     default:
-      // Other states (bump mapping, border color, etc.) - log and ignore.
-      SPDLOG_DEBUG("SetTextureStageState: Unhandled state {} = {} on stage {}", static_cast<int>(state), value, stage);
+      // Other states (bump mapping, border color, etc.) are ignored.
       break;
   }
 
@@ -2916,12 +2892,7 @@ void zCRnd_D3D_DX11::RenderAlphaPolyBatched(const gmp::renderer::d3d11::QueuedAl
 void zCRnd_D3D_DX11::DrawQueuedAlphaPoly(const gmp::renderer::d3d11::QueuedAlphaPoly* ap) {
   using namespace gmp::renderer::d3d11;
 
-  SPDLOG_DEBUG("DrawQueuedAlphaPoly: ENTRY ap={} impl_={} surface_lost_={}", static_cast<const void*>(ap), static_cast<void*>(impl_.get()),
-               GetSurfaceLost());
-
   if (!ap || ap->vert_count < 3 || !impl_ || GetSurfaceLost()) {
-    SPDLOG_DEBUG("DrawQueuedAlphaPoly: EARLY EXIT ap={} vert_count={} impl_={} surface_lost_={}", static_cast<const void*>(ap),
-                 ap ? ap->vert_count : -1, static_cast<void*>(impl_.get()), GetSurfaceLost());
     return;
   }
 
@@ -3025,7 +2996,7 @@ void zCRnd_D3D_DX11::RenderAlphaSortList() {
   // Flush any remaining batched geometry
   FlushAlphaBatch();
 
-  // Finalize batching and log stats (End returns bool for final batch, which we already flushed)
+  // Finalize batching (End returns bool for final batch, which we already flushed)
   (void)alpha_batcher_.End();
   alpha_batcher_.ResetStats();
 
@@ -3094,7 +3065,6 @@ int zCRnd_D3D_DX11::DrawVertexBuffer(zCVertexBuffer* vertex_buffer, int first_ve
 
   // Block rendering during device reset.
   if (GetSurfaceLost()) {
-    SPDLOG_DEBUG("DrawVertexBuffer: Skipping due to surface lost");
     return 0;
   }
 
@@ -3639,11 +3609,6 @@ int zCRnd_D3D_DX11::DrawVertexBuffer(zCVertexBuffer* vertex_buffer, int first_ve
       if (lightmap_src == nullptr && shader_semantic->lightmap_texture != nullptr) {
         lightmap_src = shader_semantic->lightmap_texture;
         lightmap_src_stage = sem_lightmap_stage;
-        static bool logged_semantic_texture_fallback = false;
-        if (!logged_semantic_texture_fallback) {
-          logged_semantic_texture_fallback = true;
-          SPDLOG_INFO("Using semantic lightmap_texture as fallback (active_texture_[{}] was null)", sem_lightmap_stage);
-        }
       }
 
       static bool warned_semantic_lightmap_missing = false;
@@ -3694,11 +3659,6 @@ int zCRnd_D3D_DX11::DrawVertexBuffer(zCVertexBuffer* vertex_buffer, int first_ve
           } else {
             impl_->SetTexture(1, srv);
             lightmap_bound_ok = true;  // Successfully bound a valid, distinct lightmap
-            static bool logged_lightmap_bind = false;
-            if (!logged_lightmap_bind) {
-              logged_lightmap_bind = true;
-              SPDLOG_WARN("Binding lightmap to stage 1: srv={} (src_stage={})", (void*)srv, lightmap_src_stage);
-            }
           }
         } else {
           SPDLOG_WARN("Lightmap texture has no SRV");
@@ -3742,32 +3702,6 @@ int zCRnd_D3D_DX11::DrawVertexBuffer(zCVertexBuffer* vertex_buffer, int first_ve
     const bool alpha_test_enabled = (alpha_test_state != kFalse32 && alpha_test_state != kCacheInvalidSentinel);
     if (alpha_test_enabled && alpha_blend_func_ == zRND_ALPHA_FUNC_TEST && bound_base_d3d11->HasSmoothAlpha()) {
       alpha_blend_func_for_draw = static_cast<int>(zRND_ALPHA_FUNC_BLEND_TEST);
-    }
-  }
-
-  // One-shot diagnostic: explicitly catch suspected indoor wall textures.
-  {
-    static bool logged_holzwand = false;
-    if (!logged_holzwand) {
-      auto contains_holzwand = [](zCTexture* tex) -> bool {
-        if (!tex) {
-          return false;
-        }
-        const zSTRING name = tex->GetObjectName();
-        const char* c = name.ToChar();
-        if (!c || c[0] == '\0') {
-          return false;
-        }
-        return std::strstr(c, "HOLZWAND") != nullptr;
-      };
-
-      if (contains_holzwand(active_texture_[0]) || contains_holzwand(active_texture_[1])) {
-        logged_holzwand = true;
-        zSTRING t0 = active_texture_[0] ? active_texture_[0]->GetObjectName() : zSTRING("null");
-        zSTRING t1 = active_texture_[1] ? active_texture_[1]->GetObjectName() : zSTRING("null");
-        SPDLOG_INFO("HOLZWAND: stage0={} '{}' stage1={} '{}' (fmt=0x{:X} stride={})", (void*)active_texture_[0], t0.ToChar(),
-                    (void*)active_texture_[1], t1.ToChar(), format, stride);
-      }
     }
   }
 
@@ -3842,12 +3776,10 @@ zCVertexBuffer* zCRnd_D3D_DX11::CreateVertexBuffer() {
 }
 
 zCRenderer* __stdcall CreateDX11Renderer() {
-  SPDLOG_TRACE("CreateDX11Renderer called - Injecting DX11 Renderer");
   return new zCRnd_D3D_DX11();
 }
 
 void __fastcall ConstructDX11Renderer(void* mem) {
-  SPDLOG_TRACE("ConstructDX11Renderer called - Constructing DX11 Renderer in place at {}", mem);
   if (mem) {
     ::new (mem) zCRnd_D3D_DX11();
   }
@@ -3864,6 +3796,5 @@ ID3D11DeviceContext* zCRnd_D3D_DX11::GetContext() const {
 void zCRnd_D3D_DX11::SetVSync(bool enable) {
   if (impl_) {
     impl_->vsync = enable;
-    SPDLOG_INFO("[D3D11] VSync {}", enable ? "enabled" : "disabled");
   }
 }

@@ -28,6 +28,7 @@ SOFTWARE.
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <filesystem>
 #include <iostream>
 #include <string>
 
@@ -45,6 +46,7 @@ SOFTWARE.
 #include "main_menu.h"
 #include "patch.h"
 #include "patch_install.hpp"
+#include "windows_paths.h"
 
 SDL_Window* g_pSdlWindow;
 
@@ -122,12 +124,17 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
       // Disable Gothic's built-in exception/crash handler as early as possible.
       Patch::DisableNativeExceptionHandler();
 
-      ExternalConsoleWindow::Init();
-      spdlog::default_logger()->sinks().push_back(std::make_shared<spdlog::sinks::basic_file_sink_mt>("GMP_Log.txt", true));
+      if (Config::Instance().IsDebugConsoleEnabled()) {
+        ExternalConsoleWindow::Init();
+      }
+
+      const auto multiplayer_directory = gmp::paths::ModulePath().parent_path().parent_path() / L"Multiplayer";
+      std::filesystem::create_directories(multiplayer_directory);
+      const auto log_path = multiplayer_directory / L"GMPLog.log";
+      spdlog::default_logger()->sinks().push_back(
+          std::make_shared<spdlog::sinks::basic_file_sink_mt>(gmp::paths::WideToUtf8(log_path.native()), true));
       spdlog::flush_on(spdlog::level::info);
       spdlog::set_level(spdlog::level::info);
-
-      gmp::client::LoadNetworkLibrary();
 
       // Window hook
       CallPatch(0x0050323F, (DWORD)&HookCreateWindowExA, 1);

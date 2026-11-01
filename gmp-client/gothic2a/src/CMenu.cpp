@@ -32,6 +32,8 @@ SOFTWARE.
 
 #include "CMenu.h"
 
+#include "language.h"
+
 using namespace Gothic_II_Addon;
 
 constexpr const char* GlobalFont = "FONT_OLD_20_WHITE.TGA";
@@ -41,14 +43,16 @@ extern std::vector<CMenu*> MenuList;
 
 CMenu::CMenu(zSTRING MenuTitle, zCOLOR TitleTextColor, int sizex, int sizey)  // Menu Constructor
 {
+  const auto font = Language::Instance().ApplyFontPrefix(GlobalFont);
+
   MainWindow = new zCView(0, 0, 8192, 8192, VIEW_ITEM);
-  MainWindow->SetFont(GlobalFont);
+  MainWindow->SetFont(font.c_str());
   MainWindow->SetPos(2500, 2000);
   MainWindow->SetSize(sizex, sizey);
   MainWindow->InsertBack(GlobalBack);
   TitleText = new zCView(0, 0, 8192, 8192, VIEW_ITEM);
   TitleText->SetFontColor(TitleTextColor);
-  TitleText->SetFont(GlobalFont);
+  TitleText->SetFont(font.c_str());
   TitleText->SetPos(2550, 1700);
   TitleText->SetSize(4000, 2000);
   MainWindow->Open();
@@ -154,7 +158,8 @@ void CMenu::ArrowsInit() {
   Arrows->SetPos(2500, 2000);
   Arrows->SetSize(3500, 4000);
   Arrows->SetFontColor(zCOLOR(128, 0, 0));
-  Arrows->SetFont(GlobalFont);
+  const auto font = Language::Instance().ApplyFontPrefix(GlobalFont);
+  Arrows->SetFont(font.c_str());
   Arrows->Print(500, ArrowPos * 600, Arrow);
 };
 
@@ -168,7 +173,8 @@ void CMenu::RenderArrows() {
   Arrows->SetPos(2500, 2000);
   Arrows->SetSize(3500, 4000);
   Arrows->SetFontColor(zCOLOR(128, 0, 0));
-  Arrows->SetFont(GlobalFont);
+  const auto font = Language::Instance().ApplyFontPrefix(GlobalFont);
+  Arrows->SetFont(font.c_str());
   Arrows->Print(500, ArrowPos * 600, Arrow);
   screen->InsertItem(Arrows);
 };

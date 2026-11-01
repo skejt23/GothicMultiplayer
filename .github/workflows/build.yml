@@ -11,26 +11,73 @@ env:
   # Customize the XMake build mode here (release, debug, releasedbg)
   BUILD_MODE: release
 
+permissions:
+  contents: read
+
 jobs:
   build:
-    # XMake is cross-platform and should work on Windows, Linux, and macOS
-    # You can convert this to a matrix build if you need cross-platform coverage.
+    name: Windows x86 client and server
     runs-on: windows-latest
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: recursive
     
     - name: Setup XMake
       uses: xmake-io/github-action-setup-xmake@v1
       with:
-        xmake-version: latest
+        xmake-version: '3.0.3'
 
     - name: Configure XMake
-      run: xmake config --mode=${{env.BUILD_MODE}} -y
+      run: xmake config --mode=${{env.BUILD_MODE}} --plat=windows --arch=x86 -y
 
     - name: Build
       run: xmake
 
+    - name: Build networking tests
+      shell: bash
+      run: |
+        for target in TransportTest ConnectionTest BanListTest PlayerManagerTest ClientNpcPacketTest NpcManagerTest; do
+          xmake build -y "$target"
+        done
+
+    - name: Run networking tests
+      shell: bash
+      run: |
+        for target in TransportTest ConnectionTest BanListTest PlayerManagerTest ClientNpcPacketTest NpcManagerTest; do
+          xmake run "$target"
+        done
+
     - name: Test
       run: xmake test
+
+  linux-server:
+    name: Linux x64 server and networking
+    runs-on: ubuntu-24.04
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup XMake
+      uses: xmake-io/github-action-setup-xmake@v1
+      with:
+        xmake-version: '3.0.3'
+
+    - name: Configure Linux x64
+      run: xmake config --mode=${{env.BUILD_MODE}} --plat=linux --arch=x86_64 -y
+
+    - name: Build server and networking tests
+      run: |
+        for target in ServerApp Client.Net TransportTest ConnectionTest BanListTest PlayerManagerTest ClientNpcPacketTest NpcManagerTest; do
+          xmake build -y "$target"
+        done
+
+    - name: Run networking tests
+      run: |
+        for target in TransportTest ConnectionTest BanListTest PlayerManagerTest ClientNpcPacketTest NpcManagerTest; do
+          xmake run "$target"
+        done
 

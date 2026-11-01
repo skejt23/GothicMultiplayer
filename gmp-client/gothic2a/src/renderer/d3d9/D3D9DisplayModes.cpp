@@ -74,7 +74,6 @@ void D3D9DisplayModes::Enumerate() {
 
   // Enumerate 32-bit modes (X8R8G8B8) for the default adapter
   UINT modeCount = d3d9->GetAdapterModeCount(D3DADAPTER_DEFAULT, D3DFMT_X8R8G8B8);
-  SPDLOG_INFO("D3D9DisplayModes: Found {} display modes from adapter", modeCount);
 
   // Build a set of available resolutions from the adapter
   std::set<std::pair<int, int>> availableModes;
@@ -89,11 +88,8 @@ void D3D9DisplayModes::Enumerate() {
   for (const auto& pref : kPreferredResolutions) {
     if (availableModes.count(pref) > 0) {
       modes_.push_back({pref.first, pref.second, 32});
-      SPDLOG_DEBUG("D3D9DisplayModes: Added mode {}x{}", pref.first, pref.second);
     }
   }
-
-  SPDLOG_INFO("D3D9DisplayModes: {} modes available", modes_.size());
 
   // Release temporary D3D9 instance
   d3d9->Release();

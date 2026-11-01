@@ -24,9 +24,17 @@ SOFTWARE.
 
 #include "server_list_state.hpp"
 
+#include <algorithm>
+#include <cstdint>
+#include <string>
+
 #include <spdlog/spdlog.h>
 
 #include "gmp_core.h"
+#include "character_appearance.h"
+#include "content/content_transition_manager.h"
+#include "Interface.h"
+#include "language.h"
 #include "world_utils.hpp"
 #include "Patch.h"
 #include "keyboard.h"
@@ -39,13 +47,54 @@ SOFTWARE.
 namespace menu {
 namespace states {
 
+namespace {
+
+constexpr int kProgressFrameLeft = 1000;
+constexpr int kProgressFrameTop = 6800;
+constexpr int kProgressFrameRight = 7192;
+constexpr int kProgressFrameBottom = 7300;
+constexpr int kProgressFillInsetX = 900;
+constexpr int kProgressFillInsetY = 75;
+constexpr int kBannerTextLeft = 700;
+constexpr int kBannerTextTop = 5600;
+constexpr int kBannerTextRight = 7492;
+constexpr int kBannerTextBottom = 6050;
+constexpr int kProgressTextLeft = 700;
+constexpr int kProgressTextTop = 6100;
+constexpr int kProgressTextRight = 7492;
+constexpr int kProgressTextBottom = 6700;
+constexpr int kListStatusTop = 6650;
+constexpr int kListNavigationHintTop = 7050;
+constexpr int kListFavoriteHintTop = 7400;
+constexpr int kListOtherHintTop = 7750;
+constexpr int kEndpointTitleTop = 3150;
+constexpr int kEndpointValueTop = 3850;
+constexpr int kEndpointErrorTop = 4550;
+constexpr int kEndpointHintTop = 7350;
+constexpr const char* kProgressFrameTexture = "PROGRESS.TGA";
+constexpr const char* kProgressFillTexture = "PROGRESS_BAR.TGA";
+constexpr int kNewGameSlot = -2;
+
+void PrintCentered(zCView* view, int y, const char* text) {
+  if (!view || !text) {
+    return;
+  }
+  const int x = std::max(0, (8192 - view->FontSize(text)) / 2);
+  view->Print(x, y, text);
+}
+
+}  // namespace
+
 ServerListState::ServerListState(MenuContext& context)
     : context_(context),
       shouldReturnToMainMenu_(false),
       shouldConnectToServer_(false),
-      enteringCustomIP_(false),
+      shouldExitMenuAfterConnection_(false),
+      endpointEntryMode_(EndpointEntryMode::None),
       connectionAttemptInProgress_(false) {
 }
+
+ServerListState::~ServerListState() { CloseConnectionProgress(); }
 
 void ServerListState::OnEnter() {
   SPDLOG_INFO("Entering server list state, extended server list at {:p}", (void*)context_.extendedServerList);
@@ -65,7 +114,9 @@ void ServerListState::OnEnter() {
     // Normal entry - start in server list mode
     context_.selectedServerIndex = 0;
     context_.selectedServerIP.Clear();
-    enteringCustomIP_ = false;
+    endpointEntryMode_ = EndpointEntryMode::None;
+    endpointEntryError_.clear();
+    serverListStatus_.clear();
 
     // Refresh server list
     if (context_.extendedServerList) {
@@ -74,42 +125,57 @@ void ServerListState::OnEnter() {
   } else {
     // Fast join mode - auto-connect
     SPDLOG_INFO("Fast join to: {}", context_.selectedServerIP.ToChar());
-    enteringCustomIP_ = true;       // We're in custom IP mode
+    endpointEntryMode_ = EndpointEntryMode::DirectConnect;
     shouldConnectToServer_ = true;  // Trigger immediate connection
   }
 }
 
 void ServerListState::OnExit() {
   SPDLOG_INFO("Exiting server list state");
+  CloseConnectionProgress();
 
   // Restore logo (unless we're connecting to a server)
-  if (context_.logoView && !shouldConnectToServer_) {
+  if (context_.logoView && !shouldExitMenuAfterConnection_) {
     context_.screen->InsertItem(context_.logoView);
   }
 }
 
 StateResult ServerListState::Update() {
   if (connectionAttemptInProgress_) {
-    // Pump RakNet so pending packets (initial info, resources) are processed while still in menus
+    // Pump transport callbacks and gameplay messages while still in menus.
     NetGame::Instance().HandleNetwork();
   }
 
   // Check if we should initiate connection (for fast join or user selection)
   if (shouldConnectToServer_) {
     ConnectToServer();
-    shouldConnectToServer_ = false;                           // Only call ConnectToServer once
-    connectionAttemptInProgress_ = true;                      // Mark that we're attempting to connect
-    connectionStartTime_ = std::chrono::steady_clock::now();  // Record start time for animation
+    shouldConnectToServer_ = false;       // Only call ConnectToServer once
+    connectionAttemptInProgress_ = true;  // Mark that we're attempting to connect
   }
 
-  // Check async connection status only if we have an active connection attempt
+  const auto progress = NetGame::Instance().GetConnectionProgressDisplay();
+  if (progress.visible) {
+    RenderConnectionProgress();
+    if (progress.failure_expired) {
+      NetGame::Instance().ClearConnectionProgressDisplay();
+      NetGame::Instance().Disconnect();
+      context_.sceneManager.Configure(context_.config.extended_menu_scenes);
+      connectionAttemptInProgress_ = false;
+      context_.selectedServerIP.Clear();
+      context_.selectedServerIndex = 0;
+      endpointEntryMode_ = EndpointEntryMode::None;
+      shouldReturnToMainMenu_ = true;
+    }
+    return StateResult::Continue;
+  }
+  CloseConnectionProgress();
+
+  // Check packet-driven connection status only if we have an active connection attempt
   if (connectionAttemptInProgress_ && NetGame::Instance().game_client) {
     auto connState = NetGame::Instance().game_client->GetConnectionState();
 
     if (connState == gmp::client::GameClient::ConnectionState::Connecting) {
-      // Still connecting - show progress UI
-      context_.scene.Update();
-      RenderConnectionProgress();
+      // OnConnectionStarted owns the visible progress state while connecting.
       return StateResult::Continue;
     } else if (connState == gmp::client::GameClient::ConnectionState::Connected) {
       // Connection successful - schedule game setup to run outside render loop
@@ -117,7 +183,7 @@ StateResult ServerListState::Update() {
         ScheduleGameSetup();
         connectionAttemptInProgress_ = false;
         // Trigger transition to ExitMenuState
-        shouldConnectToServer_ = true;  // Reuse flag for transition
+        shouldExitMenuAfterConnection_ = true;
       }
       return StateResult::Continue;
     } else if (connState == gmp::client::GameClient::ConnectionState::Failed) {
@@ -126,16 +192,14 @@ StateResult ServerListState::Update() {
       connectionAttemptInProgress_ = false;  // Clear the flag so we don't handle it again
       // Disconnect to reset the connection state back to Disconnected
       NetGame::Instance().Disconnect();
+      context_.sceneManager.Configure(context_.config.extended_menu_scenes);
     }
   }
-
-  context_.scene.Update();
-
   // Handle common input first (Enter to connect, ESC to exit)
   HandleCommonInput();
 
   // Then handle mode-specific input and rendering
-  if (enteringCustomIP_) {
+  if (endpointEntryMode_ != EndpointEntryMode::None) {
     RenderCustomIPEntry();
     HandleCustomIPInput();
   } else {
@@ -151,8 +215,7 @@ MenuState* ServerListState::CheckTransition() {
     return new MainMenuLoopState(context_);
   }
 
-  // If we successfully connected, transition to exit state for cleanup
-  if (shouldConnectToServer_) {
+  if (shouldExitMenuAfterConnection_) {
     return new ExitMenuState(context_);
   }
 
@@ -166,13 +229,48 @@ void ServerListState::RenderServerList() {
     context_.extendedServerList->HandleInput();
     context_.extendedServerList->Draw();
   }
+
+  const auto font = Language::Instance().ApplyFontPrefix("FONT_OLD_10_WHITE.TGA");
+  context_.screen->SetFont(font.c_str());
+  if (!serverListStatus_.empty() && std::chrono::steady_clock::now() < serverListStatusExpiresAt_) {
+    context_.screen->SetFontColor({80, 220, 120});
+    PrintCentered(context_.screen, kListStatusTop, serverListStatus_.c_str());
+  } else {
+    serverListStatus_.clear();
+  }
+  context_.screen->SetFontColor({255, 255, 255});
+  PrintCentered(context_.screen, kListNavigationHintTop,
+                Language::Instance()[Language::SRVLIST_HINT_NAVIGATION].ToChar());
+  PrintCentered(context_.screen, kListFavoriteHintTop,
+                Language::Instance()[Language::SRVLIST_HINT_FAVOURITES].ToChar());
+  PrintCentered(context_.screen, kListOtherHintTop,
+                Language::Instance()[Language::SRVLIST_HINT_OTHER].ToChar());
 }
 
 void ServerListState::RenderCustomIPEntry() {
-  // Display custom IP entry
-  context_.screen->SetFont("FONT_OLD_20_WHITE.TGA");
+  const auto title = endpointEntryMode_ == EndpointEntryMode::AddFavorite
+                         ? Language::Instance()[Language::SRVLIST_ADD_FAVOURITE_TITLE].ToChar()
+                         : Language::Instance()[Language::SRVLIST_DIRECT_TITLE].ToChar();
+
+  const auto large_font = Language::Instance().ApplyFontPrefix("FONT_OLD_20_WHITE.TGA");
+  context_.screen->SetFont(large_font.c_str());
   context_.screen->SetFontColor({255, 255, 255});
-  context_.screen->PrintCXY(context_.selectedServerIP);
+  PrintCentered(context_.screen, kEndpointTitleTop, title);
+
+  context_.screen->SetFontColor({80, 220, 120});
+  PrintCentered(context_.screen, kEndpointValueTop,
+                context_.selectedServerIP.IsEmpty() ? "IP[:port]" : context_.selectedServerIP.ToChar());
+
+  if (!endpointEntryError_.empty()) {
+    context_.screen->SetFontColor({255, 80, 80});
+    PrintCentered(context_.screen, kEndpointErrorTop, endpointEntryError_.c_str());
+  }
+
+  const auto small_font = Language::Instance().ApplyFontPrefix("FONT_OLD_10_WHITE.TGA");
+  context_.screen->SetFont(small_font.c_str());
+  context_.screen->SetFontColor({255, 255, 255});
+  PrintCentered(context_.screen, kEndpointHintTop,
+                Language::Instance()[Language::SRVLIST_ENTRY_HINT].ToChar());
 }
 
 void ServerListState::HandleInput() {
@@ -180,77 +278,102 @@ void ServerListState::HandleInput() {
 }
 
 void ServerListState::HandleCommonInput() {
-  // ESC to return to main menu (works in both modes)
   if (context_.input->KeyPressed(KEY_ESCAPE)) {
     context_.input->ClearKeyBuffer();
+    if (endpointEntryMode_ != EndpointEntryMode::None) {
+      CancelEndpointEntry();
+      return;
+    }
     shouldReturnToMainMenu_ = true;
     return;
   }
 
-  // Enter to connect (works in both modes)
   if (context_.input->KeyPressed(KEY_RETURN)) {
-    SPDLOG_INFO("Enter pressed, mode: {}, IP: '{}'", enteringCustomIP_ ? "custom IP" : "server list", context_.selectedServerIP.ToChar());
+    context_.input->ClearKeyBuffer();
+    SPDLOG_INFO("Enter pressed, endpoint entry mode: {}, IP: '{}'", static_cast<int>(endpointEntryMode_),
+                context_.selectedServerIP.ToChar());
 
-    if (enteringCustomIP_) {
-      // Custom IP mode - connect to typed IP
-      if (!context_.selectedServerIP.IsEmpty()) {
-        SPDLOG_INFO("Connecting to custom IP: {}", context_.selectedServerIP.ToChar());
-        context_.input->ClearKeyBuffer();
-        shouldConnectToServer_ = true;
-      } else {
-        SPDLOG_WARN("Cannot connect: IP address is empty");
+    if (endpointEntryMode_ == EndpointEntryMode::AddFavorite) {
+      if (!context_.extendedServerList) {
+        endpointEntryError_ = Language::Instance()[Language::SRVLIST_FAVOURITE_SAVE_FAILED].ToChar();
+        return;
       }
+
+      const auto result = context_.extendedServerList->AddFavorite(context_.selectedServerIP.ToChar());
+      switch (result) {
+        case FavoriteAddResult::Added:
+          serverListStatus_ = Language::Instance()[Language::SRVLIST_FAVOURITE_ADDED].ToChar();
+          serverListStatusExpiresAt_ = std::chrono::steady_clock::now() + std::chrono::seconds(4);
+          context_.extendedServerList->selectTab(TAB_FAV);
+          CancelEndpointEntry();
+          break;
+        case FavoriteAddResult::AlreadyExists:
+          serverListStatus_ = Language::Instance()[Language::SRVLIST_FAVOURITE_EXISTS].ToChar();
+          serverListStatusExpiresAt_ = std::chrono::steady_clock::now() + std::chrono::seconds(4);
+          context_.extendedServerList->selectTab(TAB_FAV);
+          CancelEndpointEntry();
+          break;
+        case FavoriteAddResult::InvalidEndpoint:
+          endpointEntryError_ = Language::Instance()[Language::SRVLIST_INVALID_ENDPOINT].ToChar();
+          break;
+        case FavoriteAddResult::SaveFailed:
+          endpointEntryError_ = Language::Instance()[Language::SRVLIST_FAVOURITE_SAVE_FAILED].ToChar();
+          break;
+      }
+    } else if (endpointEntryMode_ == EndpointEntryMode::DirectConnect) {
+      std::string host;
+      std::uint32_t port = 0;
+      if (!gmp::client::ParseServerEndpoint(context_.selectedServerIP.ToChar(), host, port)) {
+        endpointEntryError_ = Language::Instance()[Language::SRVLIST_INVALID_ENDPOINT].ToChar();
+        return;
+      }
+      SPDLOG_INFO("Connecting to custom IP: {}", context_.selectedServerIP.ToChar());
+      shouldConnectToServer_ = true;
     } else {
-      // Server list mode - connect to selected server
       if (context_.selectedServerIndex != -1) {
-        // Get selected server IP
         context_.selectedServerIP.Clear();
         char buffer[256];
         if (context_.extendedServerList && context_.extendedServerList->getSelectedServer(buffer, sizeof(buffer))) {
           context_.selectedServerIP += buffer;
           SPDLOG_INFO("Connecting to selected server: {}", context_.selectedServerIP.ToChar());
+          shouldConnectToServer_ = true;
+        } else {
+          SPDLOG_WARN("Cannot connect: no server is selected");
         }
       }
-      shouldConnectToServer_ = true;
     }
     return;
   }
 }
 
 void ServerListState::HandleServerListInput() {
-  // W to enter custom IP mode
   if (context_.input->KeyPressed(KEY_W)) {
     context_.input->ClearKeyBuffer();
-    enteringCustomIP_ = true;
-    context_.selectedServerIndex = -1;
-    context_.selectedServerIP.Clear();
+    BeginEndpointEntry(EndpointEntryMode::DirectConnect);
     return;
   }
 
-  // Slash key to enter custom IP mode
   if (context_.input->KeyToggled(KEY_SLASH)) {
-    enteringCustomIP_ = true;
-    context_.selectedServerIndex = -1;
-    context_.selectedServerIP.Clear();
+    BeginEndpointEntry(EndpointEntryMode::DirectConnect);
+    return;
+  }
+
+  if (context_.input->KeyPressed(KEY_F)) {
+    context_.input->ClearKeyBuffer();
+    BeginEndpointEntry(EndpointEntryMode::AddFavorite);
     return;
   }
 }
 
 void ServerListState::HandleCustomIPInput() {
-  // W to cancel custom IP entry and return to server list
   if (context_.input->KeyPressed(KEY_W)) {
     context_.input->ClearKeyBuffer();
-    enteringCustomIP_ = false;
-    context_.selectedServerIndex = 0;
-    context_.selectedServerIP.Clear();
+    CancelEndpointEntry();
     return;
   }
 
-  // Slash key to return to server list
   if (context_.input->KeyToggled(KEY_SLASH)) {
-    enteringCustomIP_ = false;
-    context_.selectedServerIndex = 0;
-    context_.selectedServerIP.Clear();
+    CancelEndpointEntry();
     return;
   }
 
@@ -264,57 +387,151 @@ void ServerListState::HandleCustomIPInput() {
   char x[2] = {0, 0};
   x[0] = GInput::GetCharacterFormKeyboard(true);
 
-  // Add character (printable ASCII, but exclude Enter)
-  if (x[0] > 0x20 && x[0] != 0x0D) {
+  // Keep endpoint input bounded so it remains usable on the fixed-size menu.
+  if (x[0] > 0x20 && x[0] != 0x0D && context_.selectedServerIP.Length() < 255) {
     context_.selectedServerIP += x;
+    endpointEntryError_.clear();
     SPDLOG_DEBUG("Added character, IP now: '{}'", context_.selectedServerIP.ToChar());
   }
 
   // Backspace
   if ((x[0] == 0x08) && (context_.selectedServerIP.Length() > 0)) {
     context_.selectedServerIP.DeleteRight(1);
+    endpointEntryError_.clear();
     SPDLOG_DEBUG("Backspace, IP now: '{}'", context_.selectedServerIP.ToChar());
   }
+}
+
+void ServerListState::BeginEndpointEntry(EndpointEntryMode mode) {
+  endpointEntryMode_ = mode;
+  endpointEntryError_.clear();
+  serverListStatus_.clear();
+  context_.selectedServerIndex = -1;
+  context_.selectedServerIP.Clear();
+}
+
+void ServerListState::CancelEndpointEntry() {
+  endpointEntryMode_ = EndpointEntryMode::None;
+  endpointEntryError_.clear();
+  context_.selectedServerIndex = 0;
+  context_.selectedServerIP.Clear();
 }
 
 void ServerListState::ConnectToServer() {
   context_.input->ClearKeyBuffer();
 
-  SPDLOG_INFO("Starting async connection to: {}", context_.selectedServerIP.ToChar());
+  SPDLOG_INFO("Starting connection to: {}", context_.selectedServerIP.ToChar());
 
-  // Initiate async connection - will not block
+  // Start the connection attempt. Completion is reported by transport callbacks in Update().
   NetGame::Instance().Connect(context_.selectedServerIP.ToChar());
-
-  // Connection will complete in background
-  // The state will check connection status in Update() loop
-  // and transition when OnConnected callback fires
 }
 
 void ServerListState::RenderConnectionProgress() {
-  // Render "Connecting..." message to user centered on screen
-  zSTRING connectingMsg = "Connecting";
-  int msgWidth = context_.screen->FontSize(connectingMsg);
-  int centerX = (8192 - msgWidth) / 2;
-  context_.screen->Print(centerX, 4096, connectingMsg);
-
-  // Add animated dots below the message (time-based, FPS independent)
-  auto now = std::chrono::steady_clock::now();
-  auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - connectionStartTime_).count();
-
-  // Cycle through 0-3 dots every 500ms (full cycle = 2 seconds)
-  int dotCount = (elapsed / 500) % 4;
-
-  zSTRING dots;
-  for (int i = 0; i < dotCount + 1; i++) {
-    dots += ".";
+  if (!connectionBackground_) {
+    connectionBackground_ = new zCView(0, 0, 8192, 8192, VIEW_ITEM);
+    connectionBackground_->InsertBack(zSTRING(gmp::gothic::kGmpLoadingScreenTexture));
+    context_.screen->InsertItem(connectionBackground_);
   }
-  int dotsWidth = context_.screen->FontSize(dots);
-  int dotsCenterX = (8192 - dotsWidth) / 2;
-  context_.screen->Print(dotsCenterX, 4300, dots);
+  if (!connectionProgressFrame_) {
+    connectionProgressFrame_ =
+        new zCView(kProgressFrameLeft, kProgressFrameTop, kProgressFrameRight, kProgressFrameBottom, VIEW_ITEM);
+    connectionProgressFrame_->InsertBack(zSTRING(kProgressFrameTexture));
+    connectionProgressFrame_->SetAlphaBlendFunc(zRND_ALPHA_FUNC_BLEND);
+    connectionProgressFrame_->SetTransparency(255);
+    context_.screen->InsertItem(connectionProgressFrame_);
+  }
+  if (!connectionProgressFill_) {
+    connectionProgressFill_ = new zCView(
+        kProgressFrameLeft + kProgressFillInsetX, kProgressFrameTop + kProgressFillInsetY,
+        kProgressFrameRight - kProgressFillInsetX, kProgressFrameBottom - kProgressFillInsetY, VIEW_ITEM);
+    connectionProgressFill_->InsertBack(zSTRING(kProgressFillTexture));
+    connectionProgressFill_->SetAlphaBlendFunc(zRND_ALPHA_FUNC_BLEND);
+    connectionProgressFill_->SetTransparency(255);
+    context_.screen->InsertItem(connectionProgressFill_);
+  }
+  if (!connectionProgressText_) {
+    connectionProgressText_ =
+        new zCView(kProgressTextLeft, kProgressTextTop, kProgressTextRight, kProgressTextBottom, VIEW_ITEM);
+    const auto font = Language::Instance().ApplyFontPrefix("FONT_OLD_20_WHITE.TGA");
+    connectionProgressText_->SetFont(zSTRING(font.c_str()));
+    connectionProgressText_->SetFontColor(zCOLOR(255, 255, 255, 255));
+    context_.screen->InsertItem(connectionProgressText_);
+  }
+  if (!connectionBannerText_) {
+    connectionBannerText_ =
+        new zCView(kBannerTextLeft, kBannerTextTop, kBannerTextRight, kBannerTextBottom, VIEW_ITEM);
+    const auto font = Language::Instance().ApplyFontPrefix("FONT_OLD_20_WHITE.TGA");
+    connectionBannerText_->SetFont(zSTRING(font.c_str()));
+    connectionBannerText_->SetFontColor(zCOLOR(0, 200, 255, 255));
+    context_.screen->InsertItem(connectionBannerText_);
+  }
+
+  const auto progress = NetGame::Instance().GetConnectionProgressDisplay();
+  const int percent = std::clamp(progress.percent, 0, 100);
+  const int maximum_fill_width =
+      (kProgressFrameRight - kProgressFrameLeft) - (2 * kProgressFillInsetX);
+  connectionProgressFill_->SetSize((maximum_fill_width * percent) / 100,
+                                   (kProgressFrameBottom - kProgressFrameTop) - (2 * kProgressFillInsetY));
+
+  if (percent != renderedConnectionProgressPercent_ || progress.message != renderedConnectionProgressMessage_) {
+    std::string text = progress.message;
+    if (!progress.failed) {
+      text += " (" + std::to_string(percent) + "%)";
+    }
+    connectionProgressText_->ClrPrintwin();
+    connectionProgressText_->PrintCXY(zSTRING(text.c_str()));
+    renderedConnectionProgressPercent_ = percent;
+    renderedConnectionProgressMessage_ = progress.message;
+  }
+  if (progress.banner != renderedConnectionBanner_) {
+    connectionBannerText_->ClrPrintwin();
+    if (!progress.banner.empty()) {
+      connectionBannerText_->PrintCXY(zSTRING(progress.banner.c_str()));
+    }
+    renderedConnectionBanner_ = progress.banner;
+  }
+}
+
+void ServerListState::CloseConnectionProgress() {
+  if (connectionBannerText_) {
+    context_.screen->RemoveItem(connectionBannerText_);
+    delete connectionBannerText_;
+    connectionBannerText_ = nullptr;
+  }
+  if (connectionProgressText_) {
+    context_.screen->RemoveItem(connectionProgressText_);
+    delete connectionProgressText_;
+    connectionProgressText_ = nullptr;
+  }
+  if (connectionProgressFill_) {
+    context_.screen->RemoveItem(connectionProgressFill_);
+    delete connectionProgressFill_;
+    connectionProgressFill_ = nullptr;
+  }
+  if (connectionProgressFrame_) {
+    context_.screen->RemoveItem(connectionProgressFrame_);
+    delete connectionProgressFrame_;
+    connectionProgressFrame_ = nullptr;
+  }
+  if (connectionBackground_) {
+    context_.screen->RemoveItem(connectionBackground_);
+    delete connectionBackground_;
+    connectionBackground_ = nullptr;
+  }
+  renderedConnectionProgressPercent_ = -1;
+  renderedConnectionProgressMessage_.clear();
+  renderedConnectionBanner_.clear();
 }
 
 void ServerListState::ScheduleGameSetup() {
   SPDLOG_INFO("Connection successful, scheduling deferred game setup...");
+  context_.sceneManager.StopScene();
+
+  if (!ogame || !ogame->GetGameWorld()) {
+    SPDLOG_ERROR("Cannot set up the server world because the Gothic game world is unavailable");
+    NetGame::Instance().Disconnect();
+    return;
+  }
 
   // Handle initial network sync (safe during render)
   NetGame::Instance().HandleNetwork();
@@ -328,32 +545,96 @@ void ServerListState::ScheduleGameSetup() {
     // Level change must be deferred to BEFORE the next render frame starts.
     // ChangeLevel destroys world/camera state, which would crash if done during rendering.
     // Capture player position now before level change.
-    zVEC3 spawnPosition = context_.player->GetPositionWorld();
+    // MenuContext keeps the hero pointer from menu creation. Use Gothic's
+    // current global hero first because content activation/level changes can
+    // replace that object before this setup runs.
+    oCNpc* current_player = ::player ? ::player : context_.player;
+    if (!current_player || !ogame || !ogame->GetGameWorld()) {
+      SPDLOG_ERROR("Cannot set up the server world because the Gothic game or hero is unavailable");
+      NetGame::Instance().Disconnect();
+      return;
+    }
+    zVEC3 spawnPosition = current_player->GetPositionWorld();
     zSTRING mapName = NetGame::Instance().map;
-    oCNpc* player = context_.player;
+    GMPCore::Instance().DeferToNextFrame([spawnPosition, mapName]() {
+      SPDLOG_INFO("Executing deferred game setup for {}...", mapName.ToChar());
 
-    GMPCore::Instance().DeferToNextFrame([spawnPosition, mapName, player]() {
-      SPDLOG_INFO("Executing deferred game setup (level change to {})...", mapName.ToChar());
+      auto fail_setup = [](const std::string& reason) {
+        SPDLOG_ERROR("Server game setup failed: {}", reason);
+        NetGame::Instance().Disconnect();
+        GMPCore::Instance().DeferToNextFrame([]() { ReturnToBigMainMenuAfterDisconnect(); });
+      };
 
-      // Now safe to change level - we're at the start of the frame, before rendering
-      Patch::ChangeLevelEnabled(true);
-      ogame->ChangeLevel(mapName, zSTRING("????"));
-      Patch::ChangeLevelEnabled(false);
+      PrepareWorldChange();
+      auto* content = NetGame::Instance().content_transition_manager.get();
+      const bool recreate_session = content && content->HasActiveAddonArchives();
+      if (recreate_session) {
+        std::string error;
+        if (!content->StartServerGameSession(error)) {
+          fail_setup(error);
+          return;
+        }
+        if (!ogame) {
+          fail_setup("Gothic did not provide the recreated server game session");
+          return;
+        }
+        ogame->LoadGame(kNewGameSlot, mapName);
+      } else {
+        // Now safe to change level - we're at the start of the frame, before rendering.
+        Patch::ChangeLevelEnabled(true);
+        ogame->ChangeLevel(mapName, zSTRING("????"));
+        Patch::ChangeLevelEnabled(false);
+      }
 
+      if (!ogame->GetGameWorld() || !::player) {
+        fail_setup("Gothic failed to create the server world or hero");
+        return;
+      }
+
+      ResetWorldRenderState();
       // Clean up NPCs and world objects
       DeleteAllNpcsAndDisableSpawning();
-      player->trafoObjToWorld.SetTranslation(spawnPosition);
+      // ChangeLevel replaces the Gothic hero object. Never retain or touch the
+      // pre-transition pointer; use the newly-created global hero instead.
+      ::player->trafoObjToWorld.SetTranslation(spawnPosition);
       CleanupWorldObjects(ogame->GetGameWorld());
+
+      // Apply the local preference to the final hero, before server resources
+      // start. A resource can replace this initial appearance during startup.
+      gmp::gothic::ApplyCharacterAppearance(*::player, Config::Instance().GetCharacterAppearance());
+      std::string resource_error;
+      if (!NetGame::Instance().FinalizeDownloadedContent(resource_error)) {
+        fail_setup(resource_error);
+        return;
+      }
 
       // Join game
       NetGame::Instance().JoinGame();
     });
     SPDLOG_INFO("Level change deferred to next frame");
   } else {
-    // No level change needed, can complete setup immediately
-    DeleteAllNpcsAndDisableSpawning();
-    CleanupWorldObjects(ogame->GetGameWorld());
-    NetGame::Instance().JoinGame();
+    // Client resources may execute arbitrary Lua. Initialize them at the same
+    // frame boundary used for level changes, never from the menu render pass.
+    GMPCore::Instance().DeferToNextFrame([]() {
+      if (!ogame || !ogame->GetGameWorld() || !::player) {
+        SPDLOG_ERROR("Server game setup failed: Gothic game world or hero is unavailable");
+        NetGame::Instance().Disconnect();
+        GMPCore::Instance().DeferToNextFrame([]() { ReturnToBigMainMenuAfterDisconnect(); });
+        return;
+      }
+
+      DeleteAllNpcsAndDisableSpawning();
+      CleanupWorldObjects(ogame->GetGameWorld());
+      gmp::gothic::ApplyCharacterAppearance(*::player, Config::Instance().GetCharacterAppearance());
+      std::string resource_error;
+      if (!NetGame::Instance().FinalizeDownloadedContent(resource_error)) {
+        SPDLOG_ERROR("Server game setup failed: {}", resource_error);
+        NetGame::Instance().Disconnect();
+        GMPCore::Instance().DeferToNextFrame([]() { ReturnToBigMainMenuAfterDisconnect(); });
+        return;
+      }
+      NetGame::Instance().JoinGame();
+    });
   }
 }
 
@@ -364,7 +645,8 @@ void ServerListState::HandleConnectionFailure() {
   // Reset to normal server list mode
   context_.selectedServerIP.Clear();
   context_.selectedServerIndex = 0;
-  enteringCustomIP_ = false;
+  endpointEntryMode_ = EndpointEntryMode::None;
+  endpointEntryError_.clear();
 
   // Refresh server list
   if (context_.extendedServerList) {

@@ -334,7 +334,6 @@ int zCTex_D3D11::GetTextureBuffer(int mipMapNr, void*& buffer, int& pitchXBytes)
       buffer = locked_rects_[mipMapNr].pData;
     }
     pitchXBytes = exposed_pitches_[mipMapNr];
-    SPDLOG_DEBUG("GetTextureBuffer [{}]: mip {} already locked, pitch={}", DebugName(), mipMapNr, pitchXBytes);
     return (buffer != nullptr && pitchXBytes != 0) ? 1 : 0;
   }
 

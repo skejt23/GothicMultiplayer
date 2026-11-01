@@ -1,4 +1,3 @@
-
 /*
 MIT License
 
@@ -37,24 +36,30 @@ int main() {
   if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
     std::cerr << "Couldn't initialize SDL: " << SDL_GetError() << "\n";
   }
-  VoiceCapture capture;
+  gmp::voice::VoiceCapture capture;
   std::cout << "Press any key to start recording...\n";
   std::getchar();
   if (!capture.StartCapture()) {
     std::cerr << "Failed to start recording...\n";
+    return 1;
   }
+  capture.SetTransmitting(true);
   std::cout << "Press any key to stop recording...\n";
   std::getchar();
-  int audioChannels = capture.GetNumberOfChannels();
-  int size;
-  char *voiceBuffer = new char[480 * sizeof(float) * audioChannels * 4096]{};
-  capture.GetAndFlushVoiceBuffer(voiceBuffer, size);
+  auto frames = capture.ConsumeEncodedFrames();
+  capture.SetTransmitting(false);
+  capture.StopCapture();
   std::cout << "Press any key to play the recording...\n";
   std::getchar();
 
-  VoicePlayback playback;
-  playback.StartPlayback();
-  playback.PlayVoice(voiceBuffer, size);
+  gmp::voice::VoicePlayback playback;
+  if (!playback.StartPlayback()) {
+    std::cerr << "Failed to start playback...\n";
+    return 1;
+  }
+  for (const auto& frame : frames) {
+    playback.PlayVoice(1, frame.talkspurt_id, frame.sequence, frame.data, 1.0f);
+  }
 
   std::cout << "Press any key to exit...\n";
   std::getchar();

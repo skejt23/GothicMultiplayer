@@ -90,7 +90,6 @@ bool DynamicVertexBuffer::Create(IDirect3DDevice9* device, size_t capacity_bytes
     return false;
   }
 
-  SPDLOG_DEBUG("Created dynamic vertex buffer: {} KB", capacity_bytes / 1024);
   return true;
 }
 
@@ -268,7 +267,6 @@ bool DynamicIndexBuffer::Create(IDirect3DDevice9* device, size_t capacity_indice
     return false;
   }
 
-  SPDLOG_DEBUG("Created dynamic index buffer: {} indices ({} KB)", capacity_indices, size_bytes / 1024);
   return true;
 }
 

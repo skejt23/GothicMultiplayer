@@ -26,6 +26,7 @@ SOFTWARE.
 #pragma once
 
 #include <initializer_list>
+#include <iosfwd>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -35,6 +36,7 @@ SOFTWARE.
 class TomlWrapper {
 public:
   void Serialize(std::string_view file_path) const;
+  void Serialize(std::ostream& output) const;
 
   // Tries to get the value (T) from the specified keys.
   // Example usage:
@@ -78,6 +80,7 @@ public:
    *
    */
   static TomlWrapper CreateFromFile(std::string_view file_path);
+  static TomlWrapper CreateFromStream(std::istream& input, std::string_view source_name);
 
 private:
   toml::ordered_value data_;

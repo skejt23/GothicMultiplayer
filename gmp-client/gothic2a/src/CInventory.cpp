@@ -32,109 +32,50 @@ SOFTWARE.
 
 #include "CInventory.h"
 
-#include "keyboard.h"
-#include "language.h"
-
-extern zCOLOR Normal;
-char q[2] = {0, 0};
+#include "scripting/gothic_events.h"
+#include "shared/event.h"
 
 CInventory::CInventory(oCNpcInventory* HeroInventory) {
-  DropInvoked = false;
-  Inv = HeroInventory;
-  Owner = HeroInventory->GetOwner();
-  InvWindow = HeroInventory->viewItemInfo;
+  BindInventory(HeroInventory);
 };
+
+void CInventory::BindInventory(oCNpcInventory* inventory) {
+  Inv = inventory;
+  was_open_ = Inv ? Inv->IsOpen() : false;
+  last_selected_slot_ = Inv ? Inv->selectedItem : -1;
+}
 
 CInventory::~CInventory() {
   Inv = NULL;
-  Owner = NULL;
-  InvWindow = NULL;
-};
-
-void CInventory::DropAmount(oCItem* Item, int amount) {
-  if (!Item)
-    return;
-  if (amount < 1)
-    return;
-  if (amount > Item->amount)
-    return;
-  if (amount == Item->amount) {
-    Owner->DoDropVob(Item);
-    return;
-  }
-  int AmountDec = Item->amount - amount;
-  oCItem* ToDrop = zfactory->CreateItem(Item->GetInstance());
-  ToDrop->amount = amount;
-  Owner->DoDropVob(ToDrop);
-};
-
-oCItem* CInventory::GetSelectedItem() {
-  if (IsEmpty())
-    return NULL;
-  int ItemNumber = Inv->selectedItem;
-  return Inv->GetItem(ItemNumber);
-};
-
-void CInventory::InvokeAmountDrop() {
-  if (!IsOpened())
-    return;
-  if (IsEmpty())
-    return;
-  oCItem* SelectedItem = GetSelectedItem();
-  if (!SelectedItem)
-    return;
-  if (SelectedItem->amount < 2)
-    return;
-  DropInvoked = true;
-};
-
-bool CInventory::IsEmpty() {
-  if (Inv->GetNumItemsInCategory() > 0)
-    return false;
-  return true;
 };
 
 bool CInventory::IsOpened() {
-  return Inv->IsOpen();
+  return Inv && Inv->IsOpen();
 };
 
 void CInventory::RenderInventory() {
-  if (!IsOpened()) {
-    DropInvoked = false;
+  const bool is_open = IsOpened();
+  if (is_open != was_open_) {
+    if (is_open) {
+      EventManager::Instance().TriggerEvent(gmp::gothic::kEventOnOpenInventoryName, 0);
+      last_selected_slot_ = Inv ? Inv->selectedItem : -1;
+    } else {
+      EventManager::Instance().TriggerEvent(gmp::gothic::kEventOnCloseInventoryName, 0);
+      last_selected_slot_ = -1;
+    }
+    was_open_ = is_open;
+  }
+
+  if (!is_open) {
     return;
   }
-  // INPUT
-  if (!DropInvoked) {
-    if (zinput->KeyToggled(KEY_RSHIFT) || zinput->KeyToggled(KEY_LSHIFT)) {
-      InvokeAmountDrop();
+
+  if (Inv) {
+    const int current_slot = Inv->selectedItem;
+    if (last_selected_slot_ != -1 && current_slot != last_selected_slot_) {
+      EventManager::Instance().TriggerEvent(gmp::gothic::kEventOnInventorySlotChangeName,
+                                            gmp::gothic::OnInventorySlotChangeEvent{last_selected_slot_, current_slot});
     }
-  } else {
-    if (zinput->KeyToggled(KEY_RSHIFT) || zinput->KeyToggled(KEY_LSHIFT)) {
-      DropInvoked = false;
-    }
-  }
-  if (DropInvoked) {
-    if (IsEmpty())
-      DropInvoked = false;
-    if (Owner->IsDead())
-      DropInvoked = false;
-    if (!Owner->IsMovLock())
-      Owner->SetMovLock(1);
-    screen->SetFontColor(Normal);
-    screen->Print(2000, 2000, Language::Instance()[Language::INV_HOWMUCH]);
-    screen->Print(2000, 2200, GetSelectedItem()->GetDescription());
-    q[0] = GInput::GetNumberCharacterFromKeyboard();
-    if ((q[0] == 0x08) && (AmountNum.Length() > 0))
-      AmountNum.DeleteRight(1);
-    if ((q[0] >= 0x20) && (AmountNum.Length() < 24))
-      AmountNum += q;
-    screen->Print(2000, 2400, AmountNum);
-    if (zinput->KeyPressed(KEY_RETURN)) {
-      zinput->ClearKeyBuffer();
-      DropInvoked = false;
-      Owner->SetMovLock(0);
-      DropAmount(GetSelectedItem(), AmountNum.ToInt());
-      AmountNum.Clear();
-    }
+    last_selected_slot_ = current_slot;
   }
 };

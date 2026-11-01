@@ -26,6 +26,8 @@ SOFTWARE.
 
 #include <spdlog/spdlog.h>
 
+#include "language.h"
+
 namespace menu {
 namespace states {
 
@@ -59,24 +61,16 @@ MenuState* ExitMenuState::CheckTransition() {
 
 void ExitMenuState::CleanUpMenuResources() {
   SPDLOG_INFO("Cleaning up all menu resources");
-
-  // Remove weapons from world
-  context_.HideTitleWeapon();
-  if (context_.titleWeapon) {
-    context_.titleWeapon = nullptr;
-  }
-  if (context_.cameraWeapon) {
-    context_.cameraWeapon->RemoveVobFromWorld();
-    context_.cameraWeapon = nullptr;
-  }
+  context_.sceneManager.Cleanup();
 
   // Unlock player movement
   if (context_.player) {
     context_.player->SetMovLock(0);
   }
 
-  // Enable health bar
-  context_.EnableHealthBar();
+  // Restore the engine gate without changing script visibility or bar sizes.
+  if (ogame)
+    ogame->SetShowPlayerStatus(TRUE);
 
   // Remove logo
   if (context_.logoView) {
@@ -93,7 +87,8 @@ void ExitMenuState::CleanUpMenuResources() {
 
   // Reset font
   if (context_.screen) {
-    context_.screen->SetFont("FONT_DEFAULT.TGA");
+    const auto font = Language::Instance().ApplyFontPrefix("FONT_DEFAULT.TGA");
+    context_.screen->SetFont(font.c_str());
   }
 
   context_.game->CamInit();

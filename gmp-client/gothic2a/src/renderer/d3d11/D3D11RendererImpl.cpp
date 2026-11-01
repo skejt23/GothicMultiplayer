@@ -27,10 +27,6 @@ SOFTWARE.
 #include <d3dcommon.h>
 #include <d3dcompiler.h>
 #include <dxgi1_5.h>  // For IDXGIFactory5 and tearing support
-#ifndef NDEBUG
-#include <d3d11sdklayers.h>
-#include <dxgidebug.h>
-#endif
 #include <spdlog/spdlog.h>
 #include <wrl/client.h>
 
@@ -57,53 +53,6 @@ using Microsoft::WRL::ComPtr;
 namespace gmp::renderer::d3d11 {
 
 namespace {
-
-#ifndef NDEBUG
-void ReportLiveD3D11AndDxgiObjects(ID3D11Device* device) {
-  if (!device) {
-    return;
-  }
-
-  // D3D11 live objects (requires the debug layer / SDK layers to be present).
-  {
-    ComPtr<ID3D11Debug> d3d11_debug;
-    if (SUCCEEDED(device->QueryInterface(IID_PPV_ARGS(&d3d11_debug))) && d3d11_debug) {
-      if (auto* logger = spdlog::default_logger_raw()) {
-        logger->info("D3D11: Reporting live device objects...");
-      }
-      d3d11_debug->ReportLiveDeviceObjects(D3D11_RLDO_SUMMARY | D3D11_RLDO_DETAIL);
-    }
-  }
-
-  // DXGI live objects (available when Graphics Tools / dxgidebug.dll is present).
-  {
-    // Avoid linking against dxguid.lib just for DXGI_DEBUG_ALL.
-    static const GUID kDXGIDebugAll = {0xe48ae283, 0xda80, 0x490b, {0x87, 0xe6, 0x43, 0xe9, 0xa9, 0xcf, 0xda, 0x08}};
-
-    HMODULE dxgi_debug_dll = LoadLibraryA("dxgidebug.dll");
-    if (!dxgi_debug_dll) {
-      return;
-    }
-
-    using DXGIGetDebugInterface1Fn = HRESULT(WINAPI*)(UINT Flags, REFIID riid, void** ppDebug);
-    auto* dxgi_get_debug_interface1 = reinterpret_cast<DXGIGetDebugInterface1Fn>(GetProcAddress(dxgi_debug_dll, "DXGIGetDebugInterface1"));
-    if (!dxgi_get_debug_interface1) {
-      FreeLibrary(dxgi_debug_dll);
-      return;
-    }
-
-    ComPtr<IDXGIDebug1> dxgi_debug;
-    if (SUCCEEDED(dxgi_get_debug_interface1(0, IID_PPV_ARGS(&dxgi_debug))) && dxgi_debug) {
-      if (auto* logger = spdlog::default_logger_raw()) {
-        logger->info("DXGI: Reporting live objects...");
-      }
-      dxgi_debug->ReportLiveObjects(kDXGIDebugAll, DXGI_DEBUG_RLO_ALL);
-    }
-
-    FreeLibrary(dxgi_debug_dll);
-  }
-}
-#endif
 
 void SetDebugObjectName(ID3D11DeviceChild* obj, const char* name) {
   if (!obj || !name) {
@@ -1961,13 +1910,10 @@ static void UpdateDynamicCB(ID3D11DeviceContext* ctx, ID3D11Buffer* cb, const T&
 // --- D3D11RendererImpl Implementation ---
 
 bool D3D11RendererImpl::Init(void* hwnd_ptr, int width, int height, bool is_fullscreen) {
-  SPDLOG_INFO("Initializing D3D11RendererImpl {}x{} fullscreen={}", width, height, is_fullscreen);
-
   // Clean up any existing resources before re-initializing.
   // This is critical when changing resolution - all cached state objects
   // (samplers, blend states, etc.) are tied to the old device and must be released.
   if (device) {
-    SPDLOG_INFO("Re-initializing D3D11 renderer - cleaning up old resources");
     Cleanup();
   }
 
@@ -2042,7 +1988,6 @@ bool D3D11RendererImpl::Init(void* hwnd_ptr, int width, int height, bool is_full
   UpdateDynamicCB(context, cb_screen, screen_data);
   BindVSConstantBuffer(3, cb_screen);
 
-  SPDLOG_INFO("D3D11RendererImpl initialized successfully");
   return true;
 }
 
@@ -2079,9 +2024,7 @@ bool D3D11RendererImpl::CreateDeviceAndSwapChain(HWND target_hwnd, int width, in
 #ifndef NDEBUG
   if (context) {
     HRESULT ann_hr = context->QueryInterface(__uuidof(ID3DUserDefinedAnnotation), reinterpret_cast<void**>(&user_annotation));
-    if (SUCCEEDED(ann_hr) && user_annotation) {
-      SPDLOG_INFO("D3D11 user annotation enabled (RenderDoc/PIX markers available)");
-    }
+    (void)ann_hr;
   }
 #endif
 
@@ -2090,7 +2033,6 @@ bool D3D11RendererImpl::CreateDeviceAndSwapChain(HWND target_hwnd, int width, in
   ComPtr<ID3D10Multithread> multithread;
   if (SUCCEEDED(device->QueryInterface(__uuidof(ID3D10Multithread), &multithread))) {
     multithread->SetMultithreadProtected(TRUE);
-    SPDLOG_INFO("D3D11 multithread protection enabled");
   } else {
     SPDLOG_WARN("Failed to enable D3D11 multithread protection");
   }
@@ -2127,13 +2069,9 @@ bool D3D11RendererImpl::CreateDeviceAndSwapChain(HWND target_hwnd, int width, in
 
   // Determine presentation model based on system capabilities and user preference
   tearing_supported = CheckTearingSupport(dxgi_factory.Get());
-  if (tearing_supported) {
-    SPDLOG_INFO("DXGI tearing support detected (variable refresh rate available)");
-  }
 
   bool use_exclusive_fullscreen = RendererConfig::Instance().exclusive_fullscreen;
   using_flip_model = tearing_supported && !use_exclusive_fullscreen;
-  SPDLOG_INFO("Presentation model: {} (exclusive_fullscreen={})", using_flip_model ? "FLIP_DISCARD" : "DISCARD", use_exclusive_fullscreen);
 
   // Create swap chain with fallback
   DXGI_SWAP_CHAIN_DESC scd;
@@ -2157,17 +2095,14 @@ bool D3D11RendererImpl::CreateDeviceAndSwapChain(HWND target_hwnd, int width, in
 
   capabilities_.feature_level = obtained_feature_level;
   capabilities_.max_texture_size = D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION;
-  SPDLOG_INFO("D3D11 device created with feature level 0x{:04X}", static_cast<unsigned int>(obtained_feature_level));
 
   // Apply initial fullscreen state
   if (is_fullscreen) {
     if (using_flip_model) {
       // FLIP model: borderless fullscreen (window sizing handled by application)
       fullscreen = true;
-      SPDLOG_INFO("Using borderless fullscreen (FLIP model with tearing)");
     } else if (dxgi_output) {
       // Legacy: exclusive fullscreen via DXGI
-      SPDLOG_INFO("Switching to exclusive fullscreen mode");
       hr = swap_chain->SetFullscreenState(TRUE, dxgi_output);
       if (FAILED(hr)) {
         SPDLOG_WARN("Failed to set fullscreen state: 0x{:08X}. Continuing in windowed mode.", static_cast<unsigned int>(hr));
@@ -2248,9 +2183,8 @@ bool D3D11RendererImpl::RefreshBackBufferRTV() {
   // Re-bind the new RTV with existing DSV
   context->OMSetRenderTargets(1, &rtv, dsv);
 
-  // Clear the refresh flag and bump instrumentation counter
+  // Clear the refresh flag.
   flip_rtv_needs_refresh_ = false;
-  ++rtv_refresh_count_;
 
   return true;
 }
@@ -2609,7 +2543,6 @@ bool D3D11RendererImpl::CreateShaders() {
     return false;
   }
 
-  SPDLOG_DEBUG("Shaders created successfully");
   return true;
 }
 
@@ -2768,7 +2701,6 @@ bool D3D11RendererImpl::CreateConstantBuffers() {
   UpdateDynamicCB(context, cb_gamma, gamma_data);
   BindPSConstantBuffer(6, cb_gamma);
 
-  SPDLOG_DEBUG("Constant buffers created");
   return true;
 }
 
@@ -3119,7 +3051,6 @@ bool D3D11RendererImpl::CreateStateObjects() {
 #endif
   }
 
-  SPDLOG_DEBUG("State objects created");
   return true;
 }
 
@@ -3184,7 +3115,6 @@ bool D3D11RendererImpl::CreateDynamicBuffers() {
   current_frame_index_ = 0;
   UpdateCurrentFramePointers();
 
-  SPDLOG_INFO("Triple-buffered dynamic buffers created ({} frames in flight)", kFramesInFlight);
   return true;
 }
 
@@ -3192,8 +3122,6 @@ bool D3D11RendererImpl::Resize(int width, int height) {
   if (!swap_chain || width <= 0 || height <= 0) {
     return false;
   }
-
-  SPDLOG_INFO("Resizing D3D11 to {}x{} (fullscreen={})", width, height, fullscreen);
 
   // Release old views
   context->OMSetRenderTargets(0, nullptr, nullptr);
@@ -3259,18 +3187,14 @@ bool D3D11RendererImpl::SetFullscreenState(bool want_fullscreen) {
   }
 
   if (want_fullscreen == fullscreen) {
-    SPDLOG_DEBUG("SetFullscreenState: Already in requested mode (fullscreen={})", fullscreen);
     return true;
   }
-
-  SPDLOG_INFO("SetFullscreenState: Switching to {} mode (FLIP model={})", want_fullscreen ? "fullscreen" : "windowed", using_flip_model);
 
   // With FLIP model, we don't use DXGI exclusive fullscreen.
   // The window is sized/styled by the application (borderless fullscreen).
   // We just update our tracking flag.
   if (using_flip_model) {
     fullscreen = want_fullscreen;
-    SPDLOG_INFO("SetFullscreenState: Using borderless {} (FLIP model)", want_fullscreen ? "fullscreen" : "windowed");
     return true;
   }
 
@@ -3342,15 +3266,10 @@ bool D3D11RendererImpl::SetFullscreenState(bool want_fullscreen) {
   context->OMSetRenderTargets(1, &rtv, dsv);
   SetViewport(0, 0, screen_width, screen_height);
 
-  SPDLOG_INFO("SetFullscreenState: Successfully switched to exclusive {} mode", fullscreen ? "fullscreen" : "windowed");
   return true;
 }
 
 void D3D11RendererImpl::Cleanup() {
-  if (auto* logger = spdlog::default_logger_raw()) {
-    logger->info("Cleaning up D3D11RendererImpl");
-  }
-
   // Exit exclusive fullscreen mode before cleanup (required by DXGI before releasing swap chain).
   // FLIP model doesn't use DXGI exclusive fullscreen, so no need to exit.
   if (swap_chain && fullscreen && !using_flip_model) {
@@ -3481,12 +3400,6 @@ void D3D11RendererImpl::Cleanup() {
   SafeRelease(user_annotation);
   SafeRelease(context);
 
-#ifndef NDEBUG
-  // Dumping live objects here helps correlate "live object" exit warnings with actual leaks.
-  // This is best-effort and will no-op when debug interfaces are unavailable.
-  ReportLiveD3D11AndDxgiObjects(device);
-#endif
-
   SafeRelease(device);
 
   g_D3D11Device = nullptr;
@@ -3504,16 +3417,6 @@ void D3D11RendererImpl::BeginFrame() {
   if (using_flip_model && flip_rtv_needs_refresh_) {
     RefreshBackBufferRTV();
   }
-
-  // Log stats from previous frame every ~60 frames (~1 second at 60fps)
-  if (++stats_log_frame_counter_ >= 60) {
-    stats_log_frame_counter_ = 0;
-    SPDLOG_INFO("[D3D11 Stats] draws={} alphaTestCB={} transformCB={} ibMaps={} texBinds={} rtvRefresh={}", frame_stats_.draw_calls,
-                frame_stats_.alpha_test_cb_updates, frame_stats_.transform_cb_updates, frame_stats_.ib_maps, frame_stats_.texture_binds,
-                rtv_refresh_count_);
-    rtv_refresh_count_ = 0;  // Reset instrumentation counter
-  }
-  frame_stats_ = {};  // Reset for this frame
 
   // Rotate to the next frame's buffers (waits for GPU if needed)
   RotateFrameResources();
@@ -3777,7 +3680,6 @@ void D3D11RendererImpl::SetTexture(int stage, ID3D11ShaderResourceView* srv, DXG
 
   if (bound_srvs[stage] != actual_srv) {
     bound_srvs[stage] = actual_srv;
-    ++frame_stats_.texture_binds;
 
     // Use the provided format if available, otherwise query it (fallback for legacy callers).
     DXGI_FORMAT fmt = format;
@@ -5250,11 +5152,8 @@ bool D3D11RendererImpl::DrawVertexBuffer(ID3D11Buffer* vertex_buffer, UINT strid
       dynamic_ib_offset = fr.ib_offset;
     }
     BindIndexBuffer(fr.dynamic_ib, DXGI_FORMAT_R16_UINT, 0);
-    ++frame_stats_.draw_calls;
-    ++frame_stats_.ib_maps;
     context->DrawIndexed(index_count, static_cast<UINT>(ib_start_offset), start_vertex);
   } else {
-    ++frame_stats_.draw_calls;
     context->Draw(vertex_count, start_vertex);
   }
 
@@ -5463,7 +5362,6 @@ void D3D11RendererImpl::UpdateTransformCB() {
     return;
   }
 
-  ++frame_stats_.transform_cb_updates;
   D3D11_MAPPED_SUBRESOURCE mapped;
   if (SUCCEEDED(context->Map(cb_transform, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) {
     memcpy(mapped.pData, &transform_data, sizeof(TransformCB));
@@ -5550,7 +5448,6 @@ void D3D11RendererImpl::UpdateAlphaTestCB() {
   if (has_last_alpha_test_data_ && memcmp(&alpha_test_data, &last_alpha_test_data_, sizeof(AlphaTestCB)) == 0) {
     return;
   }
-  ++frame_stats_.alpha_test_cb_updates;
   D3D11_MAPPED_SUBRESOURCE mapped;
   if (SUCCEEDED(context->Map(cb_alpha_test, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) {
     memcpy(mapped.pData, &alpha_test_data, sizeof(AlphaTestCB));

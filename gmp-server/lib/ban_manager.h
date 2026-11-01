@@ -26,13 +26,12 @@ SOFTWARE.
 
 #pragma once
 
+#include <chrono>
 #include <filesystem>
 #include <string>
+#include <string_view>
+#include <unordered_map>
 #include <vector>
-
-namespace Net {
-class NetServer;
-}
 
 class BanManager {
 public:
@@ -43,7 +42,9 @@ public:
     std::string reason;
   };
 
-  BanManager(Net::NetServer& net_server, std::filesystem::path storage_path = std::filesystem::path("bans.json"));
+  using Clock = std::chrono::steady_clock;
+
+  explicit BanManager(std::filesystem::path storage_path = std::filesystem::path("bans.json"));
 
   bool Load();
   bool Save() const;
@@ -52,14 +53,14 @@ public:
     return ban_list_;
   }
 
-  std::vector<BanEntry>& GetBanList() noexcept {
-    return ban_list_;
-  }
+  bool IsBanned(std::string_view ip, Clock::time_point now = Clock::now()) const;
+  void AddBan(BanEntry entry);
+  void AddTemporaryBan(std::string ip, Clock::duration duration, Clock::time_point now = Clock::now());
+  bool RemoveBan(std::string_view ip);
 
 private:
-  void SyncWithNetwork();
-
-  Net::NetServer& net_server_;
   std::filesystem::path storage_path_;
   std::vector<BanEntry> ban_list_;
+  // Temporary integrity bans last for this server run and are not persisted.
+  std::unordered_map<std::string, Clock::time_point> temporary_bans_;
 };

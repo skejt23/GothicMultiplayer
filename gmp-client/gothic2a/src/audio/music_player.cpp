@@ -23,12 +23,14 @@ SOFTWARE.
 */
 
 #include "music_player.h"
+#include "music_asset.h"
 
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <cctype>
-#include <fstream>
+#include <exception>
+#include <limits>
 
 // Use header-only decoders from xmake packages
 #define MINIMP3_IMPLEMENTATION
@@ -102,44 +104,6 @@ std::unique_ptr<AudioDecoder> AudioDecoder::CreateForFormat(AudioFormat format) 
 // WavDecoder Implementation
 // ============================================================================
 
-bool WavDecoder::Load(const std::string& filepath) {
-  SDL_AudioSpec spec;
-  Uint8* audio_buf = nullptr;
-  Uint32 audio_len = 0;
-
-  if (!SDL_LoadWAV(filepath.c_str(), &spec, &audio_buf, &audio_len)) {
-    SPDLOG_ERROR("Failed to load WAV file '{}': {}", filepath, SDL_GetError());
-    return false;
-  }
-
-  sample_rate_ = spec.freq;
-  channels_ = spec.channels;
-
-  // Determine bits per sample from format
-  switch (spec.format) {
-    case SDL_AUDIO_S8:
-    case SDL_AUDIO_U8:
-      bits_per_sample_ = 8;
-      break;
-    case SDL_AUDIO_S16:
-      bits_per_sample_ = 16;
-      break;
-    case SDL_AUDIO_S32:
-    case SDL_AUDIO_F32:
-      bits_per_sample_ = 32;
-      break;
-    default:
-      bits_per_sample_ = 16;
-  }
-
-  pcm_data_.assign(audio_buf, audio_buf + audio_len);
-  SDL_free(audio_buf);
-
-  SPDLOG_DEBUG("Loaded WAV: {}Hz, {} channels, {}-bit, {} bytes",
-               sample_rate_, channels_, bits_per_sample_, pcm_data_.size());
-  return true;
-}
-
 bool WavDecoder::LoadFromMemory(const uint8_t* data, size_t size) {
   SDL_IOStream* io = SDL_IOFromConstMem(data, size);
   if (!io) {
@@ -156,13 +120,35 @@ bool WavDecoder::LoadFromMemory(const uint8_t* data, size_t size) {
     return false;
   }
 
+  return SetPCMData(spec, audio_buf, audio_len);
+}
+
+bool WavDecoder::SetPCMData(const SDL_AudioSpec& spec, Uint8* data, Uint32 length) {
+  const std::unique_ptr<Uint8, decltype(&SDL_free)> decoded(data, &SDL_free);
+  if (!data || !length || length > static_cast<Uint32>(std::numeric_limits<int>::max()) || spec.freq <= 0 || spec.channels <= 0) {
+    SPDLOG_ERROR("Invalid decoded WAV format or size");
+    return false;
+  }
+  // Playback, seeking and volume scaling all operate on native-endian S16.
+  // SDL_LoadWAV can also return 8-bit, 32-bit or floating-point samples.
+  if (spec.format == SDL_AUDIO_S16) {
+    pcm_data_.assign(data, data + length);
+  } else {
+    auto target = spec;
+    target.format = SDL_AUDIO_S16;
+    Uint8* converted_data = nullptr;
+    int converted_length = 0;
+    const bool converted = SDL_ConvertAudioSamples(&spec, data, static_cast<int>(length), &target, &converted_data, &converted_length);
+    const std::unique_ptr<Uint8, decltype(&SDL_free)> output(converted_data, &SDL_free);
+    if (!converted || !converted_data || converted_length <= 0) {
+      SPDLOG_ERROR("Failed to convert WAV to 16-bit PCM: {}", SDL_GetError());
+      return false;
+    }
+    pcm_data_.assign(converted_data, converted_data + converted_length);
+  }
   sample_rate_ = spec.freq;
   channels_ = spec.channels;
-  bits_per_sample_ = 16;  // Assume 16-bit for simplicity.
-
-  pcm_data_.assign(audio_buf, audio_buf + audio_len);
-  SDL_free(audio_buf);
-
+  bits_per_sample_ = 16;
   return true;
 }
 
@@ -178,26 +164,6 @@ float WavDecoder::GetDuration() const {
 // ============================================================================
 // Mp3Decoder Implementation
 // ============================================================================
-
-bool Mp3Decoder::Load(const std::string& filepath) {
-  // Read file into memory
-  std::ifstream file(filepath, std::ios::binary | std::ios::ate);
-  if (!file) {
-    SPDLOG_ERROR("Failed to open MP3 file: {}", filepath);
-    return false;
-  }
-
-  size_t file_size = file.tellg();
-  file.seekg(0, std::ios::beg);
-
-  std::vector<uint8_t> file_data(file_size);
-  if (!file.read(reinterpret_cast<char*>(file_data.data()), file_size)) {
-    SPDLOG_ERROR("Failed to read MP3 file: {}", filepath);
-    return false;
-  }
-
-  return LoadFromMemory(file_data.data(), file_data.size());
-}
 
 bool Mp3Decoder::LoadFromMemory(const uint8_t* data, size_t size) {
   mp3dec_t mp3d;
@@ -243,31 +209,6 @@ float Mp3Decoder::GetDuration() const {
 // ============================================================================
 // OggDecoder Implementation
 // ============================================================================
-
-bool OggDecoder::Load(const std::string& filepath) {
-  int channels, sample_rate;
-  short* output;
-
-  int samples = stb_vorbis_decode_filename(filepath.c_str(), &channels, &sample_rate, &output);
-  if (samples < 0) {
-    SPDLOG_ERROR("Failed to decode OGG file: {}", filepath);
-    return false;
-  }
-
-  channels_ = channels;
-  sample_rate_ = sample_rate;
-
-  // Convert to bytes
-  size_t pcm_size = samples * channels * sizeof(short);
-  pcm_data_.resize(pcm_size);
-  std::memcpy(pcm_data_.data(), output, pcm_size);
-
-  free(output);
-
-  SPDLOG_DEBUG("Decoded OGG: {}Hz, {} channels, {} samples",
-               sample_rate_, channels_, samples);
-  return true;
-}
 
 bool OggDecoder::LoadFromMemory(const uint8_t* data, size_t size) {
   int channels, sample_rate;
@@ -370,7 +311,14 @@ bool MusicPlayer::Load(const std::string& filepath) {
     return false;
   }
 
-  if (!decoder_->Load(filepath)) {
+  try {
+    const auto asset = ReadMusicAsset(filepath);
+    if (!decoder_->LoadFromMemory(asset.data(), asset.size())) {
+      decoder_.reset();
+      return false;
+    }
+  } catch (const std::exception& error) {
+    SPDLOG_ERROR("Failed to load music '{}': {}", filepath, error.what());
     decoder_.reset();
     return false;
   }

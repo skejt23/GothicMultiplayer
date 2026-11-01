@@ -25,9 +25,9 @@ SOFTWARE.
 
 #pragma once
 
-#include <array>
 #include <cassert>
 #include <cstdint>
+#include <filesystem>
 #include <ostream>
 #include <string>
 #include <stdexcept>
@@ -40,6 +40,7 @@ SOFTWARE.
 class Config {
 public:
   Config();
+  explicit Config(std::filesystem::path config_path);
 
   template <typename T>
   const T& Get(const std::string& key) const {
@@ -65,21 +66,12 @@ public:
   
   void LogConfigValues() const;
 
-  // Binary accessors - for network transmission and crypto operations
-  // Returns raw binary data suitable for sending over network or signing
-  std::vector<std::uint8_t> GetServerPublicKeyBinary() const;
-  std::vector<std::uint8_t> GetServerPrivateKeyBinary() const;
-
 protected:
   void ValidateAndFixValues();
   void Load();
-  void EnsureServerKeys();
+  void EnsureServerIdentitySeed();
   void SaveConfigToFile();
-  void DeriveKeysFromSeed();
 
   std::unordered_map<std::string, std::variant<std::string, std::vector<std::string>, std::int32_t, bool>> values_;
-
-  // Cached binary keys - computed once from seed, reused for all subsequent calls
-  std::vector<std::uint8_t> cached_public_key_;
-  std::vector<std::uint8_t> cached_private_key_;
+  std::filesystem::path config_path_;
 };

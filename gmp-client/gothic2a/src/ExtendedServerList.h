@@ -25,6 +25,11 @@ SOFTWARE.
 
 #pragma once
 
+#include <chrono>
+#include <cstdint>
+#include <string_view>
+#include <vector>
+
 #include "CServerList.h"
 #include "G2W.h"
 #include "ZenGin/zGothicAPI.h"
@@ -38,12 +43,18 @@ public:
   std::string name, map, ip;
   int max_players, num_of_players, port, ping;
   ServerInfo();
-  void updatePing();
 };
 
 struct FavoriteServerEndpoint {
   std::string ip;
   std::uint16_t port;
+};
+
+enum class FavoriteAddResult {
+  Added,
+  AlreadyExists,
+  InvalidEndpoint,
+  SaveFailed,
 };
 
 class ExtendedServerList {
@@ -58,24 +69,30 @@ public:
   void nextTab();
   void prevTab();
   void loadFav(const char* file);
-  void saveFav(const char* file);
+  bool saveFav(const char* file);
   void HandleInput();
   void addSelectedToFav();
+  FavoriteAddResult AddFavorite(std::string_view endpoint);
   bool RefreshList();
   bool getSelectedServer(void* buffer, int size);
   void fillTables();
   void updatePings();
 
-  HANDLE srvList_access;
-
 private:
-  static DWORD WINAPI pingThreadProc(ExtendedServerList* esl);
+  void PollNetworkResults();
+  std::vector<ServerInfo>& GetActiveServerList();
+  const std::vector<ServerInfo>& GetActiveServerList() const;
+  G2W::Table* GetActiveTable();
+  void ClampSelectedServer();
 
   G2W::Button *tab_all, *tab_fav;
   G2W::Table *list_all, *list_fav;
   std::vector<FavoriteServerEndpoint> favorite_servers_;
   std::vector<ServerInfo> srvList;
+  std::vector<ServerInfo> favorite_server_list_;
   int SelectedTab;
   int SelectedServer;
   CServerList& server_list_;
+  std::chrono::steady_clock::time_point next_ping_update_{};
+  bool tables_dirty_{true};
 };

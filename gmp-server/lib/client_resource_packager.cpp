@@ -17,7 +17,7 @@
 namespace {
 namespace fs = std::filesystem;
 
-constexpr const char* kDefaultOutputDir = "public";
+constexpr const char* kDefaultOutputDir = "data/public";
 constexpr std::array<const char*, 2> kPackableSubdirectories = {"client", "shared"};
 
 void EnsureSodiumInitialized() {
@@ -120,6 +120,7 @@ std::vector<ClientResourceDescriptor> ClientResourcePackager::Build(const std::v
     descriptor.archive_size = result.manifest.archive.size;
     descriptor.manifest_path = fs::path(result.manifest_path).filename().string();
     descriptor.manifest_sha256 = ComputeFileSHA256(result.manifest_path);
+    descriptor.manifest_size = fs::file_size(result.manifest_path);
     descriptor.author = resource.metadata->author;
     descriptor.description = resource.metadata->description;
 

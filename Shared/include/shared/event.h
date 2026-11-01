@@ -25,14 +25,26 @@ SOFTWARE.
 
 #pragma once
 
+#include <algorithm>
 #include <any>
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 class EventManager {
 public:
+  using EventHandlerId = std::uint64_t;
+
+  struct EventDispatchResult {
+    bool dispatched = false;
+    bool cancelled = false;
+    std::optional<int> value;
+  };
+
   EventManager() = default;
   ~EventManager() = default;
 
@@ -51,6 +63,9 @@ public:
   // Returns true if the event was triggered, false if it doesn't exist.
   bool TriggerEvent(const std::string& eventName);
 
+  // Dispatches an event and returns detailed information.
+  EventDispatchResult DispatchEvent(const std::string& eventName, const std::any& event);
+
   // Triggers an event with arguments.
   // Returns true if the event was triggered, false if it doesn't exist.
   // Note: Arguments are passed by const reference to ensure all subscribers
@@ -58,29 +73,31 @@ public:
   // once, and each callback receives a reference to that copy.
   template <typename T>
   bool TriggerEvent(const std::string& eventName, const T& event) {
-    if (!EventExists(eventName)) {
-      return false;
-    }
-
-    // Wrap in std::any once, then pass to all callbacks
     std::any wrapped_event = event;
-    for (auto& callback : events_[eventName]) {
-      callback(wrapped_event);
-    }
-
-    return true;
+    return DispatchEvent(eventName, wrapped_event).dispatched;
   }
 
   // Subscribes to an event.
   // Returns true if the subscription was successful, false if the event doesn't exist.
   template <typename T>
   bool SubscribeToEvent(const std::string& eventName, T&& callback) {
+    return SubscribeToEventWithPriority(eventName, std::forward<T>(callback), 9999).has_value();
+  }
+
+  // Subscribes to an event with priority.
+  // Returns handler id on success, std::nullopt if event doesn't exist.
+  template <typename T>
+  std::optional<EventHandlerId> SubscribeToEventWithPriority(const std::string& eventName, T&& callback, int priority) {
     if (!EventExists(eventName)) {
-      return false;
+      return std::nullopt;
     }
 
-    events_[eventName].push_back(callback);
-    return true;
+    auto& handlers = events_[eventName].handlers;
+    EventHandlerId handler_id = next_handler_id_++;
+    handlers.push_back(EventHandler{handler_id, priority, std::forward<T>(callback)});
+    std::stable_sort(handlers.begin(), handlers.end(),
+                     [](const EventHandler& left, const EventHandler& right) { return left.priority < right.priority; });
+    return handler_id;
   }
 
   // Unsubscribes from an event.
@@ -91,10 +108,30 @@ public:
       return false;
     }
 
-    auto& callbacks = events_[eventName];
-    callbacks.erase(std::remove(callbacks.begin(), callbacks.end(), callback), callbacks.end());
+    auto& handlers = events_[eventName].handlers;
+    handlers.erase(std::remove_if(handlers.begin(), handlers.end(),
+                                  [&callback](const EventHandler& handler) { return handler.callback == callback; }),
+                   handlers.end());
     return true;
   }
+
+  // Unsubscribes from an event by handler id.
+  bool UnsubscribeFromEvent(const std::string& eventName, EventHandlerId handler_id);
+
+  // Cancels the currently running event.
+  void CancelCurrentEvent();
+
+  // Sets current event value.
+  void SetCurrentEventValue(int value);
+
+  // Checks if current event is cancelled.
+  bool IsCurrentEventCancelled() const;
+
+  // Returns current event value (if set).
+  std::optional<int> CurrentEventValue() const;
+
+  // Toggles an event on or off.
+  bool ToggleEvent(const std::string& eventName, bool enabled);
 
   // Clears all registered events and listeners.
   void Reset();
@@ -102,5 +139,23 @@ public:
   static EventManager& Instance();
 
 private:
-  std::unordered_map<std::string, std::vector<std::function<void(std::any)>>> events_;
+  struct EventHandler {
+    EventHandlerId id;
+    int priority;
+    std::function<void(std::any)> callback;
+  };
+
+  struct EventState {
+    bool enabled = true;
+    std::vector<EventHandler> handlers;
+  };
+
+  struct EventContext {
+    bool cancelled = false;
+    std::optional<int> value;
+  };
+
+  std::unordered_map<std::string, EventState> events_;
+  std::vector<EventContext> context_stack_;
+  EventHandlerId next_handler_id_ = 1;
 };

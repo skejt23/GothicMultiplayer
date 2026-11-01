@@ -28,16 +28,21 @@ SOFTWARE.
 
 #include "config.h"
 #include "gmp_core.h"
+#include "main_menu.h"
 #include "mcp/mcp_pipe_handler.h"
 #include "patch.h"
 #include "renderer/d3d11/D3D11Renderer.h"
 #include "renderer/d3d11/patches/D3D11Patches.h"
 #include "renderer/d3d9/D3D9Renderer.h"
 #include "renderer/d3d9/patches/D3D9Patches.h"
+#include "scripting/lua_camera.h"
+#include "scripting/lua_label.h"
+#include "scripting/lua_sprite.h"
 
 namespace {
 
 constexpr DWORD kRenderHookAddress = 0x006C86A0;
+constexpr DWORD kFrameInputCallAddress = 0x00425E3A;  // CGameManager::Run -> zCInputCallback::GetInput
 constexpr DWORD kAiMovingHookAddress = 0x0050E750;
 constexpr DWORD kVidIsResolutionValidAddress = 0x0042C140;  // VidIsResolutionValid
 constexpr DWORD kSetFOV2Address = 0x0054A960;               // zCCamera::SetFOV(float, float)
@@ -47,6 +52,13 @@ using AiMovingOriginalFn = void(__thiscall*)(zCAIPlayer*, zCVob*);
 
 RenderOriginalFn g_renderOriginal = nullptr;
 AiMovingOriginalFn g_aiMovingOriginal = nullptr;
+
+void __cdecl OnGameFrameInput() {
+  zCInputCallback::GetInput();
+  // Run deferred session changes after input callbacks have returned and
+  // before CGameManager::Run reads the session used by Render/RenderBlit.
+  GMPCore::Instance().OnFrameStart();
+}
 
 // Original VidIsResolutionValid function pointer
 using VidIsResolutionValidFn = int(__cdecl*)(int x, int y, int bpp);
@@ -69,21 +81,15 @@ static bool UseDx11Renderer() {
 // Hook for VidIsResolutionValid - bypasses hardcoded 1600x1200 limit
 // The original function rejects resolutions above 1600x1200 and enforces aspect ratio limits.
 // We allow any reasonable resolution that the D3D9 adapter can handle.
-static int s_resolutionCheckCount = 0;
 int __cdecl Hook_VidIsResolutionValid(int x, int y, int bpp) {
-  s_resolutionCheckCount++;
-
   // Minimum resolution (Gothic requires at least 640x480)
   if (x < 640 || y < 480) {
-    SPDLOG_INFO("VidIsResolutionValid[{}] REJECTED {}x{} @ {}bpp (too small)", s_resolutionCheckCount, x, y, bpp);
     return 0;
   }
   // Only 32-bit color is supported with D3D9 renderer
   if (bpp != 32) {
-    SPDLOG_INFO("VidIsResolutionValid[{}] REJECTED {}x{} @ {}bpp (not 32bpp)", s_resolutionCheckCount, x, y, bpp);
     return 0;
   }
-  SPDLOG_INFO("VidIsResolutionValid[{}] ACCEPTED {}x{} @ {}bpp", s_resolutionCheckCount, x, y, bpp);
   // Accept the resolution - D3D9 mode enumeration already filters valid modes
   return 1;
 }
@@ -235,7 +241,7 @@ constexpr uintptr_t kOriginalSetFOVAddress = 0x0054A920;
 
 void HooksManager::InitAllPatches() {
   // Check if the SetFOV CALL in the camera constructor has been patched by something.
-  // This is for diagnostic purposes - we log if it's different from the original.
+  // Warn only if it differs from the original.
   {
     BYTE* pCall = reinterpret_cast<BYTE*>(kCameraCtorSetFOVCallAddress);
     if (pCall[0] == 0xE8) {
@@ -244,8 +250,6 @@ void HooksManager::InitAllPatches() {
 
       if (currentTarget != kOriginalSetFOVAddress) {
         SPDLOG_WARN("Camera constructor SetFOV CALL is patched! Target=0x{:08X} (expected 0x{:08X})", currentTarget, kOriginalSetFOVAddress);
-      } else {
-        SPDLOG_DEBUG("Camera constructor SetFOV CALL is original (0x{:08X})", currentTarget);
       }
     }
   }
@@ -255,7 +259,6 @@ void HooksManager::InitAllPatches() {
     // First, patch the allocation size to match our renderer class size
     DWORD newSize = sizeof(zCRnd_D3D_DX9);
     MemoryPatch::WriteMemory(0x00630803, reinterpret_cast<PBYTE>(&newSize), sizeof(DWORD));
-    SPDLOG_DEBUG("Patched renderer allocation size from 0x82E7C to 0x{:X} ({} bytes)", newSize, newSize);
 
     // Replaces the call to zCRnd_D3D constructor in zDieter_StartUp
     MemoryPatch::CallPatch(0x00630824, (DWORD)ConstructDX9Renderer, 0);
@@ -264,7 +267,6 @@ void HooksManager::InitAllPatches() {
     // This allows the D3D9 renderer to use any resolution the adapter supports
     if (auto original = CreateHook(kVidIsResolutionValidAddress, (DWORD)Hook_VidIsResolutionValid)) {
       g_vidIsResolutionValidOriginal = reinterpret_cast<VidIsResolutionValidFn>(*original);
-      SPDLOG_DEBUG("Hooked VidIsResolutionValid to allow higher resolutions");
     } else {
       SPDLOG_ERROR("Failed to hook VidIsResolutionValid at 0x{:08X}", kVidIsResolutionValidAddress);
     }
@@ -275,26 +277,22 @@ void HooksManager::InitAllPatches() {
 
       // Patch in Update_ChoiceBox (builds resolution list for menu)
       MemoryPatch::WriteMemory(0x0042E14F, &jmpShort, 1);
-      SPDLOG_DEBUG("Patched inlined VidIsResolutionValid in Update_ChoiceBox at 0x0042E14F");
 
       // Patch in Apply_Options_Video (loop that finds selected resolution)
       // Original: test eax, eax / jnz short loc_42C5FB (75 36) at 0x42C5C3
       MemoryPatch::WriteMemory(0x0042C5C3, &jmpShort, 1);
-      SPDLOG_DEBUG("Patched inlined VidIsResolutionValid in Apply_Options_Video at 0x0042C5C3");
 
       // Patch in Apply_Options_Video (validation check after loop)
       // Original: test eax, eax / jnz loc_42CA4B (0F 85 CA 03 00 00) at 0x42C67B
       // This is a NEAR jump (6 bytes), change 0F 85 to 90 E9 (NOP + JMP near)
       BYTE jmpNear[2] = {0x90, 0xE9};  // NOP + JMP near (offset stays the same)
       MemoryPatch::WriteMemory(0x0042C67B, jmpNear, 2);
-      SPDLOG_DEBUG("Patched inlined VidIsResolutionValid in Apply_Options_Video at 0x0042C67B");
     }
   } else if (UseDx11Renderer()) {
     // Inject DX11 Renderer
     // First, patch the allocation size to match our renderer class size
     DWORD newSize = sizeof(zCRnd_D3D_DX11);
     MemoryPatch::WriteMemory(0x00630803, reinterpret_cast<PBYTE>(&newSize), sizeof(DWORD));
-    SPDLOG_DEBUG("Patched renderer allocation size from 0x82E7C to 0x{:X} ({} bytes) for D3D11", newSize, newSize);
 
     // Replaces the call to zCRnd_D3D constructor in zDieter_StartUp
     MemoryPatch::CallPatch(0x00630824, (DWORD)ConstructDX11Renderer, 0);
@@ -303,7 +301,6 @@ void HooksManager::InitAllPatches() {
     // This allows the D3D11 renderer to use any resolution the adapter supports
     if (auto original = CreateHook(kVidIsResolutionValidAddress, (DWORD)Hook_VidIsResolutionValid)) {
       g_vidIsResolutionValidOriginal = reinterpret_cast<VidIsResolutionValidFn>(*original);
-      SPDLOG_DEBUG("Hooked VidIsResolutionValid to allow higher resolutions (D3D11)");
     } else {
       SPDLOG_ERROR("Failed to hook VidIsResolutionValid at 0x{:08X}", kVidIsResolutionValidAddress);
     }
@@ -314,16 +311,13 @@ void HooksManager::InitAllPatches() {
 
       // Patch in Update_ChoiceBox (builds resolution list for menu)
       MemoryPatch::WriteMemory(0x0042E14F, &jmpShort, 1);
-      SPDLOG_DEBUG("Patched inlined VidIsResolutionValid in Update_ChoiceBox at 0x0042E14F (D3D11)");
 
       // Patch in Apply_Options_Video (loop that finds selected resolution)
       MemoryPatch::WriteMemory(0x0042C5C3, &jmpShort, 1);
-      SPDLOG_DEBUG("Patched inlined VidIsResolutionValid in Apply_Options_Video at 0x0042C5C3 (D3D11)");
 
       // Patch in Apply_Options_Video (validation check after loop)
       BYTE jmpNear[2] = {0x90, 0xE9};  // NOP + JMP near
       MemoryPatch::WriteMemory(0x0042C67B, jmpNear, 2);
-      SPDLOG_DEBUG("Patched inlined VidIsResolutionValid in Apply_Options_Video at 0x0042C67B (D3D11)");
     }
   }
 
@@ -342,7 +336,6 @@ void HooksManager::InitAllPatches() {
   // =============================================================================
   if (auto original = CreateHook(kSetFOV2Address, (DWORD)Hook_SetFOV2)) {
     g_setFOV2Original = reinterpret_cast<SetFOV2Fn>(*original);
-    SPDLOG_DEBUG("Hooked zCCamera::SetFOV at 0x{:08X} to fix vdfs32g widescreen bug", kSetFOV2Address);
   } else {
     SPDLOG_ERROR("Failed to hook zCCamera::SetFOV at 0x{:08X}", kSetFOV2Address);
   }
@@ -354,6 +347,10 @@ void HooksManager::InitAllPatches() {
   if (UseDx9Renderer()) {
     gmp::renderer::d3d9::InitializeD3D9Patches();
   }
+
+  // Patch only the main loop's call site. Loading screens also call GetInput
+  // and must not execute deferred world/session changes from inside a load.
+  CallPatch(kFrameInputCallAddress, reinterpret_cast<DWORD>(&OnGameFrameInput), 0);
 
   if (auto original = CreateHook(kRenderHookAddress, (DWORD)&HooksManager::OnRender)) {
     g_renderOriginal = reinterpret_cast<RenderOriginalFn>(*original);
@@ -371,19 +368,16 @@ void HooksManager::InitAllPatches() {
 void __fastcall HooksManager::OnRender(oCGame* gameInstance) {
   HooksManager* hm = HooksManager::GetInstance();
 
-  // Process deferred actions at frame start, BEFORE Gothic rendering.
-  // This is the safe point for operations like ChangeLevel that invalidate world state.
-  GMPCore::Instance().OnFrameStart();
+  // Deferred session changes already ran before the caller selected gameInstance.
+  CMainMenu::UpdateMenuScene();
+  gmp::gothic::LuaCamera::ApplyMovementLock();
+  gmp::gothic::LuaLabel::EnsureViewsAttached();
+  gmp::gothic::LuaSprite::EnsureViewsAttached();
 
   if (g_renderOriginal) {
     g_renderOriginal(gameInstance);
   }
-
-  static bool logged = false;
-  if (!logged) {
-    SPDLOG_INFO("HooksManager::OnRender invoked");
-    logged = true;
-  }
+  gmp::gothic::LuaCamera::ApplyMovementLock();
 
   EnterCriticalSection(&hm->RenderCs);
   HooksSet::iterator end = hm->OnRenderHooks.end();
